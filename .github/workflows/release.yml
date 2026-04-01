@@ -1,0 +1,29 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: |
+          xcodebuild -project ClaudeMonitor.xcodeproj \
+                     -scheme ClaudeMonitor \
+                     -configuration Release \
+                     -derivedDataPath build
+
+      - name: Zip
+        run: |
+          cd build/Build/Products/Release
+          zip -r ClaudeMonitor.zip ClaudeMonitor.app
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/Build/Products/Release/ClaudeMonitor.zip
+          generate_release_notes: true
