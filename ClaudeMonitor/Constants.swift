@@ -43,4 +43,15 @@ enum Constants {
     enum Network {
         static let requestTimeout: TimeInterval = 15
     }
+
+    enum Demo {
+        static var activeScenario: Int? {
+            let args = ProcessInfo.processInfo.arguments
+            if args.contains("--demo1") { return 1 }
+            if args.contains("--demo2") { return 2 }
+            if args.contains("--demo3") { return 3 }
+            return nil
+        }
+        static var isActive: Bool { activeScenario != nil }
+    }
 }
