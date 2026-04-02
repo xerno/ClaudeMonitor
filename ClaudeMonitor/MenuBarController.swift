@@ -18,6 +18,7 @@ final class MenuBarController: NSObject, MenuActions {
     private var scheduler = PollingScheduler()
 
     private var hasCredentials: Bool {
+        if Constants.Demo.isActive { return true }
         guard let cookie = KeychainService.load(key: Constants.Keychain.cookieString),
               let orgId = KeychainService.load(key: Constants.Keychain.organizationId),
               !cookie.isEmpty, !orgId.isEmpty else { return false }
@@ -64,6 +65,15 @@ final class MenuBarController: NSObject, MenuActions {
     // MARK: - Data Refresh
 
     private func refreshAll() async {
+        if let scenario = Constants.Demo.activeScenario {
+            let (usage, status) = DemoData.scenario(scenario)
+            currentUsage = usage
+            currentStatus = status
+            usageError = nil
+            statusError = nil
+            applyUIUpdates()
+            return
+        }
         async let statusResult: Void = refreshStatus()
         async let usageResult: Void = refreshUsage()
         _ = await (statusResult, usageResult)
