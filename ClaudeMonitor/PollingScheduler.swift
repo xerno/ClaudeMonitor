@@ -29,11 +29,13 @@ struct PollingScheduler {
 
         if let usage {
             let now = Date()
-            if let nearestReset = [usage.fiveHour?.resetsAt ?? nil, usage.sevenDay?.resetsAt ?? nil, usage.sevenDaySonnet?.resetsAt ?? nil]
-                .compactMap({ $0 })
-                .map({ $0.timeIntervalSince(now) })
-                .filter({ $0 > 0 && $0 < effectivePollingInterval })
-                .min() {
+            let resetDates: [Date] = [usage.fiveHour?.resetsAt, usage.sevenDay?.resetsAt, usage.sevenDaySonnet?.resetsAt]
+                .compactMap { $0 }
+            let nearest = resetDates
+                .map { $0.timeIntervalSince(now) }
+                .filter { $0 > 0 && $0 < effectivePollingInterval }
+                .min()
+            if let nearestReset = nearest {
                 return nearestReset + 1
             }
         }
