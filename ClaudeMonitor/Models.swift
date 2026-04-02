@@ -92,7 +92,7 @@ struct UsageResponse: Decodable, Sendable, Equatable, Hashable {
 
 struct UsageWindow: Decodable, Sendable, Equatable, Hashable {
     let utilization: Int
-    let resetsAt: Date
+    let resetsAt: Date?
 
     enum CodingKeys: String, CodingKey {
         case utilization
@@ -107,6 +107,7 @@ struct MonitorState: Sendable, Equatable {
     let statusError: String?
     let lastRefreshed: Date?
     let hasCredentials: Bool
+    let nextPollDate: Date?
 }
 
 struct ServiceState: Sendable {

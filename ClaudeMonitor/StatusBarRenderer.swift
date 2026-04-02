@@ -1,6 +1,15 @@
 import AppKit
 
 enum StatusBarRenderer {
+    private static let blockedOctagon: NSImage? = {
+        guard let symbol = NSImage(systemSymbolName: "octagon.fill", accessibilityDescription: nil) else { return nil }
+        let config = NSImage.SymbolConfiguration(pointSize: NSFont.systemFontSize, weight: .medium)
+            .applying(.init(paletteColors: [.systemRed]))
+        guard let configured = symbol.withSymbolConfiguration(config) else { return nil }
+        configured.isTemplate = false
+        return configured
+    }()
+
     static func updateIcon(
         button: NSStatusBarButton,
         status: StatusSummary?,
@@ -37,44 +46,61 @@ enum StatusBarRenderer {
         isStale: Bool
     ) {
         let fontSize = NSFont.systemFontSize
+        if !hasCredentials {
+            button.attributedTitle = noCredentialsTitle(fontSize: fontSize)
+            return
+        }
+        guard let usage, !isStale else {
+            button.attributedTitle = loadingTitle(fontSize: fontSize)
+            return
+        }
+        if let blockedUntil = Formatting.blockingLimit(usage) {
+            button.attributedTitle = blockedTitle(blockedUntil: blockedUntil, fontSize: fontSize)
+            return
+        }
+        button.attributedTitle = usageTitle(usage: usage, fontSize: fontSize)
+    }
+
+    private static func noCredentialsTitle(fontSize: CGFloat) -> NSAttributedString {
+        let regularFont = NSFont.monospacedDigitSystemFont(ofSize: fontSize, weight: .regular)
+        return NSAttributedString(string: "-%", attributes: [
+            .foregroundColor: NSColor.secondaryLabelColor, .font: regularFont,
+        ])
+    }
+
+    private static func loadingTitle(fontSize: CGFloat) -> NSAttributedString {
+        let regularFont = NSFont.monospacedDigitSystemFont(ofSize: fontSize, weight: .regular)
+        return NSAttributedString(string: "…", attributes: [
+            .foregroundColor: NSColor.secondaryLabelColor, .font: regularFont,
+        ])
+    }
+
+    private static func blockedTitle(blockedUntil: Date, fontSize: CGFloat) -> NSAttributedString {
+        let regularFont = NSFont.monospacedDigitSystemFont(ofSize: fontSize, weight: .regular)
+        let countdown = Formatting.timeUntil(blockedUntil)
+        let result = NSMutableAttributedString()
+        if let octagon = blockedOctagon {
+            let attachment = NSTextAttachment()
+            attachment.image = octagon
+            result.append(NSAttributedString(attachment: attachment))
+            result.append(NSAttributedString(string: " ", attributes: [.font: regularFont]))
+        }
+        result.append(NSAttributedString(string: countdown, attributes: [
+            .foregroundColor: NSColor.systemRed,
+            .font: regularFont,
+        ]))
+        result.append(NSAttributedString(string: " ", attributes: [.font: regularFont]))
+        return result
+    }
+
+    private static func usageTitle(usage: UsageResponse, fontSize: CGFloat) -> NSAttributedString {
         let regularFont = NSFont.monospacedDigitSystemFont(ofSize: fontSize, weight: .regular)
         let boldFont = NSFont.monospacedDigitSystemFont(ofSize: fontSize, weight: .bold)
-
-        if !hasCredentials {
-            button.attributedTitle = NSAttributedString(string: "-%", attributes: [
-                .foregroundColor: NSColor.secondaryLabelColor, .font: regularFont,
-            ])
-            return
-        }
-
-        guard let usage, !isStale else {
-            button.attributedTitle = NSAttributedString(string: "…", attributes: [
-                .foregroundColor: NSColor.secondaryLabelColor, .font: regularFont,
-            ])
-            return
-        }
-
         let parts = NSMutableAttributedString()
 
-        func appendWindow(_ window: UsageWindow, duration: TimeInterval) {
-            if parts.length > 0 {
-                parts.append(NSAttributedString(string: " | ", attributes: [
-                    .foregroundColor: NSColor.secondaryLabelColor, .font: regularFont,
-                ]))
-            }
-            let style = Formatting.usageStyle(
-                utilization: window.utilization,
-                resetsAt: window.resetsAt,
-                windowDuration: duration
-            )
-            parts.append(NSAttributedString(string: "\(window.utilization)%", attributes: [
-                .foregroundColor: style.color,
-                .font: style.isBold ? boldFont : regularFont,
-            ]))
-        }
-
         if let w = usage.fiveHour {
-            appendWindow(w, duration: Constants.UsageWindows.fiveHourDuration)
+            appendWindow(w, duration: Constants.UsageWindows.fiveHourDuration,
+                         into: parts, regularFont: regularFont, boldFont: boldFont)
         }
 
         let showSevenDay = usage.sevenDay.map {
@@ -89,13 +115,38 @@ enum StatusBarRenderer {
         } ?? false
 
         if showSevenDay || showSonnet, let w = usage.sevenDay {
-            appendWindow(w, duration: Constants.UsageWindows.sevenDayDuration)
+            appendWindow(w, duration: Constants.UsageWindows.sevenDayDuration,
+                         into: parts, regularFont: regularFont, boldFont: boldFont)
         }
         if showSonnet, let w = usage.sevenDaySonnet {
-            appendWindow(w, duration: Constants.UsageWindows.sevenDayDuration)
+            appendWindow(w, duration: Constants.UsageWindows.sevenDayDuration,
+                         into: parts, regularFont: regularFont, boldFont: boldFont)
         }
 
-        button.attributedTitle = parts.length > 0 ? parts : NSAttributedString()
+        return parts.length > 0 ? parts : NSAttributedString()
+    }
+
+    private static func appendWindow(
+        _ window: UsageWindow,
+        duration: TimeInterval,
+        into parts: NSMutableAttributedString,
+        regularFont: NSFont,
+        boldFont: NSFont
+    ) {
+        if parts.length > 0 {
+            parts.append(NSAttributedString(string: " | ", attributes: [
+                .foregroundColor: NSColor.secondaryLabelColor, .font: regularFont,
+            ]))
+        }
+        let style = Formatting.usageStyle(
+            utilization: window.utilization,
+            resetsAt: window.resetsAt,
+            windowDuration: duration
+        )
+        parts.append(NSAttributedString(string: "\(window.utilization)%", attributes: [
+            .foregroundColor: style.color,
+            .font: style.isBold ? boldFont : regularFont,
+        ]))
     }
 
     static func makeImage(symbolName: String, color: NSColor) -> NSImage? {

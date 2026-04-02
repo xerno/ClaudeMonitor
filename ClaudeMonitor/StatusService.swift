@@ -1,6 +1,10 @@
 import Foundation
 
-struct StatusService: Sendable {
+protocol StatusFetching: Sendable {
+    func fetch() async throws -> StatusSummary
+}
+
+struct StatusService: StatusFetching, Sendable {
     func fetch() async throws -> StatusSummary {
         var request = URLRequest(url: Constants.API.statusURL)
         request.timeoutInterval = Constants.Network.requestTimeout

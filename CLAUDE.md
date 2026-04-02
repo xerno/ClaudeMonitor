@@ -24,7 +24,8 @@ Xcode 26 project uses `PBXFileSystemSynchronizedRootGroup` — new `.swift` file
 ```
 ClaudeMonitor/
 ├── AppDelegate.swift                 — @main entry point, lifecycle, editing shortcuts
-├── MenuBarController.swift           — status bar item, async polling, icon/text updates
+├── DataCoordinator.swift             — data fetching orchestration, polling, state management
+├── MenuBarController.swift           — status bar item, countdown timer, UI coordination
 ├── MenuBuilder.swift                 — MenuActions protocol + stateless NSMenu construction
 ├── Formatting.swift                  — timeUntil(), progressBar(), usageStyle(), buildTooltip()
 ├── Models.swift                      — StatusSummary, UsageResponse, MonitorState, etc.
@@ -47,7 +48,8 @@ Key patterns:
 - **MonitorState** — shared value type used by `Formatting.buildTooltip()` and `MenuBuilder.build()`, eliminating parameter duplication.
 - **CredentialFormView** — reusable NSView encapsulating credential fields, UUID validation, and keychain save logic. Used by both Setup and Preferences windows.
 - **WindowManager** — centralized activation policy management for `.accessory` ↔ `.regular` transitions.
-- **Async polling** — `MenuBarController` uses `Task` + `Task.sleep(for:)` instead of `Timer`, with dynamic retry intervals via `nextStatusInterval()`.
+- **DataCoordinator** — owns services, state, and polling lifecycle. Notifies `MenuBarController` via `onUpdate` callback. Pure data orchestration with no UI dependencies.
+- **Async polling** — `DataCoordinator` uses `Task` + `Task.sleep(for:)` instead of `Timer`, with dynamic retry intervals via `PollingScheduler`.
 - **Formatting** — pure functions, testable in isolation. `usageStyle()` is the core UX logic.
 - **Sendable conformance** — all models conform to `Sendable` for strict concurrency safety. `ComponentStatus` is `Comparable` for natural severity ordering.
 
@@ -90,11 +92,12 @@ Authentication: user provides session cookie string and organization ID via Pref
 ## Tests
 
 Unit tests in `ClaudeMonitorTests/`:
+- **DataCoordinatorTests** — success/failure paths, auth failure, credential handling, scheduler integration, onUpdate callback, mixed service results (uses mock services via `StatusFetching`/`UsageFetching` protocols)
 - **FormattingTests** — `timeUntil`, `progressBar`, `usageStyle` (dual-rule thresholds, edge cases), `buildTooltip` (all state permutations)
 - **ModelsTests** — JSON decoding, `ComponentStatus` severity/`Comparable` ordering, `Equatable` conformance, fractional-seconds fallback
 - **MenuBuilderTests** — menu structure, section content, incident links, sorted components, controls
 
-All formatting, model, and menu-building logic is tested. Services and UI are not unit-tested (they hit real APIs / AppKit).
+All formatting, model, data coordination, and menu-building logic is tested. Services and UI are not unit-tested (they hit real APIs / AppKit).
 
 ## Token-Efficient Workflow
 

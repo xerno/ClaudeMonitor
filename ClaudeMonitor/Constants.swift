@@ -23,9 +23,12 @@ enum Constants {
 
     enum Polling {
         static let baseInterval: TimeInterval = 60
-        static let minInterval: TimeInterval = 30
+        static let minInterval: TimeInterval = 24
         static let maxInterval: TimeInterval = 600
         static let criticalFloor: TimeInterval = 120
+        static let speedupFactor: Double = 0.8
+        static let cooldownCycles: Int = 3
+        static let highUtilizationThreshold: Int = 90
     }
 
     enum UsageWindows {
@@ -45,13 +48,8 @@ enum Constants {
     }
 
     enum Demo {
-        static var activeScenario: Int? {
-            let args = ProcessInfo.processInfo.arguments
-            if args.contains("--demo1") { return 1 }
-            if args.contains("--demo2") { return 2 }
-            if args.contains("--demo3") { return 3 }
-            return nil
-        }
-        static var isActive: Bool { activeScenario != nil }
+        static let isActive: Bool = ProcessInfo.processInfo.arguments.contains("--demo")
+        static let rotationOrder: [Int] = [3, 2, 1, 4]
+        static let rotationInterval: TimeInterval = 5
     }
 }

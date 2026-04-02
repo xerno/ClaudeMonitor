@@ -4,7 +4,8 @@ struct PollingScheduler {
     private(set) var statusState = ServiceState()
     private(set) var usageState = ServiceState()
     private var effectivePollingInterval: TimeInterval = Constants.Polling.baseInterval
-    private var previousFiveHourUtil: Int?
+    private var previousMaxUtil: Int?
+    private var consecutiveNoChange: Int = 0
 
     var hasRefreshWarning: Bool {
         statusState.consecutiveFailures >= Constants.Retry.failureThreshold
@@ -28,7 +29,7 @@ struct PollingScheduler {
 
         if let usage {
             let now = Date()
-            if let nearestReset = [usage.fiveHour?.resetsAt, usage.sevenDay?.resetsAt, usage.sevenDaySonnet?.resetsAt]
+            if let nearestReset = [usage.fiveHour?.resetsAt ?? nil, usage.sevenDay?.resetsAt ?? nil, usage.sevenDaySonnet?.resetsAt ?? nil]
                 .compactMap({ $0 })
                 .map({ $0.timeIntervalSince(now) })
                 .filter({ $0 > 0 && $0 < effectivePollingInterval })
@@ -41,32 +42,45 @@ struct PollingScheduler {
     }
 
     mutating func adjustPollingRate(usage: UsageResponse?, isCritical: Bool) {
-        let currentUtil = usage?.fiveHour?.utilization
-        defer { previousFiveHourUtil = currentUtil }
+        let utils = [usage?.fiveHour?.utilization, usage?.sevenDay?.utilization, usage?.sevenDaySonnet?.utilization]
+            .compactMap { $0 }
+        let currentUtil = utils.max()
+        defer { previousMaxUtil = currentUtil }
 
-        guard let current = currentUtil, let previous = previousFiveHourUtil else {
+        guard let current = currentUtil, let previous = previousMaxUtil else {
             effectivePollingInterval = Constants.Polling.baseInterval
+            consecutiveNoChange = 0
             return
         }
 
         let delta = current - previous
 
-        if delta > 0 {
-            effectivePollingInterval = max(
-                effectivePollingInterval * 0.7, Constants.Polling.minInterval
-            )
-        } else if delta < -10 {
-            effectivePollingInterval = Constants.Polling.baseInterval
+        if delta != 0 {
+            consecutiveNoChange = 0
+            if effectivePollingInterval > Constants.Polling.baseInterval {
+                effectivePollingInterval = Constants.Polling.baseInterval
+            } else if delta > 0 {
+                effectivePollingInterval = max(
+                    floor(effectivePollingInterval * Constants.Polling.speedupFactor),
+                    Constants.Polling.minInterval
+                )
+            }
         } else {
-            effectivePollingInterval = min(
-                effectivePollingInterval * 1.3, Constants.Polling.maxInterval
-            )
+            consecutiveNoChange += 1
+            if consecutiveNoChange >= Constants.Polling.cooldownCycles {
+                let slower = ceil(effectivePollingInterval / Constants.Polling.speedupFactor)
+                if effectivePollingInterval < Constants.Polling.baseInterval && slower >= Constants.Polling.baseInterval {
+                    effectivePollingInterval = Constants.Polling.baseInterval
+                    consecutiveNoChange = 0
+                } else {
+                    effectivePollingInterval = min(slower, Constants.Polling.maxInterval)
+                }
+            }
         }
 
-        if isCritical {
-            effectivePollingInterval = max(
-                effectivePollingInterval, Constants.Polling.criticalFloor
-            )
+        let isHighUtil = currentUtil.map { $0 >= Constants.Polling.highUtilizationThreshold } ?? false
+        if isCritical || isHighUtil {
+            effectivePollingInterval = min(effectivePollingInterval, Constants.Polling.criticalFloor)
         }
     }
 
@@ -90,7 +104,8 @@ struct PollingScheduler {
         statusState = ServiceState()
         usageState = ServiceState()
         effectivePollingInterval = Constants.Polling.baseInterval
-        previousFiveHourUtil = nil
+        previousMaxUtil = nil
+        consecutiveNoChange = 0
     }
 
     // MARK: - Private

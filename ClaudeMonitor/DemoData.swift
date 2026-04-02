@@ -6,6 +6,7 @@ enum DemoData {
         case 1: return scenario1()
         case 2: return scenario2()
         case 3: return scenario3()
+        case 4: return scenario4()
         default: return scenario1()
         }
     }
@@ -69,6 +70,26 @@ enum DemoData {
                 ),
             ],
             status: PageStatus(indicator: "minor", description: "Minor Service Disruption")
+        )
+        return (usage, status)
+    }
+
+    // Scenario 4: 5h window exhausted (100%) → countdown in menu bar, small 7d + Sonnet values
+    private static func scenario4() -> (UsageResponse, StatusSummary) {
+        let usage = UsageResponse(
+            fiveHour: UsageWindow(utilization: 100, resetsAt: Date().addingTimeInterval(2.25 * 3600)),
+            sevenDay: UsageWindow(utilization: 38, resetsAt: Date().addingTimeInterval(3.5 * 86400)),
+            sevenDaySonnet: UsageWindow(utilization: 22, resetsAt: Date().addingTimeInterval(3.5 * 86400))
+        )
+        let status = StatusSummary(
+            components: [
+                StatusComponent(id: "1", name: "API", status: .operational),
+                StatusComponent(id: "2", name: "Claude.ai Web", status: .operational),
+                StatusComponent(id: "3", name: "claude.ai on iOS", status: .operational),
+                StatusComponent(id: "4", name: "API Cloudflare Worker", status: .operational),
+            ],
+            incidents: [],
+            status: PageStatus(indicator: "none", description: "All Systems Operational")
         )
         return (usage, status)
     }

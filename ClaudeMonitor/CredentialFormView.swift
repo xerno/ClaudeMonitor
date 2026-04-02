@@ -101,6 +101,10 @@ final class CredentialFormView: NSView {
             addSubview(view)
         }
 
+        activateConstraints(orgInstructions: orgInstructions, orgIdLabel: orgIdLabel, cookieInstructions: cookieInstructions, cookieLabel: cookieLabel)
+    }
+
+    private func activateConstraints(orgInstructions: NSView, orgIdLabel: NSView, cookieInstructions: NSView, cookieLabel: NSView) {
         NSLayoutConstraint.activate([
             orgInstructions.leadingAnchor.constraint(equalTo: leadingAnchor),
             orgInstructions.trailingAnchor.constraint(equalTo: trailingAnchor),
