@@ -1,0 +1,136 @@
+import Foundation
+
+@MainActor
+final class DataCoordinator {
+    private let statusService: any StatusFetching
+    private let usageService: any UsageFetching
+    private let loadCredential: @Sendable (String) -> String?
+    private var pollTask: Task<Void, Never>?
+    private var demoRotationIndex = 0
+
+    private(set) var currentStatus: StatusSummary?
+    private(set) var currentUsage: UsageResponse?
+    private(set) var usageError: String?
+    private(set) var statusError: String?
+    private(set) var lastRefreshed: Date?
+    private(set) var nextPollDate: Date?
+    private(set) var scheduler = PollingScheduler()
+
+    var onUpdate: (() -> Void)?
+
+    init(
+        statusService: any StatusFetching = StatusService(),
+        usageService: any UsageFetching = UsageService(),
+        loadCredential: @escaping @Sendable (String) -> String? = { KeychainService.load(key: $0) }
+    ) {
+        self.statusService = statusService
+        self.usageService = usageService
+        self.loadCredential = loadCredential
+    }
+
+    var hasCredentials: Bool {
+        if Constants.Demo.isActive { return true }
+        guard let cookie = loadCredential(Constants.Keychain.cookieString),
+              let orgId = loadCredential(Constants.Keychain.organizationId),
+              !cookie.isEmpty, !orgId.isEmpty else { return false }
+        return true
+    }
+
+    var monitorState: MonitorState {
+        MonitorState(
+            currentUsage: scheduler.isUsageStale ? nil : currentUsage,
+            currentStatus: currentStatus,
+            usageError: usageError,
+            statusError: statusError,
+            lastRefreshed: lastRefreshed,
+            hasCredentials: hasCredentials,
+            nextPollDate: nextPollDate
+        )
+    }
+
+    func startPolling() {
+        pollTask = Task {
+            while !Task.isCancelled {
+                await refresh()
+                guard !Task.isCancelled else { break }
+                let delay = nextPollDate.map { $0.timeIntervalSinceNow } ?? Constants.Polling.baseInterval
+                if delay > 0 {
+                    try? await Task.sleep(for: .seconds(delay))
+                }
+            }
+        }
+    }
+
+    func restartPolling() {
+        pollTask?.cancel()
+        scheduler.reset()
+        startPolling()
+    }
+
+    func refresh() async {
+        if Constants.Demo.isActive {
+            let scenario = Constants.Demo.rotationOrder[demoRotationIndex]
+            demoRotationIndex = (demoRotationIndex + 1) % Constants.Demo.rotationOrder.count
+            let (usage, status) = DemoData.scenario(scenario)
+            currentUsage = usage
+            currentStatus = status
+            usageError = nil
+            statusError = nil
+            lastRefreshed = Date()
+            nextPollDate = Date().addingTimeInterval(Constants.Demo.rotationInterval)
+            onUpdate?()
+            return
+        }
+        async let statusResult: Void = refreshStatus()
+        async let usageResult: Void = refreshUsage()
+        _ = await (statusResult, usageResult)
+        guard !Task.isCancelled else { return }
+        let isCritical = currentUsage.map(Formatting.hasAnyCriticalWindow) ?? false
+        scheduler.adjustPollingRate(usage: currentUsage, isCritical: isCritical)
+        lastRefreshed = Date()
+        nextPollDate = Date().addingTimeInterval(scheduler.nextPollInterval(usage: currentUsage))
+        onUpdate?()
+    }
+
+    // MARK: - Private
+
+    private func refreshStatus() async {
+        guard !Task.isCancelled else { return }
+        do {
+            currentStatus = try await statusService.fetch()
+            statusError = nil
+            scheduler.recordStatusSuccess()
+        } catch {
+            if Task.isCancelled { return }
+            scheduler.recordStatusFailure(category: RetryCategory(classifying: error))
+            if scheduler.statusState.consecutiveFailures >= Constants.Retry.failureThreshold {
+                statusError = error.localizedDescription
+            }
+        }
+    }
+
+    private func refreshUsage() async {
+        guard !Task.isCancelled else { return }
+        guard let cookie = loadCredential(Constants.Keychain.cookieString),
+              let orgId = loadCredential(Constants.Keychain.organizationId),
+              !cookie.isEmpty, !orgId.isEmpty else {
+            usageError = "Configure credentials in Preferences"
+            return
+        }
+        do {
+            currentUsage = try await usageService.fetch(organizationId: orgId, cookieString: cookie)
+            usageError = nil
+            scheduler.recordUsageSuccess()
+        } catch {
+            if Task.isCancelled { return }
+            let category = RetryCategory(classifying: error)
+            scheduler.recordUsageFailure(category: category)
+            if scheduler.usageState.consecutiveFailures >= Constants.Retry.failureThreshold {
+                usageError = error.localizedDescription
+            }
+            if category == .authFailure {
+                currentUsage = nil
+            }
+        }
+    }
+}

@@ -3,12 +3,79 @@ import AppKit
 enum Formatting {
     static func timeUntil(_ date: Date, now: Date = Date()) -> String {
         let diff = max(date.timeIntervalSince(now), 0)
-        let totalMinutes = Int(diff / 60)
+        let totalSeconds = Int(diff)
+
+        if totalSeconds < 60 {
+            return "\(totalSeconds)s"
+        }
+        let totalMinutes = totalSeconds / 60
+        let seconds = totalSeconds % 60
+        if totalMinutes < 2 {
+            return "\(totalMinutes)m \(seconds)s"
+        }
+        if totalMinutes < 60 {
+            return "\(totalMinutes)m"
+        }
         let hours = totalMinutes / 60
         let minutes = totalMinutes % 60
-        if hours >= 24 { return "in \(hours / 24)d \(hours % 24)h" }
-        if hours > 0 { return "in \(hours)h \(minutes)m" }
-        return "in \(minutes)m"
+        if hours < 25 {
+            return "\(hours)h \(minutes)m"
+        }
+        let days = hours / 24
+        let remainingHours = hours % 24
+        return "\(days)d \(remainingHours)h"
+    }
+
+    static func blockingLimit(_ usage: UsageResponse?) -> Date? {
+        guard let usage else { return nil }
+        let windows: [UsageWindow?] = [usage.fiveHour, usage.sevenDay, usage.sevenDaySonnet]
+        let blockedResets = windows.compactMap { w -> Date? in
+            guard let w, w.utilization >= 100, let resetsAt = w.resetsAt else { return nil }
+            return resetsAt
+        }
+        return blockedResets.max()
+    }
+
+    static func nextTickTarget(resetTimes: [Date], now: Date) -> Date? {
+        resetTimes.compactMap { nextTickTargetSingle(resetTime: $0, now: now) }.min()
+    }
+
+    static func nextTickTargetSingle(resetTime: Date, now: Date) -> Date? {
+        let remaining = resetTime.timeIntervalSince(now)
+        guard remaining > 0 else { return nil }
+
+        let totalSeconds = Int(remaining)
+        guard totalSeconds > 0 else { return nil }
+
+        let totalMinutes = totalSeconds / 60
+        let totalHours = totalMinutes / 60
+
+        let intervalStart: TimeInterval
+        let intervalSize: TimeInterval
+
+        if totalHours >= 25 {
+            intervalStart = TimeInterval(totalHours) * 3600
+            intervalSize = 3600
+        } else if totalMinutes >= 2 {
+            intervalStart = TimeInterval(totalMinutes) * 60
+            intervalSize = 60
+        } else {
+            intervalStart = TimeInterval(totalSeconds)
+            intervalSize = 1
+        }
+
+        var nextCenter = intervalStart - intervalSize / 2
+
+        if intervalSize == 3600 && nextCenter < 90000 {
+            nextCenter = 90000 - 30
+        } else if intervalSize == 60 && nextCenter < 120 {
+            nextCenter = 120 - 0.5
+        }
+
+        guard nextCenter > 0 else {
+            return resetTime.addingTimeInterval(-0.5)
+        }
+        return resetTime.addingTimeInterval(-nextCenter)
     }
 
     static func progressBar(percent: Int, width: Int = 10) -> String {
@@ -24,10 +91,21 @@ enum Formatting {
 
     static func usageStyle(
         utilization: Int,
-        resetsAt: Date,
+        resetsAt: Date?,
         windowDuration: TimeInterval,
         now: Date = Date()
     ) -> UsageStyle {
+        guard let resetsAt else {
+            let isRed = utilization >= 80
+            let isOrange = utilization >= 70
+            let isBold = utilization >= 50
+            let color: NSColor
+            if isRed { color = .systemRed }
+            else if isOrange { color = .systemOrange }
+            else { color = .labelColor }
+            return UsageStyle(color: color, isBold: isBold)
+        }
+
         let timeRemaining = max(resetsAt.timeIntervalSince(now), 0)
         let timeElapsedPercent = (1 - timeRemaining / windowDuration) * 100
 
@@ -45,10 +123,11 @@ enum Formatting {
 
     static func shouldShowInMenuBar(
         utilization: Int,
-        resetsAt: Date,
+        resetsAt: Date?,
         windowDuration: TimeInterval,
         now: Date = Date()
     ) -> Bool {
+        guard let resetsAt else { return false }
         let timeRemaining = max(resetsAt.timeIntervalSince(now), 0)
         let timeElapsedPercent = (1 - timeRemaining / windowDuration) * 100
         let hasFormatting = usageStyle(
@@ -80,13 +159,25 @@ enum Formatting {
             usageLines.append("⚠ Usage: \(error)")
         } else if let usage = state.currentUsage {
             if let w = usage.fiveHour {
-                usageLines.append("5h window: \(w.utilization)% (resets \(timeUntil(w.resetsAt)))")
+                if let resetsAt = w.resetsAt {
+                    usageLines.append("5h window: \(w.utilization)% (resets in \(timeUntil(resetsAt)))")
+                } else {
+                    usageLines.append("5h window: \(w.utilization)%")
+                }
             }
             if let w = usage.sevenDay {
-                usageLines.append("7d window: \(w.utilization)% (resets \(timeUntil(w.resetsAt)))")
+                if let resetsAt = w.resetsAt {
+                    usageLines.append("7d window: \(w.utilization)% (resets in \(timeUntil(resetsAt)))")
+                } else {
+                    usageLines.append("7d window: \(w.utilization)%")
+                }
             }
             if let w = usage.sevenDaySonnet {
-                usageLines.append("7d Sonnet: \(w.utilization)% (resets \(timeUntil(w.resetsAt)))")
+                if let resetsAt = w.resetsAt {
+                    usageLines.append("7d Sonnet: \(w.utilization)% (resets in \(timeUntil(resetsAt)))")
+                } else {
+                    usageLines.append("7d Sonnet: \(w.utilization)%")
+                }
             }
         } else {
             usageLines.append("Usage: loading…")

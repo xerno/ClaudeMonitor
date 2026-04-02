@@ -1,6 +1,10 @@
 import Foundation
 
-struct UsageService: Sendable {
+protocol UsageFetching: Sendable {
+    func fetch(organizationId: String, cookieString: String) async throws -> UsageResponse
+}
+
+struct UsageService: UsageFetching, Sendable {
     func fetch(organizationId: String, cookieString: String) async throws -> UsageResponse {
         guard let url = Constants.API.usageURL(organizationId: organizationId) else {
             throw URLError(.badURL)

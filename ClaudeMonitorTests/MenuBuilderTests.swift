@@ -22,7 +22,8 @@ final class MenuBuilderTests: XCTestCase {
         let state = MonitorState(
             currentUsage: nil, currentStatus: nil,
             usageError: nil, statusError: nil,
-            lastRefreshed: nil, hasCredentials: false
+            lastRefreshed: nil, hasCredentials: false,
+            nextPollDate: nil
         )
         let items = menuItems(for: state)
         XCTAssertTrue(items.contains { $0.title.contains("Configure credentials") })
@@ -32,7 +33,8 @@ final class MenuBuilderTests: XCTestCase {
         let state = MonitorState(
             currentUsage: nil, currentStatus: nil,
             usageError: "Session expired", statusError: nil,
-            lastRefreshed: nil, hasCredentials: true
+            lastRefreshed: nil, hasCredentials: true,
+            nextPollDate: nil
         )
         let items = menuItems(for: state)
         XCTAssertTrue(items.contains { $0.title.contains("Session expired") })
@@ -48,7 +50,8 @@ final class MenuBuilderTests: XCTestCase {
         let state = MonitorState(
             currentUsage: usage, currentStatus: nil,
             usageError: nil, statusError: nil,
-            lastRefreshed: nil, hasCredentials: true
+            lastRefreshed: nil, hasCredentials: true,
+            nextPollDate: nil
         )
         let items = menuItems(for: state)
         XCTAssertTrue(items.contains { $0.title.contains("5h window") && $0.title.contains("42%") })
@@ -69,7 +72,8 @@ final class MenuBuilderTests: XCTestCase {
         let state = MonitorState(
             currentUsage: nil, currentStatus: status,
             usageError: nil, statusError: nil,
-            lastRefreshed: nil, hasCredentials: false
+            lastRefreshed: nil, hasCredentials: false,
+            nextPollDate: nil
         )
         let items = menuItems(for: state)
         let serviceItems = items.filter { $0.title.contains("Operational") }
@@ -89,7 +93,8 @@ final class MenuBuilderTests: XCTestCase {
         let state = MonitorState(
             currentUsage: nil, currentStatus: status,
             usageError: nil, statusError: nil,
-            lastRefreshed: nil, hasCredentials: false
+            lastRefreshed: nil, hasCredentials: false,
+            nextPollDate: nil
         )
         let items = menuItems(for: state)
         let incidentItems = items.filter { $0.title.contains("API down") }
@@ -107,7 +112,8 @@ final class MenuBuilderTests: XCTestCase {
         let state = MonitorState(
             currentUsage: nil, currentStatus: status,
             usageError: nil, statusError: nil,
-            lastRefreshed: nil, hasCredentials: false
+            lastRefreshed: nil, hasCredentials: false,
+            nextPollDate: nil
         )
         let items = menuItems(for: state)
         XCTAssertFalse(items.contains { $0.title.contains("Active Incidents") })
@@ -119,12 +125,13 @@ final class MenuBuilderTests: XCTestCase {
         let state = MonitorState(
             currentUsage: nil, currentStatus: nil,
             usageError: nil, statusError: nil,
-            lastRefreshed: Date(), hasCredentials: false
+            lastRefreshed: Date(), hasCredentials: false,
+            nextPollDate: nil
         )
         let items = menuItems(for: state)
         XCTAssertTrue(items.contains { $0.title == "Refresh Now" })
-        XCTAssertTrue(items.contains { $0.title == "Preferences…" })
-        XCTAssertTrue(items.contains { $0.title == "About Claude Monitor" })
+        XCTAssertTrue(items.contains { $0.title == "Preferences" })
+        XCTAssertTrue(items.contains { $0.title == "About" })
         XCTAssertTrue(items.contains { $0.title == "Quit" })
     }
 
@@ -132,9 +139,22 @@ final class MenuBuilderTests: XCTestCase {
         let state = MonitorState(
             currentUsage: nil, currentStatus: nil,
             usageError: nil, statusError: nil,
-            lastRefreshed: Date(), hasCredentials: false
+            lastRefreshed: Date(), hasCredentials: false,
+            nextPollDate: nil
         )
         let items = menuItems(for: state)
         XCTAssertTrue(items.contains { $0.title.starts(with: "Updated:") })
+    }
+
+    func testLastRefreshedWithNextPollDate() {
+        let now = Date()
+        let state = MonitorState(
+            currentUsage: nil, currentStatus: nil,
+            usageError: nil, statusError: nil,
+            lastRefreshed: now, hasCredentials: false,
+            nextPollDate: now.addingTimeInterval(60)
+        )
+        let items = menuItems(for: state)
+        XCTAssertTrue(items.contains { $0.title.starts(with: "Updated:") && $0.title.contains("Next:") })
     }
 }

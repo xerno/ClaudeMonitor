@@ -3,48 +3,26 @@ import AppKit
 @MainActor
 final class MenuBarController: NSObject, MenuActions {
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-    private let statusService = StatusService()
-    private let usageService = UsageService()
+    private let coordinator = DataCoordinator()
     private var preferencesController: PreferencesWindowController?
     private var setupController: SetupWindowController?
     private var aboutController: AboutWindowController?
-
-    private var currentStatus: StatusSummary?
-    private var currentUsage: UsageResponse?
-    private var usageError: String?
-    private var statusError: String?
-    private var lastRefreshed: Date?
-    private var pollTask: Task<Void, Never>?
-    private var scheduler = PollingScheduler()
-
-    private var hasCredentials: Bool {
-        if Constants.Demo.isActive { return true }
-        guard let cookie = KeychainService.load(key: Constants.Keychain.cookieString),
-              let orgId = KeychainService.load(key: Constants.Keychain.organizationId),
-              !cookie.isEmpty, !orgId.isEmpty else { return false }
-        return true
-    }
+    private var countdownTask: Task<Void, Never>?
+    private var isMenuOpen = false
 
     override init() {
         super.init()
+        coordinator.onUpdate = { [weak self] in self?.applyUIUpdates() }
         configureStatusItem()
-        startPolling()
-        if !hasCredentials {
+        coordinator.startPolling()
+        NSWorkspace.shared.notificationCenter.addObserver(
+            self, selector: #selector(systemDidWake),
+            name: NSWorkspace.didWakeNotification, object: nil
+        )
+        if !coordinator.hasCredentials {
             Task {
                 try? await Task.sleep(for: .milliseconds(300))
                 showSetup()
-            }
-        }
-    }
-
-    // MARK: - Polling
-
-    private func startPolling() {
-        pollTask = Task {
-            while !Task.isCancelled {
-                await refreshAll()
-                guard !Task.isCancelled else { break }
-                try? await Task.sleep(for: .seconds(scheduler.nextPollInterval(usage: currentUsage)))
             }
         }
     }
@@ -56,113 +34,131 @@ final class MenuBarController: NSObject, MenuActions {
         button.imagePosition = .imageTrailing
         button.image = StatusBarRenderer.makeImage(symbolName: "circle.fill", color: .systemGray)
         StatusBarRenderer.updateText(
-            button: button, usage: currentUsage, hasCredentials: hasCredentials,
-            isStale: scheduler.isUsageStale
+            button: button, usage: coordinator.currentUsage,
+            hasCredentials: coordinator.hasCredentials,
+            isStale: coordinator.scheduler.isUsageStale
         )
+        let menu = NSMenu()
+        menu.delegate = self
+        statusItem.menu = menu
         rebuildMenu()
-    }
-
-    // MARK: - Data Refresh
-
-    private func refreshAll() async {
-        if let scenario = Constants.Demo.activeScenario {
-            let (usage, status) = DemoData.scenario(scenario)
-            currentUsage = usage
-            currentStatus = status
-            usageError = nil
-            statusError = nil
-            applyUIUpdates()
-            return
-        }
-        async let statusResult: Void = refreshStatus()
-        async let usageResult: Void = refreshUsage()
-        _ = await (statusResult, usageResult)
-        guard !Task.isCancelled else { return }
-        let isCritical = currentUsage.map(Formatting.hasAnyCriticalWindow) ?? false
-        scheduler.adjustPollingRate(usage: currentUsage, isCritical: isCritical)
-        applyUIUpdates()
-    }
-
-    private func refreshStatus() async {
-        guard !Task.isCancelled else { return }
-        do {
-            currentStatus = try await statusService.fetch()
-            statusError = nil
-            scheduler.recordStatusSuccess()
-        } catch {
-            if Task.isCancelled { return }
-            scheduler.recordStatusFailure(category: RetryCategory(classifying: error))
-            if scheduler.statusState.consecutiveFailures >= Constants.Retry.failureThreshold {
-                statusError = error.localizedDescription
-            }
-        }
-    }
-
-    private func refreshUsage() async {
-        guard !Task.isCancelled else { return }
-        guard let cookie = KeychainService.load(key: Constants.Keychain.cookieString),
-              let orgId = KeychainService.load(key: Constants.Keychain.organizationId),
-              !cookie.isEmpty, !orgId.isEmpty else {
-            usageError = "Configure credentials in Preferences"
-            return
-        }
-        do {
-            currentUsage = try await usageService.fetch(organizationId: orgId, cookieString: cookie)
-            usageError = nil
-            scheduler.recordUsageSuccess()
-        } catch {
-            if Task.isCancelled { return }
-            let category = RetryCategory(classifying: error)
-            scheduler.recordUsageFailure(category: category)
-            if scheduler.usageState.consecutiveFailures >= Constants.Retry.failureThreshold {
-                usageError = error.localizedDescription
-            }
-            if category == .authFailure {
-                currentUsage = nil
-            }
-        }
     }
 
     // MARK: - UI Updates
 
     private func applyUIUpdates() {
-        lastRefreshed = Date()
         if let button = statusItem.button {
             StatusBarRenderer.updateIcon(
-                button: button, status: currentStatus,
-                hasRefreshWarning: scheduler.hasRefreshWarning
+                button: button, status: coordinator.currentStatus,
+                hasRefreshWarning: coordinator.scheduler.hasRefreshWarning
             )
             StatusBarRenderer.updateText(
-                button: button, usage: currentUsage, hasCredentials: hasCredentials,
-                isStale: scheduler.isUsageStale
+                button: button, usage: coordinator.currentUsage,
+                hasCredentials: coordinator.hasCredentials,
+                isStale: coordinator.scheduler.isUsageStale
             )
+            button.toolTip = Formatting.buildTooltip(state: coordinator.monitorState)
         }
         rebuildMenu()
+        updateCountdownState()
     }
 
-    private var currentMonitorState: MonitorState {
-        MonitorState(
-            currentUsage: scheduler.isUsageStale ? nil : currentUsage,
-            currentStatus: currentStatus,
-            usageError: usageError,
-            statusError: statusError,
-            lastRefreshed: lastRefreshed,
-            hasCredentials: hasCredentials
-        )
+    // MARK: - Countdown
+
+    private var shouldCountdownRun: Bool {
+        let isBlocked = Formatting.blockingLimit(coordinator.currentUsage) != nil
+        let menuHasResetTimes = isMenuOpen && coordinator.currentUsage != nil
+        let menuHasNextUpdate = isMenuOpen && coordinator.nextPollDate != nil
+        return isBlocked || menuHasResetTimes || menuHasNextUpdate
+    }
+
+    private func updateCountdownState() {
+        if shouldCountdownRun {
+            startCountdown()
+        } else {
+            stopCountdown()
+        }
+    }
+
+    private func startCountdown() {
+        countdownTask?.cancel()
+        countdownTask = Task {
+            while !Task.isCancelled {
+                guard let target = nextWakeTime() else { break }
+                let delay = target.timeIntervalSinceNow
+                if delay > 0 {
+                    try? await Task.sleep(for: .seconds(delay))
+                }
+                guard !Task.isCancelled else { break }
+                updateCountdownDisplays()
+            }
+            if !Task.isCancelled,
+               let blockedUntil = Formatting.blockingLimit(coordinator.currentUsage),
+               blockedUntil.timeIntervalSinceNow <= 0 {
+                coordinator.restartPolling()
+            }
+        }
+    }
+
+    private func stopCountdown() {
+        countdownTask?.cancel()
+        countdownTask = nil
+    }
+
+    private func updateCountdownDisplays() {
+        if let button = statusItem.button {
+            StatusBarRenderer.updateText(
+                button: button, usage: coordinator.currentUsage,
+                hasCredentials: coordinator.hasCredentials,
+                isStale: coordinator.scheduler.isUsageStale
+            )
+            button.toolTip = Formatting.buildTooltip(state: coordinator.monitorState)
+        }
+        if isMenuOpen, let menu = statusItem.menu {
+            if let usage = coordinator.currentUsage {
+                MenuBuilder.refreshTimes(in: menu, usage: usage)
+            }
+            MenuBuilder.refreshControlTimes(
+                in: menu,
+                lastRefreshed: coordinator.lastRefreshed,
+                nextPollDate: coordinator.nextPollDate
+            )
+        }
+    }
+
+    private func nextWakeTime() -> Date? {
+        var resetTimes: [Date] = []
+        if let blockedUntil = Formatting.blockingLimit(coordinator.currentUsage) {
+            resetTimes.append(blockedUntil)
+        }
+        if isMenuOpen, let usage = coordinator.currentUsage {
+            if let w = usage.fiveHour, let r = w.resetsAt { resetTimes.append(r) }
+            if let w = usage.sevenDay, let r = w.resetsAt { resetTimes.append(r) }
+            if let w = usage.sevenDaySonnet, let r = w.resetsAt { resetTimes.append(r) }
+        }
+        if isMenuOpen, let nextPoll = coordinator.nextPollDate {
+            resetTimes.append(nextPoll)
+        }
+        guard !resetTimes.isEmpty else { return nil }
+        return Formatting.nextTickTarget(resetTimes: resetTimes, now: Date())
     }
 
     // MARK: - Menu
 
     private func rebuildMenu() {
-        statusItem.menu = MenuBuilder.build(state: currentMonitorState, target: self)
+        guard let menu = statusItem.menu else { return }
+        MenuBuilder.populate(menu: menu, state: coordinator.monitorState, target: self)
     }
 
     // MARK: - MenuActions
 
     @objc func didSelectRefresh() {
-        pollTask?.cancel()
-        scheduler.reset()
-        startPolling()
+        coordinator.restartPolling()
+    }
+
+    @objc private func systemDidWake() {
+        stopCountdown()
+        coordinator.restartPolling()
     }
 
     @objc func openIncident(_ sender: NSMenuItem) {
@@ -181,7 +177,7 @@ final class MenuBarController: NSObject, MenuActions {
     @objc func didSelectPreferences() {
         if preferencesController == nil {
             preferencesController = PreferencesWindowController { [weak self] in
-                self?.didSelectRefresh()
+                self?.coordinator.restartPolling()
             }
         }
         preferencesController?.showWindow(nil)
@@ -190,9 +186,21 @@ final class MenuBarController: NSObject, MenuActions {
     private func showSetup() {
         if setupController == nil {
             setupController = SetupWindowController { [weak self] in
-                self?.didSelectRefresh()
+                self?.coordinator.restartPolling()
             }
         }
         setupController?.showWindow(nil)
+    }
+}
+
+extension MenuBarController: NSMenuDelegate {
+    func menuWillOpen(_ menu: NSMenu) {
+        isMenuOpen = true
+        updateCountdownState()
+    }
+
+    func menuDidClose(_ menu: NSMenu) {
+        isMenuOpen = false
+        updateCountdownState()
     }
 }
