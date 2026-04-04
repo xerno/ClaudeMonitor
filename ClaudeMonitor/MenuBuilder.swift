@@ -59,9 +59,9 @@ enum MenuBuilder {
 
     static func refreshTimes(in menu: NSMenu, usage: UsageResponse) {
         let windows: [(tag: Int, label: String, window: UsageWindow?)] = [
-            (fiveHourTag, "5h window", usage.fiveHour),
-            (sevenDayTag, "7d window", usage.sevenDay),
-            (sevenDaySonnetTag, "7d Sonnet", usage.sevenDaySonnet),
+            (fiveHourTag, String(localized: "menu.window.5h"), usage.fiveHour),
+            (sevenDayTag, String(localized: "menu.window.7d"), usage.sevenDay),
+            (sevenDaySonnetTag, String(localized: "menu.window.sonnet"), usage.sevenDaySonnet),
         ]
         for (tag, label, window) in windows {
             guard let window, let item = menu.item(withTag: tag) else { continue }
@@ -80,16 +80,16 @@ enum MenuBuilder {
     private static func buildDesiredItems(state: MonitorState, target: any MenuActions) -> [NSMenuItem] {
         var items: [NSMenuItem] = []
 
-        items.append(sectionHeader("Usage", subtitle: "Claude Monitor", tag: usageSectionTag))
+        items.append(sectionHeader(String(localized: "menu.section.usage"), subtitle: "Claude Monitor", tag: usageSectionTag))
         items.append(contentsOf: usageItems(state: state))
         items.append(separator(tag: separatorAfterUsageTag))
 
-        items.append(sectionHeader("Services", tag: servicesSectionTag))
+        items.append(sectionHeader(String(localized: "menu.section.services"), tag: servicesSectionTag))
         items.append(contentsOf: serviceItems(state: state))
 
         if let incidents = state.currentStatus?.incidents, !incidents.isEmpty {
             items.append(separator(tag: separatorIncidentsTag))
-            items.append(sectionHeader("Active Incidents", tag: incidentsSectionTag))
+            items.append(sectionHeader(String(localized: "menu.section.incidents"), tag: incidentsSectionTag))
             for (index, incident) in incidents.enumerated() {
                 items.append(incidentItem(incident: incident, tag: incidentBaseTag + index, target: target))
             }
@@ -103,23 +103,23 @@ enum MenuBuilder {
 
     private static func usageItems(state: MonitorState) -> [NSMenuItem] {
         if !state.hasCredentials {
-            return [staticItem("  ⚙  Configure credentials in Preferences", tag: usagePlaceholderTag)]
+            return [staticItem(String(localized: "menu.credentials.configure"), tag: usagePlaceholderTag)]
         }
         if let error = state.usageError {
             return [staticItem("  ⚠︎  \(error)", tag: usagePlaceholderTag)]
         }
         guard let usage = state.currentUsage else {
-            return [staticItem("  Loading...", tag: usagePlaceholderTag)]
+            return [staticItem(String(localized: "menu.loading"), tag: usagePlaceholderTag)]
         }
         var items: [NSMenuItem] = []
         if let w = usage.fiveHour {
-            items.append(usageItem(label: "5h window", window: w, tag: fiveHourTag))
+            items.append(usageItem(label: String(localized: "menu.window.5h"), window: w, tag: fiveHourTag))
         }
         if let w = usage.sevenDay {
-            items.append(usageItem(label: "7d window", window: w, tag: sevenDayTag))
+            items.append(usageItem(label: String(localized: "menu.window.7d"), window: w, tag: sevenDayTag))
         }
         if let w = usage.sevenDaySonnet {
-            items.append(usageItem(label: "7d Sonnet", window: w, tag: sevenDaySonnetTag))
+            items.append(usageItem(label: String(localized: "menu.window.sonnet"), window: w, tag: sevenDaySonnetTag))
         }
         return items
     }
@@ -129,7 +129,7 @@ enum MenuBuilder {
             if let error = state.statusError {
                 return [staticItem("  ⚠︎  \(error)", tag: servicesPlaceholderTag)]
             }
-            return [staticItem("  Loading...", tag: servicesPlaceholderTag)]
+            return [staticItem(String(localized: "menu.loading"), tag: servicesPlaceholderTag)]
         }
         return components.sorted(by: { $0.name < $1.name }).enumerated().map { index, component in
             let name = truncatedName(component.name)
@@ -158,21 +158,21 @@ enum MenuBuilder {
 
         items.append(separator(tag: separatorControlsTag))
 
-        let refresh = NSMenuItem(title: "Refresh Now",
+        let refresh = NSMenuItem(title: String(localized: "menu.refresh"),
                                  action: #selector(MenuActions.didSelectRefresh),
                                  keyEquivalent: "r")
         refresh.tag = refreshTag
         refresh.target = target
         items.append(refresh)
 
-        let prefs = NSMenuItem(title: "Preferences",
+        let prefs = NSMenuItem(title: String(localized: "menu.preferences"),
                                action: #selector(MenuActions.didSelectPreferences),
                                keyEquivalent: ",")
         prefs.tag = preferencesTag
         prefs.target = target
         items.append(prefs)
 
-        let about = NSMenuItem(title: "About",
+        let about = NSMenuItem(title: String(localized: "menu.about"),
                                action: #selector(MenuActions.didSelectAbout),
                                keyEquivalent: "")
         about.tag = aboutTag
@@ -181,7 +181,7 @@ enum MenuBuilder {
 
         items.append(separator(tag: separatorQuitTag))
 
-        let quit = NSMenuItem(title: "Quit",
+        let quit = NSMenuItem(title: String(localized: "menu.quit"),
                               action: #selector(NSApplication.terminate(_:)),
                               keyEquivalent: "q")
         quit.tag = quitTag
@@ -252,7 +252,7 @@ enum MenuBuilder {
 
         let reset = Formatting.timeUntil(resetsAt)
         let text = NSMutableAttributedString(
-            string: "  \(label):  \(bar)  \(window.utilization)%   (resets in ",
+            string: "  \(label):  \(bar)  \(window.utilization)%   \(String(localized: "menu.resets.prefix"))",
             attributes: [.font: menuFont]
         )
         text.append(NSAttributedString(string: reset, attributes: [.font: boldFont]))
@@ -261,9 +261,12 @@ enum MenuBuilder {
     }
 
     private static func updatedNextTitle(lastRefreshed: Date, nextPollDate: Date?) -> String {
-        let updated = "Updated: \(lastRefreshed.formatted(.dateTime.hour().minute().second()))"
+        let updated = String(format: String(localized: "menu.updated"),
+                             lastRefreshed.formatted(.dateTime.hour().minute().second()))
         guard let next = nextPollDate else { return updated }
-        return "\(updated)   Next: \(next.formatted(.dateTime.hour().minute().second()))"
+        let nextLabel = String(format: String(localized: "menu.next"),
+                               next.formatted(.dateTime.hour().minute().second()))
+        return "\(updated)   \(nextLabel)"
     }
 
     // MARK: - Helpers

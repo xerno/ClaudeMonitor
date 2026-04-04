@@ -6,8 +6,8 @@ import IOKit
 /// Encryption key is derived from the machine's hardware UUID,
 /// so the data is unreadable on other machines or by simple plist readers.
 /// Can be swapped to Keychain when the app is properly code-signed.
-enum KeychainService {
-    private static let defaults = UserDefaults.standard
+nonisolated enum KeychainService {
+    nonisolated(unsafe) private static let defaults = UserDefaults.standard
 
     @discardableResult
     static func save(key: String, value: String) -> Bool {

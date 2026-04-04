@@ -114,7 +114,7 @@ final class DataCoordinator {
         guard let cookie = loadCredential(Constants.Keychain.cookieString),
               let orgId = loadCredential(Constants.Keychain.organizationId),
               !cookie.isEmpty, !orgId.isEmpty else {
-            usageError = "Configure credentials in Preferences"
+            usageError = String(localized: "credentials.configure")
             return
         }
         do {
