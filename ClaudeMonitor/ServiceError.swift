@@ -8,11 +8,11 @@ enum ServiceError: LocalizedError, Sendable {
     var errorDescription: String? {
         switch self {
         case .unauthorized:
-            return "Session expired – update cookie in Preferences"
+            return String(localized: "error.unauthorized")
         case .rateLimited:
-            return "Rate limited – too many requests"
+            return String(localized: "error.rate_limited")
         case .unexpectedStatus(let code):
-            return "Unexpected HTTP \(code)"
+            return String(format: String(localized: "error.unexpected_status"), code)
         }
     }
 }

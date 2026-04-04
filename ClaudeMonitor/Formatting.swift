@@ -154,39 +154,39 @@ enum Formatting {
 
         var usageLines: [String] = []
         if !state.hasCredentials {
-            usageLines.append("Usage: configure credentials in Preferences")
+            usageLines.append(String(localized: "tooltip.usage.configure"))
         } else if let error = state.usageError {
-            usageLines.append("⚠ Usage: \(error)")
+            usageLines.append(String(format: String(localized: "tooltip.usage.error"), error))
         } else if let usage = state.currentUsage {
             if let w = usage.fiveHour {
                 if let resetsAt = w.resetsAt {
-                    usageLines.append("5h window: \(w.utilization)% (resets in \(timeUntil(resetsAt)))")
+                    usageLines.append(String(format: String(localized: "tooltip.window.5h.resets"), w.utilization, timeUntil(resetsAt)))
                 } else {
-                    usageLines.append("5h window: \(w.utilization)%")
+                    usageLines.append(String(format: String(localized: "tooltip.window.5h"), w.utilization))
                 }
             }
             if let w = usage.sevenDay {
                 if let resetsAt = w.resetsAt {
-                    usageLines.append("7d window: \(w.utilization)% (resets in \(timeUntil(resetsAt)))")
+                    usageLines.append(String(format: String(localized: "tooltip.window.7d.resets"), w.utilization, timeUntil(resetsAt)))
                 } else {
-                    usageLines.append("7d window: \(w.utilization)%")
+                    usageLines.append(String(format: String(localized: "tooltip.window.7d"), w.utilization))
                 }
             }
             if let w = usage.sevenDaySonnet {
                 if let resetsAt = w.resetsAt {
-                    usageLines.append("7d Sonnet: \(w.utilization)% (resets in \(timeUntil(resetsAt)))")
+                    usageLines.append(String(format: String(localized: "tooltip.window.sonnet.resets"), w.utilization, timeUntil(resetsAt)))
                 } else {
-                    usageLines.append("7d Sonnet: \(w.utilization)%")
+                    usageLines.append(String(format: String(localized: "tooltip.window.sonnet"), w.utilization))
                 }
             }
         } else {
-            usageLines.append("Usage: loading…")
+            usageLines.append(String(localized: "tooltip.usage.loading"))
         }
         sections.append(usageLines)
 
         var statusLines: [String] = []
         if let error = state.statusError {
-            statusLines.append("⚠ Status: \(error)")
+            statusLines.append(String(format: String(localized: "tooltip.status.error"), error))
         } else if let status = state.currentStatus {
             let affected = status.components.filter { $0.status >= .degradedPerformance }
             for c in affected {
@@ -196,15 +196,16 @@ enum Formatting {
                 statusLines.append("⚠ \(incident.name)")
             }
             if affected.isEmpty && status.incidents.isEmpty {
-                statusLines.append("✓ All systems operational")
+                statusLines.append(String(localized: "tooltip.status.ok"))
             }
         } else {
-            statusLines.append("Status: loading…")
+            statusLines.append(String(localized: "tooltip.status.loading"))
         }
         sections.append(statusLines)
 
         if let date = state.lastRefreshed {
-            sections.append(["Updated: \(date.formatted(.dateTime.hour().minute().second()))"])
+            sections.append([String(format: String(localized: "tooltip.updated"),
+                                    date.formatted(.dateTime.hour().minute().second()))])
         }
 
         return sections.map { $0.joined(separator: "\n") }.joined(separator: "\n\n")

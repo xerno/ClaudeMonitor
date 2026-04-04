@@ -15,37 +15,40 @@ enum CredentialGuide {
 
         let s = NSMutableAttributedString()
 
-        s.append(NSAttributedString(string: "1. Open ", attributes: body))
+        s.append(NSAttributedString(string: String(localized: "guide.step1.prefix"), attributes: body))
         s.append(NSAttributedString(string: "claude.ai/settings/usage", attributes: [
             .font: NSFont.systemFont(ofSize: 12),
             .link: URL(string: "https://claude.ai/settings/usage")!,
         ]))
         s.append(NSAttributedString(string: "\n", attributes: body))
 
-        s.append(NSAttributedString(string: "2. Open ", attributes: body))
-        s.append(NSAttributedString(string: "DevTools", attributes: bold))
-        s.append(NSAttributedString(string: " (⌥⌘I) → ", attributes: body))
-        s.append(NSAttributedString(string: "Network", attributes: bold))
-        s.append(NSAttributedString(string: " tab\n", attributes: body))
+        let step2 = String(localized: "guide.step2")
+        let step2Attr = NSMutableAttributedString(string: step2 + "\n", attributes: body)
+        for term in ["DevTools", "Network"] {
+            if let range = step2.range(of: term) {
+                step2Attr.addAttributes(bold, range: NSRange(range, in: step2))
+            }
+        }
+        s.append(step2Attr)
 
-        s.append(NSAttributedString(string: "3. Click the refresh button  ", attributes: body))
+        s.append(NSAttributedString(string: String(localized: "guide.step3.prefix"), attributes: body))
         let attachment = NSTextAttachment()
         if let icon = NSImage(named: "RefreshUsage") {
             icon.size = NSSize(width: 14, height: 14)
             attachment.image = icon
         }
         s.append(NSAttributedString(attachment: attachment))
-        s.append(NSAttributedString(string: "  on the usage page\n", attributes: body))
+        s.append(NSAttributedString(string: String(localized: "guide.step3.suffix") + "\n", attributes: body))
 
-        s.append(NSAttributedString(string: "4. In DevTools, find the request URL:\n", attributes: body))
+        s.append(NSAttributedString(string: String(localized: "guide.step4.prefix") + "\n", attributes: body))
         s.append(NSAttributedString(string: "   https://claude.ai/api/organizations/", attributes: mono))
         s.append(NSAttributedString(string: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx", attributes: monoHighlight))
         s.append(NSAttributedString(string: "/usage\n", attributes: mono))
-        s.append(NSAttributedString(string: "   The blue part is your ", attributes: [
+        s.append(NSAttributedString(string: String(localized: "guide.step4.hint"), attributes: [
             .font: NSFont.systemFont(ofSize: 12),
             .foregroundColor: NSColor.secondaryLabelColor,
         ]))
-        s.append(NSAttributedString(string: "Organization ID", attributes: bold))
+        s.append(NSAttributedString(string: String(localized: "guide.org_id_label"), attributes: bold))
 
         return s
     }
@@ -55,11 +58,14 @@ enum CredentialGuide {
         let bold = boldAttrs()
 
         let s = NSMutableAttributedString()
-        s.append(NSAttributedString(string: "5. Click the same request → ", attributes: body))
-        s.append(NSAttributedString(string: "Headers", attributes: bold))
-        s.append(NSAttributedString(string: " → copy the entire ", attributes: body))
-        s.append(NSAttributedString(string: "Cookie", attributes: bold))
-        s.append(NSAttributedString(string: " header value", attributes: body))
+        let step5 = String(localized: "guide.step5")
+        let step5Attr = NSMutableAttributedString(string: step5, attributes: body)
+        for term in ["Headers", "Cookie"] {
+            if let range = step5.range(of: term) {
+                step5Attr.addAttributes(bold, range: NSRange(range, in: step5))
+            }
+        }
+        s.append(step5Attr)
         return s
     }
 

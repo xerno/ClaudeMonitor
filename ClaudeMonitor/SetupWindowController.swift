@@ -12,7 +12,7 @@ final class SetupWindowController: NSWindowController, NSWindowDelegate {
             backing: .buffered,
             defer: false
         )
-        window.title = "Claude Monitor – Setup"
+        window.title = String(localized: "setup.window.title")
         window.center()
         window.isReleasedWhenClosed = false
         super.init(window: window)
@@ -26,16 +26,16 @@ final class SetupWindowController: NSWindowController, NSWindowDelegate {
     private func buildUI() {
         guard let contentView = window?.contentView else { return }
 
-        let title = NSTextField(labelWithString: "Welcome to Claude Monitor")
+        let title = NSTextField(labelWithString: String(localized: "setup.welcome"))
         title.font = .systemFont(ofSize: 16, weight: .semibold)
         title.translatesAutoresizingMaskIntoConstraints = false
 
-        let startButton = NSButton(title: "Get Started", target: self, action: #selector(didTapStart))
+        let startButton = NSButton(title: String(localized: "setup.button.start"), target: self, action: #selector(didTapStart))
         startButton.bezelStyle = .rounded
         startButton.keyEquivalent = "\r"
         startButton.translatesAutoresizingMaskIntoConstraints = false
 
-        let skipButton = NSButton(title: "Skip", target: self, action: #selector(didTapSkip))
+        let skipButton = NSButton(title: String(localized: "setup.button.skip"), target: self, action: #selector(didTapSkip))
         skipButton.bezelStyle = .rounded
         skipButton.translatesAutoresizingMaskIntoConstraints = false
 

@@ -26,8 +26,8 @@ final class CredentialFormView: NSView {
         guard !cookie.isEmpty, !orgId.isEmpty else {
             showAlert(
                 in: window,
-                title: "Missing credentials",
-                message: "Both Organization ID and Cookie header value are required.",
+                title: String(localized: "credentials.alert.missing.title"),
+                message: String(localized: "credentials.alert.missing.message"),
                 style: .warning
             )
             return false
@@ -36,8 +36,8 @@ final class CredentialFormView: NSView {
         guard UUID(uuidString: orgId) != nil else {
             showAlert(
                 in: window,
-                title: "Invalid Organization ID",
-                message: "Organization ID must be a valid UUID (e.g. xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx).",
+                title: String(localized: "credentials.alert.invalid_org.title"),
+                message: String(localized: "credentials.alert.invalid_org.message"),
                 style: .warning
             )
             return false
@@ -49,8 +49,8 @@ final class CredentialFormView: NSView {
         guard cookieSaved, orgIdSaved else {
             showAlert(
                 in: window,
-                title: "Failed to save credentials",
-                message: "Credential storage failed. Try restarting the app.",
+                title: String(localized: "credentials.alert.save_failed.title"),
+                message: String(localized: "credentials.alert.save_failed.message"),
                 style: .critical
             )
             return false
@@ -64,14 +64,14 @@ final class CredentialFormView: NSView {
         alert.messageText = title
         alert.informativeText = message
         alert.alertStyle = style
-        alert.addButton(withTitle: "OK")
+        alert.addButton(withTitle: String(localized: "credentials.alert.ok"))
         alert.beginSheetModal(for: window)
     }
 
     private func setupSubviews() {
         let orgInstructions = CredentialGuide.makeView(CredentialGuide.orgInstructions(), height: 105)
 
-        let orgIdLabel = NSTextField(labelWithString: "Organization ID:")
+        let orgIdLabel = NSTextField(labelWithString: String(localized: "credentials.field.org_id"))
         orgIdLabel.translatesAutoresizingMaskIntoConstraints = false
 
         orgIdField.placeholderString = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
@@ -80,7 +80,7 @@ final class CredentialFormView: NSView {
 
         let cookieInstructions = CredentialGuide.makeView(CredentialGuide.cookieInstructions(), height: 16)
 
-        let cookieLabel = NSTextField(labelWithString: "Cookie header value:")
+        let cookieLabel = NSTextField(labelWithString: String(localized: "credentials.field.cookie"))
         cookieLabel.translatesAutoresizingMaskIntoConstraints = false
 
         cookieScrollView.hasVerticalScroller = true

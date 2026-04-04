@@ -15,7 +15,7 @@ final class AboutWindowController: NSWindowController, NSWindowDelegate {
             backing: .buffered,
             defer: false
         )
-        window.title = "Claude Monitor – About"
+        window.title = String(localized: "about.window.title")
         window.minSize = NSSize(width: 400, height: 400)
         window.center()
         window.isReleasedWhenClosed = false
@@ -138,47 +138,40 @@ final class AboutWindowController: NSWindowController, NSWindowDelegate {
     private static func leftColumnContent() -> NSAttributedString {
         let s = NSMutableAttributedString()
 
-        heading("Menu Bar", into: s)
-        s.append(line("The menu bar shows your Claude usage as percentages."))
+        heading(String(localized: "about.heading.menu_bar"), into: s)
+        s.append(line(String(localized: "about.line.shows_usage")))
         s.append(line(""))
-        s.append(line("  1st number — 5-hour window (always visible)"))
-        s.append(line("  2nd number — 7-day window"))
-        s.append(line("  3rd number — 7-day Sonnet window"))
+        s.append(line("  " + String(localized: "about.line.first_number")))
+        s.append(line("  " + String(localized: "about.line.second_number")))
+        s.append(line("  " + String(localized: "about.line.third_number")))
         s.append(line(""))
-        s.append(secondary(
-            "The 7-day windows appear only when usage is significant " +
-            "and outpacing the remaining time in the window. " +
-            "For example, if you've used 60% with only 40% of the " +
-            "time remaining, the number will appear as a warning."))
-        s.append(secondary(
-            "If only the Sonnet window triggers, the 7-day window " +
-            "is also shown so the position stays consistent."))
+        s.append(secondary(String(localized: "about.secondary.7day_explain")))
+        s.append(secondary(String(localized: "about.secondary.sonnet_explain")))
 
-        heading("Color Coding", into: s)
-        s.append(line("Each percentage is styled independently:"))
+        heading(String(localized: "about.heading.color_coding"), into: s)
+        s.append(line(String(localized: "about.line.color_intro")))
         s.append(line(""))
-        s.append(line("  Normal  — usage is within comfortable limits"))
+        s.append(line("  " + String(localized: "about.line.normal")))
         let boldLabel = NSMutableAttributedString(string: "  ", attributes: [
             .font: NSFont.systemFont(ofSize: 12), .foregroundColor: NSColor.labelColor,
         ])
         boldLabel.append(NSAttributedString(string: "Bold", attributes: [
             .font: NSFont.boldSystemFont(ofSize: 12), .foregroundColor: NSColor.labelColor,
         ]))
-        boldLabel.append(NSAttributedString(string: "      — ≥ 50%, or outpacing remaining time\n", attributes: [
+        boldLabel.append(NSAttributedString(string: "      " + String(localized: "about.line.bold_suffix") + "\n", attributes: [
             .font: NSFont.systemFont(ofSize: 12), .foregroundColor: NSColor.labelColor,
         ]))
         s.append(boldLabel)
-        s.append(NSAttributedString(string: "  Orange  — ≥ 70%, or significantly outpacing time\n", attributes: [
+        s.append(NSAttributedString(string: "  " + String(localized: "about.line.orange") + "\n", attributes: [
             .font: NSFont.systemFont(ofSize: 12),
             .foregroundColor: NSColor.systemOrange,
         ]))
-        s.append(NSAttributedString(string: "  Red       — ≥ 80%, or critically outpacing time\n", attributes: [
+        s.append(NSAttributedString(string: "  " + String(localized: "about.line.red") + "\n", attributes: [
             .font: NSFont.systemFont(ofSize: 12),
             .foregroundColor: NSColor.systemRed,
         ]))
         s.append(line(""))
-        s.append(secondary(
-            "\"Outpacing time\" means your consumption rate projects to exceed the limit before the window resets."))
+        s.append(secondary(String(localized: "about.secondary.outpacing")))
 
         return s
     }
@@ -186,24 +179,18 @@ final class AboutWindowController: NSWindowController, NSWindowDelegate {
     private static func rightColumnContent() -> NSAttributedString {
         let s = NSMutableAttributedString()
 
-        heading("Refresh Behavior", into: s)
-        s.append(secondary(
-            "Claude Monitor adjusts how often it checks for updates. " +
-            "When your usage is actively changing, it checks more frequently. " +
-            "When usage is stable, it gradually checks less often " +
-            "to reduce network traffic. Use Refresh Now (\u{2318}R) for an " +
-            "immediate update."))
+        heading(String(localized: "about.heading.refresh"), into: s)
+        s.append(secondary(String(localized: "about.secondary.refresh_explain")))
 
-        heading("Status Icon", into: s)
-        s.append(line("  ✓  Green   — all systems operational"))
-        s.append(line("  !   Yellow  — degraded performance"))
-        s.append(line("  !   Orange — partial outage"))
-        s.append(line("  ✕  Red       — major outage"))
-        s.append(line("  🔧 Blue      — under maintenance"))
+        heading(String(localized: "about.heading.status_icon"), into: s)
+        s.append(line("  " + String(localized: "about.line.green")))
+        s.append(line("  " + String(localized: "about.line.yellow")))
+        s.append(line("  " + String(localized: "about.line.orange_icon")))
+        s.append(line("  " + String(localized: "about.line.red_icon")))
+        s.append(line("  " + String(localized: "about.line.blue_icon")))
 
-        heading("When You Hit 100%", into: s)
-        s.append(secondary(
-            "If any usage window reaches 100%, Claude Monitor replaces percentages by a countdown showing time until the limit clears."))
+        heading(String(localized: "about.heading.100_percent"), into: s)
+        s.append(secondary(String(localized: "about.secondary.100_percent_explain")))
 
         return s
     }

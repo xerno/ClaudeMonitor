@@ -3,7 +3,7 @@ import ServiceManagement
 
 final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
     private let credentialForm = CredentialFormView()
-    private let launchAtLoginCheckbox = NSButton(checkboxWithTitle: "Launch at login", target: nil, action: nil)
+    private let launchAtLoginCheckbox = NSButton(checkboxWithTitle: String(localized: "prefs.launch_at_login"), target: nil, action: nil)
     private let onSave: () -> Void
 
     init(onSave: @escaping () -> Void) {
@@ -14,7 +14,7 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
             backing: .buffered,
             defer: false
         )
-        window.title = "Claude Monitor – Preferences"
+        window.title = String(localized: "prefs.window.title")
         window.center()
         window.isReleasedWhenClosed = false
         super.init(window: window)
@@ -31,7 +31,7 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
 
         launchAtLoginCheckbox.translatesAutoresizingMaskIntoConstraints = false
 
-        let saveButton = NSButton(title: "Save", target: self, action: #selector(didTapSave))
+        let saveButton = NSButton(title: String(localized: "prefs.button.save"), target: self, action: #selector(didTapSave))
         saveButton.bezelStyle = .rounded
         saveButton.keyEquivalent = "\r"
         saveButton.translatesAutoresizingMaskIntoConstraints = false
