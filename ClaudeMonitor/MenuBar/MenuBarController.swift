@@ -13,6 +13,7 @@ final class MenuBarController: NSObject, MenuActions {
     override init() {
         super.init()
         coordinator.onUpdate = { [weak self] in self?.applyUIUpdates() }
+        coordinator.onCriticalReset = { [weak self] in self?.handleCriticalReset() }
         configureStatusItem()
         coordinator.startPolling()
         NSWorkspace.shared.notificationCenter.addObserver(
@@ -61,6 +62,29 @@ final class MenuBarController: NSObject, MenuActions {
         }
         rebuildMenu()
         updateCountdownState()
+    }
+
+    // MARK: - Critical Reset Alert
+
+    private func handleCriticalReset() {
+        if UserDefaults.standard.bool(forKey: Constants.Preferences.resetSoundEnabled) {
+            NSSound(named: .init(Constants.Sounds.criticalReset))?.play()
+        }
+        animateResetIcon()
+    }
+
+    private func animateResetIcon() {
+        guard let button = statusItem.button else { return }
+        button.image = StatusBarRenderer.makeImage(symbolName: "checkmark.circle.fill", color: .systemGreen)
+        Task {
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled else { return }
+            StatusBarRenderer.updateIcon(
+                button: button,
+                status: coordinator.currentStatus,
+                hasRefreshWarning: coordinator.scheduler.hasRefreshWarning
+            )
+        }
     }
 
     // MARK: - Countdown

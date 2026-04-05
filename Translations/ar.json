@@ -69,6 +69,7 @@
   "menu.window.sonnet": "7 أيام Sonnet",
   "prefs.button.save": "حفظ",
   "prefs.launch_at_login": "التشغيل عند تسجيل الدخول",
+  "prefs.reset_sound": "تشغيل صوت عند إعادة تعيين الحد الحرج",
   "prefs.window.title": "Claude Monitor – التفضيلات",
   "setup.button.skip": "تخطي",
   "setup.button.start": "ابدأ الآن",

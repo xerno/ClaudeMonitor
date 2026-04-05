@@ -33,7 +33,7 @@ mkdir -p "${CONTENTS}/MacOS" "${CONTENTS}/Resources"
 
 echo "Compiling ${APP_NAME} (${ARCH}, Swift 6)..."
 
-swiftc "${SRC_DIR}"/*.swift \
+swiftc $(find "${SRC_DIR}" -name "*.swift") \
     -o "${CONTENTS}/MacOS/${APP_NAME}" \
     -target "${ARCH}-apple-macosx15.0" \
     -sdk "${SDK_PATH}" \

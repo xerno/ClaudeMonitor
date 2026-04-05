@@ -35,7 +35,11 @@ do {
     let allKeys = Set(languages.values.flatMap(\.keys)).sorted()
 
     // Build xcstrings
-    var strings: [String: Any] = [:]
+    var strings: [String: Any] = [
+        "_GENERATED": [
+            "comment": "DO NOT READ OR EDIT THIS FILE. Generated from Translations/*.json by scripts/generate-xcstrings.swift. To add or change translations, edit the JSON source files and run the generate script.",
+        ] as [String: Any],
+    ]
     for key in allKeys {
         var entry: [String: Any] = [:]
         if let c = comments[key] { entry["comment"] = c }

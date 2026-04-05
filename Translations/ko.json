@@ -69,6 +69,7 @@
   "menu.window.sonnet": "7일 Sonnet",
   "prefs.button.save": "저장",
   "prefs.launch_at_login": "로그인 시 실행",
+  "prefs.reset_sound": "심각한 제한이 재설정되면 소리 재생",
   "prefs.window.title": "Claude Monitor – 환경설정",
   "setup.button.skip": "건너뛰기",
   "setup.button.start": "시작하기",

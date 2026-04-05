@@ -137,6 +137,26 @@ enum Formatting {
         return hasFormatting && Double(utilization) > timeElapsedPercent
     }
 
+    static func detectCriticalReset(previous: UsageResponse, current: UsageResponse) -> Bool {
+        let checks: [(prev: UsageWindow?, curr: UsageWindow?, duration: TimeInterval)] = [
+            (previous.fiveHour, current.fiveHour, Constants.UsageWindows.fiveHourDuration),
+            (previous.sevenDay, current.sevenDay, Constants.UsageWindows.sevenDayDuration),
+            (previous.sevenDaySonnet, current.sevenDaySonnet, Constants.UsageWindows.sevenDayDuration),
+        ]
+        for check in checks {
+            guard let prev = check.prev, let curr = check.curr else { continue }
+            guard let prevReset = prev.resetsAt, let currReset = curr.resetsAt else { continue }
+            guard currReset.timeIntervalSince(prevReset) > check.duration / 2 else { continue }
+            let wasCritical = usageStyle(
+                utilization: prev.utilization,
+                resetsAt: prev.resetsAt,
+                windowDuration: check.duration
+            ).color == .systemRed
+            if wasCritical { return true }
+        }
+        return false
+    }
+
     static func hasAnyCriticalWindow(_ usage: UsageResponse) -> Bool {
         func isCritical(_ window: UsageWindow?, duration: TimeInterval) -> Bool {
             guard let w = window else { return false }

@@ -69,6 +69,7 @@
   "menu.window.sonnet": "7 д Sonnet",
   "prefs.button.save": "Сохранить",
   "prefs.launch_at_login": "Запускать при входе в систему",
+  "prefs.reset_sound": "Воспроизвести звук при сбросе критического лимита",
   "prefs.window.title": "Claude Monitor – Настройки",
   "setup.button.skip": "Пропустить",
   "setup.button.start": "Начать",

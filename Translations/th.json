@@ -69,6 +69,7 @@
   "menu.window.sonnet": "7 วัน Sonnet",
   "prefs.button.save": "บันทึก",
   "prefs.launch_at_login": "เปิดเมื่อเข้าสู่ระบบ",
+  "prefs.reset_sound": "เล่นเสียงเมื่อขีดจำกัดวิกฤตถูกรีเซ็ต",
   "prefs.window.title": "Claude Monitor – การตั้งค่า",
   "setup.button.skip": "ข้าม",
   "setup.button.start": "เริ่มต้นใช้งาน",

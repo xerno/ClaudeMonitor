@@ -69,6 +69,7 @@
   "menu.window.sonnet": "7 T. Sonnet",
   "prefs.button.save": "Sichern",
   "prefs.launch_at_login": "Beim Anmelden starten",
+  "prefs.reset_sound": "Ton abspielen bei Zurücksetzen des kritischen Limits",
   "prefs.window.title": "Claude Monitor – Einstellungen",
   "setup.button.skip": "Überspringen",
   "setup.button.start": "Erste Schritte",

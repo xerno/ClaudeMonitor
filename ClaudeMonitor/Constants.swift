@@ -47,6 +47,14 @@ enum Constants {
         static let requestTimeout: TimeInterval = 15
     }
 
+    enum Preferences {
+        static let resetSoundEnabled = "resetSoundEnabled"
+    }
+
+    enum Sounds {
+        static let criticalReset = "Tink"
+    }
+
     enum Demo {
         static let isActive: Bool = ProcessInfo.processInfo.arguments.contains("--demo")
         static let rotationOrder: [Int] = [3, 2, 1, 4]

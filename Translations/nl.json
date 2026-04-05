@@ -69,6 +69,7 @@
   "menu.window.sonnet": "7d Sonnet",
   "prefs.button.save": "Bewaar",
   "prefs.launch_at_login": "Open bij inloggen",
+  "prefs.reset_sound": "Geluid afspelen wanneer kritieke limiet wordt gereset",
   "prefs.window.title": "Claude Monitor – Voorkeuren",
   "setup.button.skip": "Sla over",
   "setup.button.start": "Aan de slag",

@@ -17,6 +17,7 @@ final class DataCoordinator {
     private(set) var scheduler = PollingScheduler()
 
     var onUpdate: (() -> Void)?
+    var onCriticalReset: (() -> Void)?
 
     init(
         statusService: any StatusFetching = StatusService(),
@@ -81,6 +82,7 @@ final class DataCoordinator {
             onUpdate?()
             return
         }
+        let usageBeforeRefresh = currentUsage
         async let statusResult: Void = refreshStatus()
         async let usageResult: Void = refreshUsage()
         _ = await (statusResult, usageResult)
@@ -90,6 +92,10 @@ final class DataCoordinator {
         lastRefreshed = Date()
         nextPollDate = Date().addingTimeInterval(scheduler.nextPollInterval(usage: currentUsage))
         onUpdate?()
+        if let prev = usageBeforeRefresh, let curr = currentUsage,
+           Formatting.detectCriticalReset(previous: prev, current: curr) {
+            onCriticalReset?()
+        }
     }
 
     // MARK: - Private

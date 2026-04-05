@@ -69,6 +69,7 @@
   "menu.window.sonnet": "7d Sonnet",
   "prefs.button.save": "Gem",
   "prefs.launch_at_login": "Start ved login",
+  "prefs.reset_sound": "Afspil lyd når kritisk grænse nulstilles",
   "prefs.window.title": "Claude Monitor – Indstillinger",
   "setup.button.skip": "Spring over",
   "setup.button.start": "Kom i gang",

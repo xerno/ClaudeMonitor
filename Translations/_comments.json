@@ -69,6 +69,7 @@
   "menu.window.sonnet": "Label for 7-day Sonnet usage window",
   "prefs.button.save": "Save button in Preferences window",
   "prefs.launch_at_login": "Launch at login checkbox label",
+  "prefs.reset_sound": "Checkbox label for playing a sound when a critical usage limit resets",
   "prefs.window.title": "Preferences window title bar",
   "setup.button.skip": "Skip button in setup window",
   "setup.button.start": "Primary action button in setup window",

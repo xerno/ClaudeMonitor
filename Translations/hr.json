@@ -69,6 +69,7 @@
   "menu.window.sonnet": "7d Sonnet",
   "prefs.button.save": "Spremi",
   "prefs.launch_at_login": "Pokreni pri prijavi",
+  "prefs.reset_sound": "Reproduciraj zvuk kad se kritično ograničenje resetira",
   "prefs.window.title": "Claude Monitor – Postavke",
   "setup.button.skip": "Preskoči",
   "setup.button.start": "Započnite",

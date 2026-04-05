@@ -69,6 +69,7 @@
   "menu.window.sonnet": "7日間 Sonnet",
   "prefs.button.save": "保存",
   "prefs.launch_at_login": "ログイン時に起動",
+  "prefs.reset_sound": "クリティカル制限リセット時にサウンドを再生",
   "prefs.window.title": "Claude Monitor – 環境設定",
   "setup.button.skip": "スキップ",
   "setup.button.start": "はじめる",

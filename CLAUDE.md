@@ -23,23 +23,30 @@ Xcode 26 project uses `PBXFileSystemSynchronizedRootGroup` — new `.swift` file
 
 ```
 ClaudeMonitor/
-├── AppDelegate.swift                 — @main entry point, lifecycle, editing shortcuts
-├── DataCoordinator.swift             — data fetching orchestration, polling, state management
-├── MenuBarController.swift           — status bar item, countdown timer, UI coordination
-├── MenuBuilder.swift                 — MenuActions protocol + stateless NSMenu construction
-├── Formatting.swift                  — timeUntil(), progressBar(), usageStyle(), buildTooltip()
-├── Models.swift                      — StatusSummary, UsageResponse, MonitorState, etc.
-├── ServiceError.swift                — shared error type for both services
-├── StatusService.swift               — fetches status.claude.com/api/v2/summary.json
-├── UsageService.swift                — fetches claude.ai/api/organizations/{orgId}/usage
-├── CredentialFormView.swift          — reusable NSView with org ID + cookie fields, validation
-├── SetupWindowController.swift       — first-run setup window (embeds CredentialFormView)
-├── PreferencesWindowController.swift — preferences window (embeds CredentialFormView)
-├── CredentialGuide.swift             — NSAttributedString instructions for finding credentials
-├── WindowManager.swift               — activation policy + window focus management
-├── KeychainService.swift             — encrypted credential storage (UserDefaults + AES-GCM)
-├── Constants.swift                   — all hardcoded values (URLs, intervals, keychain keys)
-└── JSONDecoder+ISO8601.swift         — shared ISO8601 decoder with fractional seconds
+├── AppDelegate.swift          — @main entry point, lifecycle, editing shortcuts
+├── Constants.swift            — all hardcoded values (URLs, intervals, keychain keys)
+├── Models.swift               — StatusSummary, UsageResponse, MonitorState, etc.
+├── DemoData.swift             — demo mode data for screenshots/testing
+├── JSONDecoder+ISO8601.swift  — shared ISO8601 decoder with fractional seconds
+├── Services/
+│   ├── DataCoordinator.swift  — data fetching orchestration, polling, state management
+│   ├── StatusService.swift    — fetches status.claude.com/api/v2/summary.json
+│   ├── UsageService.swift     — fetches claude.ai/api/organizations/{orgId}/usage
+│   ├── PollingScheduler.swift — adaptive polling intervals
+│   ├── KeychainService.swift  — encrypted credential storage (UserDefaults + AES-GCM)
+│   └── ServiceError.swift     — shared error type for both services
+├── MenuBar/
+│   ├── MenuBarController.swift  — status bar item, countdown timer, UI coordination
+│   ├── MenuBuilder.swift        — MenuActions protocol + stateless NSMenu construction
+│   ├── StatusBarRenderer.swift  — status bar icon rendering
+│   └── Formatting.swift         — timeUntil(), progressBar(), usageStyle(), buildTooltip()
+└── Windows/
+    ├── AboutWindowController.swift        — about window
+    ├── SetupWindowController.swift        — first-run setup window
+    ├── PreferencesWindowController.swift  — preferences window
+    ├── CredentialFormView.swift           — reusable NSView with org ID + cookie fields
+    ├── CredentialGuide.swift              — NSAttributedString instructions for credentials
+    └── WindowManager.swift               — activation policy + window focus management
 ```
 
 Key patterns:
@@ -88,6 +95,40 @@ Window durations are hardcoded constants (5h, 7d) since the API doesn't return t
 Both APIs are polled together. Adaptive polling: base 60s, speeds up to 30s when usage is increasing, slows to 10min when stable. In critical state (red), floor is 2min. Exponential backoff on failures (10s→300s cap).
 
 Authentication: user provides session cookie string and organization ID via Preferences, stored in Keychain.
+
+## Localization
+
+**Source of truth: `Translations/*.json`** — one flat `{"key": "value"}` file per language. `_comments.json` holds developer comments for each key.
+
+**`ClaudeMonitor/Localizable.xcstrings` is GENERATED and gitignored — never read or edit it.** It is produced by `scripts/generate-xcstrings.swift`. Xcode regenerates it automatically via a Run Script build phase. For CLI builds, `build.sh` calls the same script.
+
+```
+Translations/
+  _comments.json     — {"key": "developer comment"}
+  en.json            — {"key": "English text"}
+  cs.json            — {"key": "Czech text"}
+  …29 language files
+scripts/
+  generate-xcstrings.swift  — Translations/*.json → Localizable.xcstrings (+ .lproj for CLI builds)
+```
+
+### Workflow
+
+**Add/change a translation key:**
+1. Edit `Translations/en.json` (add/change the key)
+2. Add the comment to `Translations/_comments.json`
+3. Add the translation to each language file in `Translations/`
+4. Run `swift scripts/generate-xcstrings.swift` to regenerate xcstrings
+
+**Add a new language:** create a new `Translations/{code}.json` with all keys, run the generate script.
+
+### Agent instructions for localization
+
+When delegating translation work to a Sonnet agent, the prompt MUST include:
+- "Source of truth is `Translations/*.json`. NEVER edit `Localizable.xcstrings`."
+- Explicit list of keys to add/change
+- English text for each key
+- "After editing JSON files, run `swift scripts/generate-xcstrings.swift`"
 
 ## Tests
 

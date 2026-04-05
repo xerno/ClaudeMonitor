@@ -69,6 +69,7 @@
   "menu.window.sonnet": "7d Sonnet",
   "prefs.button.save": "Save",
   "prefs.launch_at_login": "Launch at login",
+  "prefs.reset_sound": "Play sound when critical limit resets",
   "prefs.window.title": "Claude Monitor – Preferences",
   "setup.button.skip": "Skip",
   "setup.button.start": "Get Started",

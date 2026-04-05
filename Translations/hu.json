@@ -69,6 +69,7 @@
   "menu.window.sonnet": "7 napos Sonnet",
   "prefs.button.save": "Mentés",
   "prefs.launch_at_login": "Indítás bejelentkezéskor",
+  "prefs.reset_sound": "Hang lejátszása kritikus korlát visszaállásakor",
   "prefs.window.title": "Claude Monitor – Beállítások",
   "setup.button.skip": "Kihagyás",
   "setup.button.start": "Kezdés",

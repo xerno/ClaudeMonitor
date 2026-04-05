@@ -69,6 +69,7 @@
   "menu.window.sonnet": "7d Sonnet",
   "prefs.button.save": "Uložit",
   "prefs.launch_at_login": "Spustit při přihlášení",
+  "prefs.reset_sound": "Přehrát zvuk při resetu kritického limitu",
   "prefs.window.title": "Claude Monitor – Předvolby",
   "setup.button.skip": "Přeskočit",
   "setup.button.start": "Začít",

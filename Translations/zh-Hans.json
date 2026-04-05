@@ -69,6 +69,7 @@
   "menu.window.sonnet": "7天 Sonnet",
   "prefs.button.save": "存储",
   "prefs.launch_at_login": "登录时启动",
+  "prefs.reset_sound": "严重限制重置时播放声音",
   "prefs.window.title": "Claude Monitor – 偏好设置",
   "setup.button.skip": "跳过",
   "setup.button.start": "开始使用",

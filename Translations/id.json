@@ -69,6 +69,7 @@
   "menu.window.sonnet": "7h Sonnet",
   "prefs.button.save": "Simpan",
   "prefs.launch_at_login": "Jalankan saat masuk",
+  "prefs.reset_sound": "Putar suara saat batas kritis direset",
   "prefs.window.title": "Claude Monitor – Preferensi",
   "setup.button.skip": "Lewati",
   "setup.button.start": "Mulai",

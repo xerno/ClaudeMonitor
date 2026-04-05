@@ -69,6 +69,7 @@
   "menu.window.sonnet": "7d Sonnet",
   "prefs.button.save": "Guardar",
   "prefs.launch_at_login": "Abrir no início de sessão",
+  "prefs.reset_sound": "Reproduzir som quando o limite crítico for redefinido",
   "prefs.window.title": "Claude Monitor – Preferências",
   "setup.button.skip": "Ignorar",
   "setup.button.start": "Começar",

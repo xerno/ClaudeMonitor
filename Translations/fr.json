@@ -69,6 +69,7 @@
   "menu.window.sonnet": "7j Sonnet",
   "prefs.button.save": "Enregistrer",
   "prefs.launch_at_login": "Lancer au démarrage",
+  "prefs.reset_sound": "Jouer un son lorsque la limite critique est réinitialisée",
   "prefs.window.title": "Claude Monitor – Préférences",
   "setup.button.skip": "Ignorer",
   "setup.button.start": "Commencer",

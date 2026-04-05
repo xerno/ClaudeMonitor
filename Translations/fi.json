@@ -69,6 +69,7 @@
   "menu.window.sonnet": "7 pv Sonnet",
   "prefs.button.save": "Tallenna",
   "prefs.launch_at_login": "Avaa kirjautumisen yhteydessä",
+  "prefs.reset_sound": "Toista ääni kun kriittinen raja nollautuu",
   "prefs.window.title": "Claude Monitor – Asetukset",
   "setup.button.skip": "Ohita",
   "setup.button.start": "Aloita",
