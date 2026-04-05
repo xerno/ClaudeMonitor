@@ -26,6 +26,19 @@ enum Formatting {
         return "\(days)d \(remainingHours)h"
     }
 
+    static func formatInterval(_ interval: TimeInterval) -> String {
+        let totalSeconds = Int(max(interval, 0))
+        if totalSeconds < 60 { return "\(totalSeconds)s" }
+        let totalMinutes = totalSeconds / 60
+        let seconds = totalSeconds % 60
+        if totalMinutes < 60 {
+            return seconds == 0 ? "\(totalMinutes)m" : "\(totalMinutes)m \(seconds)s"
+        }
+        let hours = totalMinutes / 60
+        let minutes = totalMinutes % 60
+        return minutes == 0 ? "\(hours)h" : "\(hours)h \(minutes)m"
+    }
+
     static func blockingLimit(_ usage: UsageResponse?) -> Date? {
         guard let usage else { return nil }
         let windows: [UsageWindow?] = [usage.fiveHour, usage.sevenDay, usage.sevenDaySonnet]

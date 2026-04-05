@@ -69,9 +69,9 @@ enum MenuBuilder {
         }
     }
 
-    static func refreshControlTimes(in menu: NSMenu, lastRefreshed: Date?, nextPollDate: Date?) {
+    static func refreshControlTimes(in menu: NSMenu, lastRefreshed: Date?, interval: TimeInterval?) {
         if let item = menu.item(withTag: updatedTag), let date = lastRefreshed {
-            item.title = updatedNextTitle(lastRefreshed: date, nextPollDate: nextPollDate)
+            item.title = updatedNextTitle(lastRefreshed: date, interval: interval)
         }
     }
 
@@ -152,7 +152,7 @@ enum MenuBuilder {
         var items: [NSMenuItem] = []
 
         if let date = state.lastRefreshed {
-            items.append(staticItem(updatedNextTitle(lastRefreshed: date, nextPollDate: state.nextPollDate),
+            items.append(staticItem(updatedNextTitle(lastRefreshed: date, interval: state.currentPollInterval),
                                     tag: updatedTag))
         }
 
@@ -260,13 +260,13 @@ enum MenuBuilder {
         return text
     }
 
-    private static func updatedNextTitle(lastRefreshed: Date, nextPollDate: Date?) -> String {
+    private static func updatedNextTitle(lastRefreshed: Date, interval: TimeInterval?) -> String {
         let updated = String(format: String(localized: "menu.updated"),
                              lastRefreshed.formatted(.dateTime.hour().minute().second()))
-        guard let next = nextPollDate else { return updated }
-        let nextLabel = String(format: String(localized: "menu.next"),
-                               next.formatted(.dateTime.hour().minute().second()))
-        return "\(updated)   \(nextLabel)"
+        guard let interval else { return updated }
+        let intervalLabel = String(format: String(localized: "menu.interval"),
+                                   Formatting.formatInterval(interval))
+        return "\(updated)   \(intervalLabel)"
     }
 
     // MARK: - Helpers

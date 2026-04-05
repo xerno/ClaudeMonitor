@@ -13,7 +13,8 @@ final class DataCoordinator {
     private(set) var usageError: String?
     private(set) var statusError: String?
     private(set) var lastRefreshed: Date?
-    private(set) var nextPollDate: Date?
+    private var nextPollDate: Date?
+    private(set) var currentPollInterval: TimeInterval?
     private(set) var scheduler = PollingScheduler()
 
     var onUpdate: (() -> Void)?
@@ -45,7 +46,7 @@ final class DataCoordinator {
             statusError: statusError,
             lastRefreshed: lastRefreshed,
             hasCredentials: hasCredentials,
-            nextPollDate: nextPollDate
+            currentPollInterval: currentPollInterval
         )
     }
 
@@ -79,6 +80,7 @@ final class DataCoordinator {
             statusError = nil
             lastRefreshed = Date()
             nextPollDate = Date().addingTimeInterval(Constants.Demo.rotationInterval)
+            currentPollInterval = Constants.Demo.rotationInterval
             onUpdate?()
             return
         }
@@ -90,7 +92,9 @@ final class DataCoordinator {
         let isCritical = currentUsage.map(Formatting.hasAnyCriticalWindow) ?? false
         scheduler.adjustPollingRate(usage: currentUsage, isCritical: isCritical)
         lastRefreshed = Date()
-        nextPollDate = Date().addingTimeInterval(scheduler.nextPollInterval(usage: currentUsage))
+        let pollInterval = scheduler.nextPollInterval(usage: currentUsage)
+        nextPollDate = Date().addingTimeInterval(pollInterval)
+        currentPollInterval = pollInterval
         onUpdate?()
         if let prev = usageBeforeRefresh, let curr = currentUsage,
            Formatting.detectCriticalReset(previous: prev, current: curr) {

@@ -92,8 +92,7 @@ final class MenuBarController: NSObject, MenuActions {
     private var shouldCountdownRun: Bool {
         let isBlocked = Formatting.blockingLimit(coordinator.currentUsage) != nil
         let menuHasResetTimes = isMenuOpen && coordinator.currentUsage != nil
-        let menuHasNextUpdate = isMenuOpen && coordinator.nextPollDate != nil
-        return isBlocked || menuHasResetTimes || menuHasNextUpdate
+        return isBlocked || menuHasResetTimes
     }
 
     private func updateCountdownState() {
@@ -145,7 +144,7 @@ final class MenuBarController: NSObject, MenuActions {
             MenuBuilder.refreshControlTimes(
                 in: menu,
                 lastRefreshed: coordinator.lastRefreshed,
-                nextPollDate: coordinator.nextPollDate
+                interval: coordinator.currentPollInterval
             )
         }
     }
@@ -159,9 +158,6 @@ final class MenuBarController: NSObject, MenuActions {
             if let w = usage.fiveHour, let r = w.resetsAt { resetTimes.append(r) }
             if let w = usage.sevenDay, let r = w.resetsAt { resetTimes.append(r) }
             if let w = usage.sevenDaySonnet, let r = w.resetsAt { resetTimes.append(r) }
-        }
-        if isMenuOpen, let nextPoll = coordinator.nextPollDate {
-            resetTimes.append(nextPoll)
         }
         guard !resetTimes.isEmpty else { return nil }
         return Formatting.nextTickTarget(resetTimes: resetTimes, now: Date())

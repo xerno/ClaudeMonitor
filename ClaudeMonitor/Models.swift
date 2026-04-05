@@ -107,7 +107,7 @@ struct MonitorState: Sendable, Equatable {
     let statusError: String?
     let lastRefreshed: Date?
     let hasCredentials: Bool
-    let nextPollDate: Date?
+    let currentPollInterval: TimeInterval?
 }
 
 struct ServiceState: Sendable {

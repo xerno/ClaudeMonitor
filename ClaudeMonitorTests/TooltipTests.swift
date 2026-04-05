@@ -8,7 +8,7 @@ final class TooltipTests: XCTestCase {
             currentUsage: nil, currentStatus: nil,
             usageError: nil, statusError: nil,
             lastRefreshed: nil, hasCredentials: false,
-            nextPollDate: nil
+            currentPollInterval: nil
         )
         let tooltip = Formatting.buildTooltip(state: state)
         XCTAssertTrue(tooltip.contains("configure credentials"))
@@ -19,7 +19,7 @@ final class TooltipTests: XCTestCase {
             currentUsage: nil, currentStatus: nil,
             usageError: "Session expired", statusError: nil,
             lastRefreshed: nil, hasCredentials: true,
-            nextPollDate: nil
+            currentPollInterval: nil
         )
         let tooltip = Formatting.buildTooltip(state: state)
         XCTAssertTrue(tooltip.contains("⚠ Usage: Session expired"))
@@ -36,7 +36,7 @@ final class TooltipTests: XCTestCase {
             currentUsage: usage, currentStatus: nil,
             usageError: nil, statusError: nil,
             lastRefreshed: now, hasCredentials: true,
-            nextPollDate: nil
+            currentPollInterval: nil
         )
         let tooltip = Formatting.buildTooltip(state: state)
         XCTAssertTrue(tooltip.contains("5h window: 42%"))
@@ -54,7 +54,7 @@ final class TooltipTests: XCTestCase {
             currentUsage: nil, currentStatus: status,
             usageError: nil, statusError: nil,
             lastRefreshed: nil, hasCredentials: false,
-            nextPollDate: nil
+            currentPollInterval: nil
         )
         let tooltip = Formatting.buildTooltip(state: state)
         XCTAssertTrue(tooltip.contains("✓ All systems operational"))
@@ -70,7 +70,7 @@ final class TooltipTests: XCTestCase {
             currentUsage: nil, currentStatus: status,
             usageError: nil, statusError: nil,
             lastRefreshed: nil, hasCredentials: false,
-            nextPollDate: nil
+            currentPollInterval: nil
         )
         let tooltip = Formatting.buildTooltip(state: state)
         XCTAssertTrue(tooltip.contains("🔴 API: Major Outage"))
@@ -82,7 +82,7 @@ final class TooltipTests: XCTestCase {
             currentUsage: nil, currentStatus: nil,
             usageError: nil, statusError: nil,
             lastRefreshed: nil, hasCredentials: true,
-            nextPollDate: nil
+            currentPollInterval: nil
         )
         let tooltip = Formatting.buildTooltip(state: state)
         XCTAssertTrue(tooltip.contains("Usage: loading…"))
