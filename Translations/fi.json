@@ -55,6 +55,7 @@
   "menu.about": "Tietoja",
   "menu.credentials.configure": "  ⚙  Määritä tunnistetiedot Asetuksissa",
   "menu.interval": "Väli: %1$@",
+  "menu.next": "Seuraava: %1$@",
   "menu.loading": "  Ladataan...",
   "menu.preferences": "Asetukset",
   "menu.quit": "Lopeta",

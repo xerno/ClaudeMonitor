@@ -55,6 +55,7 @@
   "menu.about": "Om",
   "menu.credentials.configure": "  ⚙  Ange uppgifter i Inställningar",
   "menu.interval": "Intervall: %1$@",
+  "menu.next": "Nästa: %1$@",
   "menu.loading": "  Läser in…",
   "menu.preferences": "Inställningar",
   "menu.quit": "Avsluta",

@@ -55,6 +55,7 @@
   "menu.about": "حول",
   "menu.credentials.configure": "  ⚙  قم بتهيئة بيانات الاعتماد في التفضيلات",
   "menu.interval": "الفاصل الزمني: %1$@",
+  "menu.next": "التالي: %1$@",
   "menu.loading": "  جارٍ التحميل...",
   "menu.preferences": "التفضيلات",
   "menu.quit": "إنهاء",

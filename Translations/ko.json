@@ -55,6 +55,7 @@
   "menu.about": "정보",
   "menu.credentials.configure": "  ⚙  환경설정에서 자격 증명 구성",
   "menu.interval": "간격: %1$@",
+  "menu.next": "다음: %1$@",
   "menu.loading": "  로딩 중...",
   "menu.preferences": "환경설정",
   "menu.quit": "종료",

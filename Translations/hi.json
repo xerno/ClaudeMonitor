@@ -55,6 +55,7 @@
   "menu.about": "परिचय",
   "menu.credentials.configure": "  ⚙  प्राथमिकताओं में क्रेडेंशियल कॉन्फ़िगर करें",
   "menu.interval": "अंतराल: %1$@",
+  "menu.next": "अगला: %1$@",
   "menu.loading": "  लोड हो रहा है...",
   "menu.preferences": "प्राथमिकताएँ",
   "menu.quit": "छोड़ें",

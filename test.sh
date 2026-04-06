@@ -4,24 +4,17 @@ set -euo pipefail
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 APP_NAME="ClaudeMonitor"
 
-# --- Prerequisites
-
-XCODEBUILD=$(xcrun -f xcodebuild 2>/dev/null || true)
-
-if [ -z "${XCODEBUILD}" ]; then
-    echo "Error: xcodebuild not found."
-    echo "If Xcode is installed, run: sudo xcode-select -s /Applications/Xcode.app/Contents/Developer"
-    echo "Otherwise, install Xcode from the App Store."
-    exit 1
-fi
-
-# --- Run tests
+# Generate Localizable.xcstrings so SPM can include it as a module resource.
+# String(localized:) in Swift 6 uses the module bundle, which SPM builds from
+# declared resources — without this file the localization falls back to raw keys.
+echo "Generating localization..."
+# Pass ClaudeMonitor/ as second arg to also write per-language .lproj/Localizable.strings files.
+# SPM auto-discovers .lproj dirs as localized resources; Foundation reads .strings at runtime
+# (the .xcstrings JSON is not readable by Foundation without Xcode compilation).
+swift "${PROJECT_DIR}/scripts/generate-xcstrings.swift" "${PROJECT_DIR}/ClaudeMonitor"
 
 echo "Running ${APP_NAME} tests..."
-
-"${XCODEBUILD}" test \
-    -project "${PROJECT_DIR}/${APP_NAME}.xcodeproj" \
-    -scheme "${APP_NAME}" \
-    -quiet
+cd "${PROJECT_DIR}"
+swift run ClaudeMonitorTestRunner
 
 echo "Done."

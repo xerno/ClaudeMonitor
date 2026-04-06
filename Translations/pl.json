@@ -55,6 +55,7 @@
   "menu.about": "Informacje",
   "menu.credentials.configure": "  ⚙  Skonfiguruj poświadczenia w Preferencjach",
   "menu.interval": "Interwał: %1$@",
+  "menu.next": "Następne: %1$@",
   "menu.loading": "  Ładowanie...",
   "menu.preferences": "Preferencje",
   "menu.quit": "Zakończ",

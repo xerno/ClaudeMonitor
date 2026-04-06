@@ -55,6 +55,7 @@
   "menu.about": "Om",
   "menu.credentials.configure": "  ⚙  Konfigurer legitimationsoplysninger i Indstillinger",
   "menu.interval": "Interval: %1$@",
+  "menu.next": "Næste: %1$@",
   "menu.loading": "  Indlæser…",
   "menu.preferences": "Indstillinger",
   "menu.quit": "Slut",

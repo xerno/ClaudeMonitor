@@ -55,6 +55,7 @@
   "menu.about": "Over",
   "menu.credentials.configure": "  ⚙  Configureer inloggegevens in Voorkeuren",
   "menu.interval": "Interval: %1$@",
+  "menu.next": "Volgende: %1$@",
   "menu.loading": "  Laden...",
   "menu.preferences": "Voorkeuren",
   "menu.quit": "Stop",

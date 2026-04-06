@@ -55,6 +55,7 @@
   "menu.about": "Hakkında",
   "menu.credentials.configure": "  ⚙  Kimlik bilgilerini Tercihler'de yapılandırın",
   "menu.interval": "Aralık: %1$@",
+  "menu.next": "Sonraki: %1$@",
   "menu.loading": "  Yükleniyor...",
   "menu.preferences": "Tercihler",
   "menu.quit": "Çık",

@@ -1,4 +1,5 @@
-import XCTest
+import Testing
+import Foundation
 @testable import ClaudeMonitor
 
 private let testStatus = StatusSummary(
@@ -37,10 +38,9 @@ private final class MockUsageService: UsageFetching, @unchecked Sendable {
     }
 }
 
-@MainActor
-final class DataCoordinatorTests: XCTestCase {
-    private var mockStatus: MockStatusService!
-    private var mockUsage: MockUsageService!
+@MainActor struct DataCoordinatorTests {
+    private let mockStatus = MockStatusService()
+    private let mockUsage = MockUsageService()
 
     private func makeCoordinator(
         credentials: [String: String] = [
@@ -55,112 +55,107 @@ final class DataCoordinatorTests: XCTestCase {
         )
     }
 
-    override func setUp() {
-        mockStatus = MockStatusService()
-        mockUsage = MockUsageService()
-    }
-
     // MARK: - Successful Fetch
 
-    func testRefreshUpdatesStateOnSuccess() async {
+    @Test func refreshUpdatesStateOnSuccess() async {
         let coordinator = makeCoordinator()
         await coordinator.refresh()
 
-        XCTAssertEqual(coordinator.currentStatus, testStatus)
-        XCTAssertEqual(coordinator.currentUsage, testUsage)
-        XCTAssertNil(coordinator.usageError)
-        XCTAssertNil(coordinator.statusError)
-        XCTAssertNotNil(coordinator.lastRefreshed)
+        #expect(coordinator.currentStatus == testStatus)
+        #expect(coordinator.currentUsage == testUsage)
+        #expect(coordinator.usageError == nil)
+        #expect(coordinator.statusError == nil)
+        #expect(coordinator.lastRefreshed != nil)
     }
 
-    func testRefreshCallsBothServices() async {
+    @Test func refreshCallsBothServices() async {
         let coordinator = makeCoordinator()
         await coordinator.refresh()
 
-        XCTAssertEqual(mockStatus.fetchCount, 1)
-        XCTAssertEqual(mockUsage.fetchCount, 1)
+        #expect(mockStatus.fetchCount == 1)
+        #expect(mockUsage.fetchCount == 1)
     }
 
-    func testRefreshPassesCredentialsToUsageService() async {
+    @Test func refreshPassesCredentialsToUsageService() async {
         let coordinator = makeCoordinator()
         await coordinator.refresh()
 
-        XCTAssertEqual(mockUsage.lastOrgId, "test-org-id")
-        XCTAssertEqual(mockUsage.lastCookie, "test-cookie")
+        #expect(mockUsage.lastOrgId == "test-org-id")
+        #expect(mockUsage.lastCookie == "test-cookie")
     }
 
-    func testRefreshCallsOnUpdate() async {
+    @Test func refreshCallsOnUpdate() async {
         let coordinator = makeCoordinator()
         var updateCount = 0
         coordinator.onUpdate = { updateCount += 1 }
 
         await coordinator.refresh()
 
-        XCTAssertEqual(updateCount, 1)
+        #expect(updateCount == 1)
     }
 
-    func testRefreshRecordsSchedulerSuccess() async {
+    @Test func refreshRecordsSchedulerSuccess() async {
         let coordinator = makeCoordinator()
         await coordinator.refresh()
 
-        XCTAssertNotNil(coordinator.scheduler.statusState.lastSuccess)
-        XCTAssertNotNil(coordinator.scheduler.usageState.lastSuccess)
-        XCTAssertEqual(coordinator.scheduler.statusState.consecutiveFailures, 0)
-        XCTAssertEqual(coordinator.scheduler.usageState.consecutiveFailures, 0)
+        #expect(coordinator.scheduler.statusState.lastSuccess != nil)
+        #expect(coordinator.scheduler.usageState.lastSuccess != nil)
+        #expect(coordinator.scheduler.statusState.consecutiveFailures == 0)
+        #expect(coordinator.scheduler.usageState.consecutiveFailures == 0)
     }
 
     // MARK: - No Credentials
 
-    func testRefreshWithNoCredentialsSetsUsageError() async {
+    @Test func refreshWithNoCredentialsSetsUsageError() async {
         let coordinator = makeCoordinator(credentials: [:])
         await coordinator.refresh()
 
-        XCTAssertEqual(coordinator.usageError, "Configure credentials in Preferences")
-        XCTAssertEqual(mockUsage.fetchCount, 0)
+        #expect(coordinator.usageError == "Configure credentials in Preferences")
+        #expect(mockUsage.fetchCount == 0)
     }
 
-    func testRefreshWithEmptyCredentialsSetsUsageError() async {
+    @Test func refreshWithEmptyCredentialsSetsUsageError() async {
         let coordinator = makeCoordinator(credentials: [
             Constants.Keychain.cookieString: "",
             Constants.Keychain.organizationId: "org",
         ])
         await coordinator.refresh()
 
-        XCTAssertEqual(coordinator.usageError, "Configure credentials in Preferences")
-        XCTAssertEqual(mockUsage.fetchCount, 0)
+        #expect(coordinator.usageError == "Configure credentials in Preferences")
+        #expect(mockUsage.fetchCount == 0)
     }
 
-    func testNoCredentialsStillFetchesStatus() async {
+    @Test func noCredentialsStillFetchesStatus() async {
         let coordinator = makeCoordinator(credentials: [:])
         await coordinator.refresh()
 
-        XCTAssertEqual(mockStatus.fetchCount, 1)
-        XCTAssertEqual(coordinator.currentStatus, testStatus)
+        #expect(mockStatus.fetchCount == 1)
+        #expect(coordinator.currentStatus == testStatus)
     }
 
-    func testHasCredentialsReturnsFalseWhenMissing() {
+    @Test func hasCredentialsReturnsFalseWhenMissing() {
         let coordinator = makeCoordinator(credentials: [:])
-        XCTAssertFalse(coordinator.hasCredentials)
+        #expect(!coordinator.hasCredentials)
     }
 
-    func testHasCredentialsReturnsTrueWhenPresent() {
+    @Test func hasCredentialsReturnsTrueWhenPresent() {
         let coordinator = makeCoordinator()
-        XCTAssertTrue(coordinator.hasCredentials)
+        #expect(coordinator.hasCredentials)
     }
 
     // MARK: - Status Failure
 
-    func testStatusFailureBelowThresholdDoesNotSetError() async {
+    @Test func statusFailureBelowThresholdDoesNotSetError() async {
         mockStatus.result = .failure(ServiceError.unexpectedStatus(500))
         let coordinator = makeCoordinator()
 
         await coordinator.refresh()
 
-        XCTAssertNil(coordinator.statusError)
-        XCTAssertEqual(coordinator.scheduler.statusState.consecutiveFailures, 1)
+        #expect(coordinator.statusError == nil)
+        #expect(coordinator.scheduler.statusState.consecutiveFailures == 1)
     }
 
-    func testStatusFailureAtThresholdSetsError() async {
+    @Test func statusFailureAtThresholdSetsError() async {
         mockStatus.result = .failure(ServiceError.unexpectedStatus(500))
         let coordinator = makeCoordinator()
 
@@ -168,37 +163,37 @@ final class DataCoordinatorTests: XCTestCase {
             await coordinator.refresh()
         }
 
-        XCTAssertNotNil(coordinator.statusError)
+        #expect(coordinator.statusError != nil)
     }
 
-    func testStatusSuccessAfterFailureClearsError() async {
+    @Test func statusSuccessAfterFailureClearsError() async {
         mockStatus.result = .failure(ServiceError.unexpectedStatus(500))
         let coordinator = makeCoordinator()
         for _ in 0..<Constants.Retry.failureThreshold {
             await coordinator.refresh()
         }
-        XCTAssertNotNil(coordinator.statusError)
+        #expect(coordinator.statusError != nil)
 
         mockStatus.result = .success(testStatus)
         await coordinator.refresh()
 
-        XCTAssertNil(coordinator.statusError)
-        XCTAssertEqual(coordinator.currentStatus, testStatus)
+        #expect(coordinator.statusError == nil)
+        #expect(coordinator.currentStatus == testStatus)
     }
 
     // MARK: - Usage Failure
 
-    func testUsageFailureBelowThresholdDoesNotSetError() async {
+    @Test func usageFailureBelowThresholdDoesNotSetError() async {
         mockUsage.result = .failure(ServiceError.unexpectedStatus(500))
         let coordinator = makeCoordinator()
 
         await coordinator.refresh()
 
-        XCTAssertNil(coordinator.usageError)
-        XCTAssertEqual(coordinator.scheduler.usageState.consecutiveFailures, 1)
+        #expect(coordinator.usageError == nil)
+        #expect(coordinator.scheduler.usageState.consecutiveFailures == 1)
     }
 
-    func testUsageFailureAtThresholdSetsError() async {
+    @Test func usageFailureAtThresholdSetsError() async {
         mockUsage.result = .failure(ServiceError.unexpectedStatus(500))
         let coordinator = makeCoordinator()
 
@@ -206,83 +201,82 @@ final class DataCoordinatorTests: XCTestCase {
             await coordinator.refresh()
         }
 
-        XCTAssertNotNil(coordinator.usageError)
+        #expect(coordinator.usageError != nil)
     }
 
     // MARK: - Auth Failure
 
-    func testAuthFailureNilsOutUsage() async {
+    @Test func authFailureNilsOutUsage() async {
         let coordinator = makeCoordinator()
         await coordinator.refresh()
-        XCTAssertNotNil(coordinator.currentUsage)
+        #expect(coordinator.currentUsage != nil)
 
         mockUsage.result = .failure(ServiceError.unauthorized)
         await coordinator.refresh()
 
-        XCTAssertNil(coordinator.currentUsage)
+        #expect(coordinator.currentUsage == nil)
     }
 
-    func testAuthFailureClassifiedCorrectly() async {
+    @Test func authFailureClassifiedCorrectly() async {
         mockUsage.result = .failure(ServiceError.unauthorized)
         let coordinator = makeCoordinator()
         await coordinator.refresh()
 
-        XCTAssertEqual(coordinator.scheduler.usageState.lastError, .authFailure)
+        #expect(coordinator.scheduler.usageState.lastError == .authFailure)
     }
 
     // MARK: - MonitorState
 
-    func testMonitorStateReflectsCurrentData() async {
+    @Test func monitorStateReflectsCurrentData() async {
         let coordinator = makeCoordinator()
         await coordinator.refresh()
 
         let state = coordinator.monitorState
-        XCTAssertEqual(state.currentUsage, testUsage)
-        XCTAssertEqual(state.currentStatus, testStatus)
-        XCTAssertTrue(state.hasCredentials)
-        XCTAssertNil(state.usageError)
-        XCTAssertNil(state.statusError)
-        XCTAssertNotNil(state.lastRefreshed)
+        #expect(state.currentUsage == testUsage)
+        #expect(state.currentStatus == testStatus)
+        #expect(state.hasCredentials)
+        #expect(state.usageError == nil)
+        #expect(state.statusError == nil)
+        #expect(state.lastRefreshed != nil)
     }
 
-    func testMonitorStateWithNoCredentials() {
+    @Test func monitorStateWithNoCredentials() {
         let coordinator = makeCoordinator(credentials: [:])
         let state = coordinator.monitorState
 
-        XCTAssertFalse(state.hasCredentials)
-        XCTAssertNil(state.currentUsage)
+        #expect(!state.hasCredentials)
+        #expect(state.currentUsage == nil)
     }
 
     // MARK: - Restart
 
-    func testRestartResetsScheduler() async {
+    @Test func restartResetsScheduler() async {
         mockUsage.result = .failure(ServiceError.unexpectedStatus(500))
         let coordinator = makeCoordinator()
         await coordinator.refresh()
-        XCTAssertEqual(coordinator.scheduler.usageState.consecutiveFailures, 1)
+        #expect(coordinator.scheduler.usageState.consecutiveFailures == 1)
 
         mockUsage.result = .success(testUsage)
         coordinator.restartPolling()
-        // Give the polling task a moment to run its first refresh
         try? await Task.sleep(for: .milliseconds(100))
 
-        XCTAssertEqual(coordinator.scheduler.usageState.consecutiveFailures, 0)
+        #expect(coordinator.scheduler.usageState.consecutiveFailures == 0)
     }
 
     // MARK: - Multiple Refreshes
 
-    func testMultipleRefreshesAccumulateFailures() async {
+    @Test func multipleRefreshesAccumulateFailures() async {
         mockStatus.result = .failure(ServiceError.rateLimited)
         let coordinator = makeCoordinator()
 
         await coordinator.refresh()
-        XCTAssertEqual(coordinator.scheduler.statusState.consecutiveFailures, 1)
+        #expect(coordinator.scheduler.statusState.consecutiveFailures == 1)
 
         await coordinator.refresh()
-        XCTAssertEqual(coordinator.scheduler.statusState.consecutiveFailures, 2)
+        #expect(coordinator.scheduler.statusState.consecutiveFailures == 2)
     }
 
-    func testOnUpdateCalledOnEveryRefresh() async {
+    @Test func onUpdateCalledOnEveryRefresh() async {
         let coordinator = makeCoordinator()
         var updateCount = 0
         coordinator.onUpdate = { updateCount += 1 }
@@ -291,26 +285,26 @@ final class DataCoordinatorTests: XCTestCase {
         await coordinator.refresh()
         await coordinator.refresh()
 
-        XCTAssertEqual(updateCount, 3)
+        #expect(updateCount == 3)
     }
 
     // MARK: - Mixed Service Results
 
-    func testStatusFailureDoesNotAffectUsage() async {
+    @Test func statusFailureDoesNotAffectUsage() async {
         mockStatus.result = .failure(ServiceError.unexpectedStatus(503))
         let coordinator = makeCoordinator()
         await coordinator.refresh()
 
-        XCTAssertNil(coordinator.currentStatus)
-        XCTAssertEqual(coordinator.currentUsage, testUsage)
+        #expect(coordinator.currentStatus == nil)
+        #expect(coordinator.currentUsage == testUsage)
     }
 
-    func testUsageFailureDoesNotAffectStatus() async {
+    @Test func usageFailureDoesNotAffectStatus() async {
         mockUsage.result = .failure(ServiceError.unexpectedStatus(503))
         let coordinator = makeCoordinator()
         await coordinator.refresh()
 
-        XCTAssertEqual(coordinator.currentStatus, testStatus)
-        XCTAssertNil(coordinator.currentUsage)
+        #expect(coordinator.currentStatus == testStatus)
+        #expect(coordinator.currentUsage == nil)
     }
 }

@@ -55,6 +55,7 @@
   "menu.about": "เกี่ยวกับ",
   "menu.credentials.configure": "  ⚙  ตั้งค่าข้อมูลรับรองในการตั้งค่า",
   "menu.interval": "ช่วงเวลา: %1$@",
+  "menu.next": "ถัดไป: %1$@",
   "menu.loading": "  กำลังโหลด...",
   "menu.preferences": "การตั้งค่า",
   "menu.quit": "ออก",

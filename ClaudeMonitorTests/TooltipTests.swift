@@ -1,9 +1,10 @@
-import XCTest
+import Testing
+import Foundation
 @testable import ClaudeMonitor
 
-final class TooltipTests: XCTestCase {
+@MainActor struct TooltipTests {
 
-    func testTooltipWithNoCredentials() {
+    @Test func tooltipWithNoCredentials() {
         let state = MonitorState(
             currentUsage: nil, currentStatus: nil,
             usageError: nil, statusError: nil,
@@ -11,10 +12,10 @@ final class TooltipTests: XCTestCase {
             currentPollInterval: nil
         )
         let tooltip = Formatting.buildTooltip(state: state)
-        XCTAssertTrue(tooltip.contains("configure credentials"))
+        #expect(tooltip.contains("configure credentials"))
     }
 
-    func testTooltipWithUsageError() {
+    @Test func tooltipWithUsageError() {
         let state = MonitorState(
             currentUsage: nil, currentStatus: nil,
             usageError: "Session expired", statusError: nil,
@@ -22,10 +23,10 @@ final class TooltipTests: XCTestCase {
             currentPollInterval: nil
         )
         let tooltip = Formatting.buildTooltip(state: state)
-        XCTAssertTrue(tooltip.contains("⚠ Usage: Session expired"))
+        #expect(tooltip.contains("⚠ Usage: Session expired"))
     }
 
-    func testTooltipWithUsageData() {
+    @Test func tooltipWithUsageData() {
         let now = Date()
         let usage = UsageResponse(
             fiveHour: UsageWindow(utilization: 42, resetsAt: now.addingTimeInterval(3600)),
@@ -39,12 +40,31 @@ final class TooltipTests: XCTestCase {
             currentPollInterval: nil
         )
         let tooltip = Formatting.buildTooltip(state: state)
-        XCTAssertTrue(tooltip.contains("5h window: 42%"))
-        XCTAssertTrue(tooltip.contains("7d window: 18%"))
-        XCTAssertTrue(tooltip.contains("Updated:"))
+        #expect(tooltip.contains("5h window: 42%"))
+        #expect(tooltip.contains("7d window: 18%"))
+        #expect(tooltip.contains("Updated:"))
     }
 
-    func testTooltipWithAllSystemsOperational() {
+    @Test func tooltipWithUsageDataAndInterval() {
+        let now = Date()
+        let usage = UsageResponse(
+            fiveHour: UsageWindow(utilization: 42, resetsAt: now.addingTimeInterval(3600)),
+            sevenDay: UsageWindow(utilization: 18, resetsAt: now.addingTimeInterval(86400)),
+            sevenDaySonnet: nil
+        )
+        let state = MonitorState(
+            currentUsage: usage, currentStatus: nil,
+            usageError: nil, statusError: nil,
+            lastRefreshed: now, hasCredentials: true,
+            currentPollInterval: 60
+        )
+        let tooltip = Formatting.buildTooltip(state: state)
+        #expect(tooltip.contains("Updated:"))
+        #expect(tooltip.contains("Interval:"))
+        #expect(tooltip.contains("Next:"))
+    }
+
+    @Test func tooltipWithAllSystemsOperational() {
         let status = StatusSummary(
             components: [StatusComponent(id: "1", name: "API", status: .operational)],
             incidents: [],
@@ -57,10 +77,10 @@ final class TooltipTests: XCTestCase {
             currentPollInterval: nil
         )
         let tooltip = Formatting.buildTooltip(state: state)
-        XCTAssertTrue(tooltip.contains("✓ All systems operational"))
+        #expect(tooltip.contains("✓ All systems operational"))
     }
 
-    func testTooltipWithIncident() {
+    @Test func tooltipWithIncident() {
         let status = StatusSummary(
             components: [StatusComponent(id: "1", name: "API", status: .majorOutage)],
             incidents: [Incident(id: "i1", name: "API down", status: "investigating", impact: "major", shortlink: "https://x")],
@@ -73,11 +93,11 @@ final class TooltipTests: XCTestCase {
             currentPollInterval: nil
         )
         let tooltip = Formatting.buildTooltip(state: state)
-        XCTAssertTrue(tooltip.contains("🔴 API: Major Outage"))
-        XCTAssertTrue(tooltip.contains("⚠ API down"))
+        #expect(tooltip.contains("🔴 API: Major Outage"))
+        #expect(tooltip.contains("⚠ API down"))
     }
 
-    func testTooltipLoadingState() {
+    @Test func tooltipLoadingState() {
         let state = MonitorState(
             currentUsage: nil, currentStatus: nil,
             usageError: nil, statusError: nil,
@@ -85,7 +105,7 @@ final class TooltipTests: XCTestCase {
             currentPollInterval: nil
         )
         let tooltip = Formatting.buildTooltip(state: state)
-        XCTAssertTrue(tooltip.contains("Usage: loading…"))
-        XCTAssertTrue(tooltip.contains("Status: loading…"))
+        #expect(tooltip.contains("Usage: loading…"))
+        #expect(tooltip.contains("Status: loading…"))
     }
 }

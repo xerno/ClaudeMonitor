@@ -1,7 +1,9 @@
-import XCTest
+import Testing
+import Foundation
+import AppKit
 @testable import ClaudeMonitor
 
-final class UsageStyleTests: XCTestCase {
+@MainActor struct UsageStyleTests {
 
     private func style(utilization: Int, timeRemainingPercent: Double) -> Formatting.UsageStyle {
         let now = Date()
@@ -15,66 +17,65 @@ final class UsageStyleTests: XCTestCase {
         )
     }
 
-    func testStyleNormal() {
+    @Test func styleNormal() {
         let s = style(utilization: 30, timeRemainingPercent: 70)
-        XCTAssertEqual(s.color, .labelColor)
-        XCTAssertFalse(s.isBold)
+        #expect(s.color == .labelColor)
+        #expect(!s.isBold)
     }
 
-    func testStyleBoldByFixedThreshold() {
+    @Test func styleBoldByFixedThreshold() {
         // 55% used, 50% time remaining (50% elapsed) — bold by fixed (≥50), not orange (55 < 70)
         let s = style(utilization: 55, timeRemainingPercent: 50)
-        XCTAssertEqual(s.color, .labelColor)
-        XCTAssertTrue(s.isBold)
+        #expect(s.color == .labelColor)
+        #expect(s.isBold)
     }
 
-    func testStyleBoldByTimeRule() {
+    @Test func styleBoldByTimeRule() {
         // 45% used, 60% time remaining (40% elapsed) — projected 112%, outpacing
         let s = style(utilization: 45, timeRemainingPercent: 60)
-        XCTAssertEqual(s.color, .labelColor)
-        XCTAssertTrue(s.isBold)
+        #expect(s.color == .labelColor)
+        #expect(s.isBold)
     }
 
-    func testStyleOrangeByFixedThreshold() {
+    @Test func styleOrangeByFixedThreshold() {
         // 72% used, 50% time remaining (50% elapsed) — orange by fixed (≥70), not red (72 < 85)
         let s = style(utilization: 72, timeRemainingPercent: 50)
-        XCTAssertEqual(s.color, .systemOrange)
-        XCTAssertTrue(s.isBold)
+        #expect(s.color == .systemOrange)
+        #expect(s.isBold)
     }
 
-    func testStyleOrangeByTimeRule() {
+    @Test func styleOrangeByTimeRule() {
         // 65% used, 60% time remaining (40% elapsed) — 65 > 40+20, projected 162%
         let s = style(utilization: 65, timeRemainingPercent: 60)
-        XCTAssertEqual(s.color, .systemOrange)
-        XCTAssertTrue(s.isBold)
+        #expect(s.color == .systemOrange)
+        #expect(s.isBold)
     }
 
-    func testStyleRedByFixedThreshold() {
+    @Test func styleRedByFixedThreshold() {
         let s = style(utilization: 85, timeRemainingPercent: 80)
-        XCTAssertEqual(s.color, .systemRed)
-        XCTAssertTrue(s.isBold)
+        #expect(s.color == .systemRed)
+        #expect(s.isBold)
     }
 
-    func testStyleRedByTimeRule() {
+    @Test func styleRedByTimeRule() {
         // 78% used, 60% time remaining (40% elapsed) — 78 > 40+35, projected 195%
         let s = style(utilization: 78, timeRemainingPercent: 60)
-        XCTAssertEqual(s.color, .systemRed)
-        XCTAssertTrue(s.isBold)
+        #expect(s.color == .systemRed)
+        #expect(s.isBold)
     }
 
-    func testStyleNotBoldWhenPlentyOfTime() {
+    @Test func styleNotBoldWhenPlentyOfTime() {
         // 15% used, 80% time remaining (20% elapsed) — projected 75%, comfortable
         let s = style(utilization: 15, timeRemainingPercent: 80)
-        XCTAssertEqual(s.color, .labelColor)
-        XCTAssertFalse(s.isBold)
+        #expect(s.color == .labelColor)
+        #expect(!s.isBold)
     }
 
-    func testStylePastResetDate() {
-        // Reset passed, low utilization — not concerning
+    @Test func stylePastResetDate() {
         let now = Date()
         let resetsAt = now.addingTimeInterval(-100)
         let s = Formatting.usageStyle(utilization: 10, resetsAt: resetsAt, windowDuration: 1000, now: now)
-        XCTAssertFalse(s.isBold)
+        #expect(!s.isBold)
     }
 
     private func shouldShow(utilization: Int, timeRemainingPercent: Double) -> Bool {
@@ -89,33 +90,31 @@ final class UsageStyleTests: XCTestCase {
         )
     }
 
-    func testShouldShowLowUtilizationPlentyOfTime() {
-        // 30% used, 70% time remaining — comfortable, no show
-        XCTAssertFalse(shouldShow(utilization: 30, timeRemainingPercent: 70))
+    @Test func shouldShowLowUtilizationPlentyOfTime() {
+        #expect(!shouldShow(utilization: 30, timeRemainingPercent: 70))
     }
 
-    func testShouldShowHighUtilizationNotOutpacing() {
+    @Test func shouldShowHighUtilizationNotOutpacing() {
         // 55% used, 40% time remaining (60% elapsed) — bold (fixed) but NOT outpacing (55 < 60)
-        XCTAssertFalse(shouldShow(utilization: 55, timeRemainingPercent: 40))
+        #expect(!shouldShow(utilization: 55, timeRemainingPercent: 40))
     }
 
-    func testShouldShowLowUtilizationLittleTime() {
+    @Test func shouldShowLowUtilizationLittleTime() {
         // 20% used, 10% time remaining (90% elapsed) — not outpacing (20 < 90), no show
-        XCTAssertFalse(shouldShow(utilization: 20, timeRemainingPercent: 10))
+        #expect(!shouldShow(utilization: 20, timeRemainingPercent: 10))
     }
 
-    func testShouldShowHighUtilizationOutpacingTime() {
+    @Test func shouldShowHighUtilizationOutpacingTime() {
         // 65% used, 40% time remaining (60% elapsed) — bold AND outpacing (65 > 60)
-        XCTAssertTrue(shouldShow(utilization: 65, timeRemainingPercent: 40))
+        #expect(shouldShow(utilization: 65, timeRemainingPercent: 40))
     }
 
-    func testShouldShowExactlyAtBoundary() {
+    @Test func shouldShowExactlyAtBoundary() {
         // 50% used, 50% time remaining (50% elapsed) — bold (fixed) but NOT outpacing (equal)
-        XCTAssertFalse(shouldShow(utilization: 50, timeRemainingPercent: 50))
+        #expect(!shouldShow(utilization: 50, timeRemainingPercent: 50))
     }
 
-    func testShouldShowPastResetDate() {
-        // Reset passed, low utilization — not concerning, no show
+    @Test func shouldShowPastResetDate() {
         let now = Date()
         let result = Formatting.shouldShowInMenuBar(
             utilization: 10,
@@ -123,6 +122,6 @@ final class UsageStyleTests: XCTestCase {
             windowDuration: 1000,
             now: now
         )
-        XCTAssertFalse(result)
+        #expect(!result)
     }
 }

@@ -55,6 +55,7 @@
   "menu.about": "О программе",
   "menu.credentials.configure": "  ⚙  Настройте учётные данные в Настройках",
   "menu.interval": "Интервал: %1$@",
+  "menu.next": "Далее: %1$@",
   "menu.loading": "  Загрузка...",
   "menu.preferences": "Настройки",
   "menu.quit": "Завершить",

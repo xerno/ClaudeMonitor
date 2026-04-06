@@ -187,39 +187,39 @@ enum Formatting {
 
         var usageLines: [String] = []
         if !state.hasCredentials {
-            usageLines.append(String(localized: "tooltip.usage.configure"))
+            usageLines.append(String(localized: "tooltip.usage.configure", bundle: .module))
         } else if let error = state.usageError {
-            usageLines.append(String(format: String(localized: "tooltip.usage.error"), error))
+            usageLines.append(String(format: String(localized: "tooltip.usage.error", bundle: .module), error))
         } else if let usage = state.currentUsage {
             if let w = usage.fiveHour {
                 if let resetsAt = w.resetsAt {
-                    usageLines.append(String(format: String(localized: "tooltip.window.5h.resets"), w.utilization, timeUntil(resetsAt)))
+                    usageLines.append(String(format: String(localized: "tooltip.window.5h.resets", bundle: .module), w.utilization, timeUntil(resetsAt)))
                 } else {
-                    usageLines.append(String(format: String(localized: "tooltip.window.5h"), w.utilization))
+                    usageLines.append(String(format: String(localized: "tooltip.window.5h", bundle: .module), w.utilization))
                 }
             }
             if let w = usage.sevenDay {
                 if let resetsAt = w.resetsAt {
-                    usageLines.append(String(format: String(localized: "tooltip.window.7d.resets"), w.utilization, timeUntil(resetsAt)))
+                    usageLines.append(String(format: String(localized: "tooltip.window.7d.resets", bundle: .module), w.utilization, timeUntil(resetsAt)))
                 } else {
-                    usageLines.append(String(format: String(localized: "tooltip.window.7d"), w.utilization))
+                    usageLines.append(String(format: String(localized: "tooltip.window.7d", bundle: .module), w.utilization))
                 }
             }
             if let w = usage.sevenDaySonnet {
                 if let resetsAt = w.resetsAt {
-                    usageLines.append(String(format: String(localized: "tooltip.window.sonnet.resets"), w.utilization, timeUntil(resetsAt)))
+                    usageLines.append(String(format: String(localized: "tooltip.window.sonnet.resets", bundle: .module), w.utilization, timeUntil(resetsAt)))
                 } else {
-                    usageLines.append(String(format: String(localized: "tooltip.window.sonnet"), w.utilization))
+                    usageLines.append(String(format: String(localized: "tooltip.window.sonnet", bundle: .module), w.utilization))
                 }
             }
         } else {
-            usageLines.append(String(localized: "tooltip.usage.loading"))
+            usageLines.append(String(localized: "tooltip.usage.loading", bundle: .module))
         }
         sections.append(usageLines)
 
         var statusLines: [String] = []
         if let error = state.statusError {
-            statusLines.append(String(format: String(localized: "tooltip.status.error"), error))
+            statusLines.append(String(format: String(localized: "tooltip.status.error", bundle: .module), error))
         } else if let status = state.currentStatus {
             let affected = status.components.filter { $0.status >= .degradedPerformance }
             for c in affected {
@@ -229,16 +229,24 @@ enum Formatting {
                 statusLines.append("⚠ \(incident.name)")
             }
             if affected.isEmpty && status.incidents.isEmpty {
-                statusLines.append(String(localized: "tooltip.status.ok"))
+                statusLines.append(String(localized: "tooltip.status.ok", bundle: .module))
             }
         } else {
-            statusLines.append(String(localized: "tooltip.status.loading"))
+            statusLines.append(String(localized: "tooltip.status.loading", bundle: .module))
         }
         sections.append(statusLines)
 
         if let date = state.lastRefreshed {
-            sections.append([String(format: String(localized: "tooltip.updated"),
-                                    date.formatted(.dateTime.hour().minute().second()))])
+            var lines = [String(format: String(localized: "tooltip.updated", bundle: .module),
+                                date.formatted(.dateTime.hour().minute().second()))]
+            if let interval = state.currentPollInterval {
+                lines.append(String(format: String(localized: "menu.interval", bundle: .module),
+                                    Formatting.formatInterval(interval)))
+                let nextDate = date.addingTimeInterval(interval)
+                lines.append(String(format: String(localized: "menu.next", bundle: .module),
+                                    nextDate.formatted(.dateTime.hour().minute().second())))
+            }
+            sections.append(lines)
         }
 
         return sections.map { $0.joined(separator: "\n") }.joined(separator: "\n\n")

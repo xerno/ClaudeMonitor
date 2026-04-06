@@ -55,6 +55,7 @@
   "menu.about": "Névjegy",
   "menu.credentials.configure": "  ⚙  Adja meg a hitelesítő adatokat a Beállításokban",
   "menu.interval": "Időköz: %1$@",
+  "menu.next": "Következő: %1$@",
   "menu.loading": "  Betöltés...",
   "menu.preferences": "Beállítások",
   "menu.quit": "Kilépés",

@@ -55,6 +55,7 @@
   "menu.about": "Giới thiệu",
   "menu.credentials.configure": "  ⚙  Cấu hình thông tin đăng nhập trong Tùy chọn",
   "menu.interval": "Khoảng: %1$@",
+  "menu.next": "Tiếp theo: %1$@",
   "menu.loading": "  Đang tải...",
   "menu.preferences": "Tùy chọn",
   "menu.quit": "Thoát",

@@ -55,6 +55,7 @@
   "menu.about": "O aplikaci",
   "menu.credentials.configure": "  ⚙  Nastavte přihlašovací údaje v Předvolbách",
   "menu.interval": "Interval: %1$@",
+  "menu.next": "Další: %1$@",
   "menu.loading": "  Načítám...",
   "menu.preferences": "Předvolby",
   "menu.quit": "Ukončit",

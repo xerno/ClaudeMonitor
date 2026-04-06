@@ -55,6 +55,7 @@
   "menu.about": "关于",
   "menu.credentials.configure": "  ⚙  请在偏好设置中配置凭据",
   "menu.interval": "间隔: %1$@",
+  "menu.next": "下次：%1$@",
   "menu.loading": "  正在加载…",
   "menu.preferences": "偏好设置",
   "menu.quit": "退出",

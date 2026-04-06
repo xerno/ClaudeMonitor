@@ -55,6 +55,7 @@
   "menu.about": "Om",
   "menu.credentials.configure": "  ⚙  Konfigurer påloggingsinfo i Innstillinger",
   "menu.interval": "Intervall: %1$@",
+  "menu.next": "Neste: %1$@",
   "menu.loading": "  Laster …",
   "menu.preferences": "Innstillinger",
   "menu.quit": "Avslutt",

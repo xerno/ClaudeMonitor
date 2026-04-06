@@ -15,7 +15,7 @@ final class AboutWindowController: NSWindowController, NSWindowDelegate {
             backing: .buffered,
             defer: false
         )
-        window.title = String(localized: "about.window.title")
+        window.title = String(localized: "about.window.title", bundle: .module)
         window.minSize = NSSize(width: 400, height: 400)
         window.center()
         window.isReleasedWhenClosed = false
@@ -138,40 +138,40 @@ final class AboutWindowController: NSWindowController, NSWindowDelegate {
     private static func leftColumnContent() -> NSAttributedString {
         let s = NSMutableAttributedString()
 
-        heading(String(localized: "about.heading.menu_bar"), into: s)
-        s.append(line(String(localized: "about.line.shows_usage")))
+        heading(String(localized: "about.heading.menu_bar", bundle: .module), into: s)
+        s.append(line(String(localized: "about.line.shows_usage", bundle: .module)))
         s.append(line(""))
-        s.append(line("  " + String(localized: "about.line.first_number")))
-        s.append(line("  " + String(localized: "about.line.second_number")))
-        s.append(line("  " + String(localized: "about.line.third_number")))
+        s.append(line("  " + String(localized: "about.line.first_number", bundle: .module)))
+        s.append(line("  " + String(localized: "about.line.second_number", bundle: .module)))
+        s.append(line("  " + String(localized: "about.line.third_number", bundle: .module)))
         s.append(line(""))
-        s.append(secondary(String(localized: "about.secondary.7day_explain")))
-        s.append(secondary(String(localized: "about.secondary.sonnet_explain")))
+        s.append(secondary(String(localized: "about.secondary.7day_explain", bundle: .module)))
+        s.append(secondary(String(localized: "about.secondary.sonnet_explain", bundle: .module)))
 
-        heading(String(localized: "about.heading.color_coding"), into: s)
-        s.append(line(String(localized: "about.line.color_intro")))
+        heading(String(localized: "about.heading.color_coding", bundle: .module), into: s)
+        s.append(line(String(localized: "about.line.color_intro", bundle: .module)))
         s.append(line(""))
-        s.append(line("  " + String(localized: "about.line.normal")))
+        s.append(line("  " + String(localized: "about.line.normal", bundle: .module)))
         let boldLabel = NSMutableAttributedString(string: "  ", attributes: [
             .font: NSFont.systemFont(ofSize: 12), .foregroundColor: NSColor.labelColor,
         ])
         boldLabel.append(NSAttributedString(string: "Bold", attributes: [
             .font: NSFont.boldSystemFont(ofSize: 12), .foregroundColor: NSColor.labelColor,
         ]))
-        boldLabel.append(NSAttributedString(string: "      " + String(localized: "about.line.bold_suffix") + "\n", attributes: [
+        boldLabel.append(NSAttributedString(string: "      " + String(localized: "about.line.bold_suffix", bundle: .module) + "\n", attributes: [
             .font: NSFont.systemFont(ofSize: 12), .foregroundColor: NSColor.labelColor,
         ]))
         s.append(boldLabel)
-        s.append(NSAttributedString(string: "  " + String(localized: "about.line.orange") + "\n", attributes: [
+        s.append(NSAttributedString(string: "  " + String(localized: "about.line.orange", bundle: .module) + "\n", attributes: [
             .font: NSFont.systemFont(ofSize: 12),
             .foregroundColor: NSColor.systemOrange,
         ]))
-        s.append(NSAttributedString(string: "  " + String(localized: "about.line.red") + "\n", attributes: [
+        s.append(NSAttributedString(string: "  " + String(localized: "about.line.red", bundle: .module) + "\n", attributes: [
             .font: NSFont.systemFont(ofSize: 12),
             .foregroundColor: NSColor.systemRed,
         ]))
         s.append(line(""))
-        s.append(secondary(String(localized: "about.secondary.outpacing")))
+        s.append(secondary(String(localized: "about.secondary.outpacing", bundle: .module)))
 
         return s
     }
@@ -179,18 +179,18 @@ final class AboutWindowController: NSWindowController, NSWindowDelegate {
     private static func rightColumnContent() -> NSAttributedString {
         let s = NSMutableAttributedString()
 
-        heading(String(localized: "about.heading.refresh"), into: s)
-        s.append(secondary(String(localized: "about.secondary.refresh_explain")))
+        heading(String(localized: "about.heading.refresh", bundle: .module), into: s)
+        s.append(secondary(String(localized: "about.secondary.refresh_explain", bundle: .module)))
 
-        heading(String(localized: "about.heading.status_icon"), into: s)
-        s.append(line("  " + String(localized: "about.line.green")))
-        s.append(line("  " + String(localized: "about.line.yellow")))
-        s.append(line("  " + String(localized: "about.line.orange_icon")))
-        s.append(line("  " + String(localized: "about.line.red_icon")))
-        s.append(line("  " + String(localized: "about.line.blue_icon")))
+        heading(String(localized: "about.heading.status_icon", bundle: .module), into: s)
+        s.append(line("  " + String(localized: "about.line.green", bundle: .module)))
+        s.append(line("  " + String(localized: "about.line.yellow", bundle: .module)))
+        s.append(line("  " + String(localized: "about.line.orange_icon", bundle: .module)))
+        s.append(line("  " + String(localized: "about.line.red_icon", bundle: .module)))
+        s.append(line("  " + String(localized: "about.line.blue_icon", bundle: .module)))
 
-        heading(String(localized: "about.heading.100_percent"), into: s)
-        s.append(secondary(String(localized: "about.secondary.100_percent_explain")))
+        heading(String(localized: "about.heading.100_percent", bundle: .module), into: s)
+        s.append(secondary(String(localized: "about.secondary.100_percent_explain", bundle: .module)))
 
         return s
     }

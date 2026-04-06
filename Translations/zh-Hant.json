@@ -55,6 +55,7 @@
   "menu.about": "關於",
   "menu.credentials.configure": "  ⚙  請在偏好設定中設定憑證",
   "menu.interval": "間隔: %1$@",
+  "menu.next": "下次：%1$@",
   "menu.loading": "  載入中⋯",
   "menu.preferences": "偏好設定⋯",
   "menu.quit": "結束",

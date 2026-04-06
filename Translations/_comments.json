@@ -55,6 +55,7 @@
   "menu.about": "Menu item to open the About window",
   "menu.credentials.configure": "Menu placeholder when credentials are not set",
   "menu.interval": "Current polling interval label in menu. %@ is the formatted duration (e.g. 30s, 2m, 10m).",
+  "menu.next": "Next poll time label in menu. %@ is the formatted time.",
   "menu.loading": "Menu placeholder while data is loading",
   "menu.preferences": "Menu item to open Preferences",
   "menu.quit": "Menu item to quit the app",

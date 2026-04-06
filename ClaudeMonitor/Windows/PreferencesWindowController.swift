@@ -3,8 +3,8 @@ import ServiceManagement
 
 final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
     private let credentialForm = CredentialFormView()
-    private let launchAtLoginCheckbox = NSButton(checkboxWithTitle: String(localized: "prefs.launch_at_login"), target: nil, action: nil)
-    private let resetSoundCheckbox = NSButton(checkboxWithTitle: String(localized: "prefs.reset_sound"), target: nil, action: nil)
+    private let launchAtLoginCheckbox = NSButton(checkboxWithTitle: String(localized: "prefs.launch_at_login", bundle: .module), target: nil, action: nil)
+    private let resetSoundCheckbox = NSButton(checkboxWithTitle: String(localized: "prefs.reset_sound", bundle: .module), target: nil, action: nil)
     private let onSave: () -> Void
 
     init(onSave: @escaping () -> Void) {
@@ -15,7 +15,7 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
             backing: .buffered,
             defer: false
         )
-        window.title = String(localized: "prefs.window.title")
+        window.title = String(localized: "prefs.window.title", bundle: .module)
         window.center()
         window.isReleasedWhenClosed = false
         super.init(window: window)
@@ -33,7 +33,7 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
         launchAtLoginCheckbox.translatesAutoresizingMaskIntoConstraints = false
         resetSoundCheckbox.translatesAutoresizingMaskIntoConstraints = false
 
-        let saveButton = NSButton(title: String(localized: "prefs.button.save"), target: self, action: #selector(didTapSave))
+        let saveButton = NSButton(title: String(localized: "prefs.button.save", bundle: .module), target: self, action: #selector(didTapSave))
         saveButton.bezelStyle = .rounded
         saveButton.keyEquivalent = "\r"
         saveButton.translatesAutoresizingMaskIntoConstraints = false

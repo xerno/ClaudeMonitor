@@ -55,6 +55,7 @@
   "menu.about": "Informazioni",
   "menu.credentials.configure": "  ⚙  Configura le credenziali nelle Preferenze",
   "menu.interval": "Intervallo: %1$@",
+  "menu.next": "Prossimo: %1$@",
   "menu.loading": "  Caricamento...",
   "menu.preferences": "Preferenze",
   "menu.quit": "Esci",

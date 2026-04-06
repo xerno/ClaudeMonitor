@@ -124,7 +124,7 @@ final class DataCoordinator {
         guard let cookie = loadCredential(Constants.Keychain.cookieString),
               let orgId = loadCredential(Constants.Keychain.organizationId),
               !cookie.isEmpty, !orgId.isEmpty else {
-            usageError = String(localized: "credentials.configure")
+            usageError = String(localized: "credentials.configure", bundle: .module)
             return
         }
         do {

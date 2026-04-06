@@ -12,7 +12,7 @@ final class SetupWindowController: NSWindowController, NSWindowDelegate {
             backing: .buffered,
             defer: false
         )
-        window.title = String(localized: "setup.window.title")
+        window.title = String(localized: "setup.window.title", bundle: .module)
         window.center()
         window.isReleasedWhenClosed = false
         super.init(window: window)
@@ -26,16 +26,16 @@ final class SetupWindowController: NSWindowController, NSWindowDelegate {
     private func buildUI() {
         guard let contentView = window?.contentView else { return }
 
-        let title = NSTextField(labelWithString: String(localized: "setup.welcome"))
+        let title = NSTextField(labelWithString: String(localized: "setup.welcome", bundle: .module))
         title.font = .systemFont(ofSize: 16, weight: .semibold)
         title.translatesAutoresizingMaskIntoConstraints = false
 
-        let startButton = NSButton(title: String(localized: "setup.button.start"), target: self, action: #selector(didTapStart))
+        let startButton = NSButton(title: String(localized: "setup.button.start", bundle: .module), target: self, action: #selector(didTapStart))
         startButton.bezelStyle = .rounded
         startButton.keyEquivalent = "\r"
         startButton.translatesAutoresizingMaskIntoConstraints = false
 
-        let skipButton = NSButton(title: String(localized: "setup.button.skip"), target: self, action: #selector(didTapSkip))
+        let skipButton = NSButton(title: String(localized: "setup.button.skip", bundle: .module), target: self, action: #selector(didTapSkip))
         skipButton.bezelStyle = .rounded
         skipButton.translatesAutoresizingMaskIntoConstraints = false
 

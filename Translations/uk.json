@@ -55,6 +55,7 @@
   "menu.about": "Про програму",
   "menu.credentials.configure": "  ⚙  Налаштуйте облікові дані в Параметрах",
   "menu.interval": "Інтервал: %1$@",
+  "menu.next": "Далі: %1$@",
   "menu.loading": "  Завантаження...",
   "menu.preferences": "Параметри",
   "menu.quit": "Завершити",

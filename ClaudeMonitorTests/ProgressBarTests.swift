@@ -1,35 +1,30 @@
-import XCTest
+import Testing
+import Foundation
 @testable import ClaudeMonitor
 
-final class ProgressBarTests: XCTestCase {
+@MainActor struct ProgressBarTests {
 
-    func testProgressBarZero() {
-        let bar = Formatting.progressBar(percent: 0)
-        XCTAssertEqual(bar, "░░░░░░░░░░")
+    @Test func progressBarZero() {
+        #expect(Formatting.progressBar(percent: 0) == "░░░░░░░░░░")
     }
 
-    func testProgressBarFull() {
-        let bar = Formatting.progressBar(percent: 100)
-        XCTAssertEqual(bar, "██████████")
+    @Test func progressBarFull() {
+        #expect(Formatting.progressBar(percent: 100) == "██████████")
     }
 
-    func testProgressBarHalf() {
-        let bar = Formatting.progressBar(percent: 50)
-        XCTAssertEqual(bar, "█████░░░░░")
+    @Test func progressBarHalf() {
+        #expect(Formatting.progressBar(percent: 50) == "█████░░░░░")
     }
 
-    func testProgressBarClampsAbove100() {
-        let bar = Formatting.progressBar(percent: 150)
-        XCTAssertEqual(bar, "██████████")
+    @Test func progressBarClampsAbove100() {
+        #expect(Formatting.progressBar(percent: 150) == "██████████")
     }
 
-    func testProgressBarClampsBelow0() {
-        let bar = Formatting.progressBar(percent: -10)
-        XCTAssertEqual(bar, "░░░░░░░░░░")
+    @Test func progressBarClampsBelow0() {
+        #expect(Formatting.progressBar(percent: -10) == "░░░░░░░░░░")
     }
 
-    func testProgressBarCustomWidth() {
-        let bar = Formatting.progressBar(percent: 50, width: 4)
-        XCTAssertEqual(bar, "██░░")
+    @Test func progressBarCustomWidth() {
+        #expect(Formatting.progressBar(percent: 50, width: 4) == "██░░")
     }
 }

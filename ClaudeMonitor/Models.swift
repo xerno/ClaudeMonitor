@@ -43,12 +43,12 @@ enum ComponentStatus: String, Decodable, Sendable, Comparable, Hashable {
 
     var label: String {
         switch self {
-        case .operational: return String(localized: "status.operational")
-        case .degradedPerformance: return String(localized: "status.degraded")
-        case .partialOutage: return String(localized: "status.partial_outage")
-        case .majorOutage: return String(localized: "status.major_outage")
-        case .underMaintenance: return String(localized: "status.maintenance")
-        case .unknown: return String(localized: "status.unknown")
+        case .operational: return String(localized: "status.operational", bundle: .module)
+        case .degradedPerformance: return String(localized: "status.degraded", bundle: .module)
+        case .partialOutage: return String(localized: "status.partial_outage", bundle: .module)
+        case .majorOutage: return String(localized: "status.major_outage", bundle: .module)
+        case .underMaintenance: return String(localized: "status.maintenance", bundle: .module)
+        case .unknown: return String(localized: "status.unknown", bundle: .module)
         }
     }
 

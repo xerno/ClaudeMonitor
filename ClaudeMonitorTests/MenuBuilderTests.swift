@@ -1,6 +1,8 @@
-import XCTest
+import Testing
+import AppKit
 @testable import ClaudeMonitor
 
+@MainActor
 private final class MockMenuActions: NSObject, MenuActions {
     @objc func didSelectRefresh() {}
     @objc func openIncident(_ sender: NSMenuItem) {}
@@ -8,7 +10,7 @@ private final class MockMenuActions: NSObject, MenuActions {
     @objc func didSelectAbout() {}
 }
 
-final class MenuBuilderTests: XCTestCase {
+@MainActor struct MenuBuilderTests {
     private let target = MockMenuActions()
 
     private func menuItems(for state: MonitorState) -> [NSMenuItem] {
@@ -18,7 +20,7 @@ final class MenuBuilderTests: XCTestCase {
 
     // MARK: - Usage Section
 
-    func testNoCredentialsShowsConfigureMessage() {
+    @Test func noCredentialsShowsConfigureMessage() {
         let state = MonitorState(
             currentUsage: nil, currentStatus: nil,
             usageError: nil, statusError: nil,
@@ -26,10 +28,10 @@ final class MenuBuilderTests: XCTestCase {
             currentPollInterval: nil
         )
         let items = menuItems(for: state)
-        XCTAssertTrue(items.contains { $0.title.contains("Configure credentials") })
+        #expect(items.contains { $0.title.contains("Configure credentials") })
     }
 
-    func testUsageErrorShowsWarning() {
+    @Test func usageErrorShowsWarning() {
         let state = MonitorState(
             currentUsage: nil, currentStatus: nil,
             usageError: "Session expired", statusError: nil,
@@ -37,10 +39,10 @@ final class MenuBuilderTests: XCTestCase {
             currentPollInterval: nil
         )
         let items = menuItems(for: state)
-        XCTAssertTrue(items.contains { $0.title.contains("Session expired") })
+        #expect(items.contains { $0.title.contains("Session expired") })
     }
 
-    func testUsageDataShowsProgressBars() {
+    @Test func usageDataShowsProgressBars() {
         let now = Date()
         let usage = UsageResponse(
             fiveHour: UsageWindow(utilization: 42, resetsAt: now.addingTimeInterval(3600)),
@@ -54,13 +56,13 @@ final class MenuBuilderTests: XCTestCase {
             currentPollInterval: nil
         )
         let items = menuItems(for: state)
-        XCTAssertTrue(items.contains { $0.title.contains("5h window") && $0.title.contains("42%") })
-        XCTAssertTrue(items.contains { $0.title.contains("7d window") && $0.title.contains("18%") })
+        #expect(items.contains { $0.title.contains("5h window") && $0.title.contains("42%") })
+        #expect(items.contains { $0.title.contains("7d window") && $0.title.contains("18%") })
     }
 
     // MARK: - Services Section
 
-    func testComponentsAreSortedByName() {
+    @Test func componentsAreSortedByName() {
         let status = StatusSummary(
             components: [
                 StatusComponent(id: "1", name: "Console", status: .operational),
@@ -77,14 +79,14 @@ final class MenuBuilderTests: XCTestCase {
         )
         let items = menuItems(for: state)
         let serviceItems = items.filter { $0.title.contains("Operational") }
-        XCTAssertEqual(serviceItems.count, 2)
-        XCTAssertTrue(serviceItems[0].title.contains("API"))
-        XCTAssertTrue(serviceItems[1].title.contains("Console"))
+        #expect(serviceItems.count == 2)
+        #expect(serviceItems[0].title.contains("API"))
+        #expect(serviceItems[1].title.contains("Console"))
     }
 
     // MARK: - Incidents Section
 
-    func testIncidentsShowWithLinks() {
+    @Test func incidentsShowWithLinks() {
         let status = StatusSummary(
             components: [StatusComponent(id: "1", name: "API", status: .majorOutage)],
             incidents: [Incident(id: "i1", name: "API down", status: "investigating", impact: "major", shortlink: "https://stspg.io/x")],
@@ -98,12 +100,12 @@ final class MenuBuilderTests: XCTestCase {
         )
         let items = menuItems(for: state)
         let incidentItems = items.filter { $0.title.contains("API down") }
-        XCTAssertEqual(incidentItems.count, 1)
-        XCTAssertEqual(incidentItems.first?.representedObject as? String, "https://stspg.io/x")
-        XCTAssertNotNil(incidentItems.first?.action)
+        #expect(incidentItems.count == 1)
+        #expect(incidentItems.first?.representedObject as? String == "https://stspg.io/x")
+        #expect(incidentItems.first?.action != nil)
     }
 
-    func testNoIncidentsSectionWhenEmpty() {
+    @Test func noIncidentsSectionWhenEmpty() {
         let status = StatusSummary(
             components: [StatusComponent(id: "1", name: "API", status: .operational)],
             incidents: [],
@@ -116,12 +118,12 @@ final class MenuBuilderTests: XCTestCase {
             currentPollInterval: nil
         )
         let items = menuItems(for: state)
-        XCTAssertFalse(items.contains { $0.title.contains("Active Incidents") })
+        #expect(!items.contains { $0.title.contains("Active Incidents") })
     }
 
     // MARK: - Controls Section
 
-    func testControlsIncludeRefreshAndPreferences() {
+    @Test func controlsIncludeRefreshAndPreferences() {
         let state = MonitorState(
             currentUsage: nil, currentStatus: nil,
             usageError: nil, statusError: nil,
@@ -129,13 +131,13 @@ final class MenuBuilderTests: XCTestCase {
             currentPollInterval: nil
         )
         let items = menuItems(for: state)
-        XCTAssertTrue(items.contains { $0.title == "Refresh Now" })
-        XCTAssertTrue(items.contains { $0.title == "Preferences" })
-        XCTAssertTrue(items.contains { $0.title == "About" })
-        XCTAssertTrue(items.contains { $0.title == "Quit" })
+        #expect(items.contains { $0.title == "Refresh Now" })
+        #expect(items.contains { $0.title == "Preferences" })
+        #expect(items.contains { $0.title == "About" })
+        #expect(items.contains { $0.title == "Quit" })
     }
 
-    func testLastRefreshedTimestamp() {
+    @Test func lastRefreshedTimestamp() {
         let state = MonitorState(
             currentUsage: nil, currentStatus: nil,
             usageError: nil, statusError: nil,
@@ -143,10 +145,10 @@ final class MenuBuilderTests: XCTestCase {
             currentPollInterval: nil
         )
         let items = menuItems(for: state)
-        XCTAssertTrue(items.contains { $0.title.starts(with: "Updated:") })
+        #expect(items.contains { $0.title.starts(with: "Updated:") })
     }
 
-    func testLastRefreshedWithInterval() {
+    @Test func lastRefreshedWithInterval() {
         let now = Date()
         let state = MonitorState(
             currentUsage: nil, currentStatus: nil,
@@ -155,6 +157,6 @@ final class MenuBuilderTests: XCTestCase {
             currentPollInterval: 60
         )
         let items = menuItems(for: state)
-        XCTAssertTrue(items.contains { $0.title.starts(with: "Updated:") && $0.title.contains("Interval:") })
+        #expect(items.contains { $0.title.starts(with: "Updated:") && $0.title.contains("Interval:") && $0.title.contains("Next:") })
     }
 }

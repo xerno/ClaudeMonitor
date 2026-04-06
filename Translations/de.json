@@ -55,6 +55,7 @@
   "menu.about": "Info",
   "menu.credentials.configure": "  ⚙  Anmeldedaten in Einstellungen konfigurieren",
   "menu.interval": "Intervall: %1$@",
+  "menu.next": "Nächste: %1$@",
   "menu.loading": "  Laden …",
   "menu.preferences": "Einstellungen",
   "menu.quit": "Beenden",
