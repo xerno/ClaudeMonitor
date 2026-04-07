@@ -12,7 +12,6 @@ let package = Package(
             exclude: [
                 "AppDelegate.swift",
                 "Assets.xcassets",
-                "ClaudeMonitor.entitlements",
             ],
             resources: [
                 .process("Localizable.xcstrings"),
@@ -31,6 +30,18 @@ let package = Package(
             name: "ClaudeMonitorTestRunner",
             dependencies: ["ClaudeMonitor"],
             path: ".",
+            exclude: [
+                "CLAUDE.md",
+                "ClaudeMonitor",
+                "ClaudeMonitor.xcodeproj",
+                "LICENSE",
+                "README.md",
+                "Translations",
+                "docs",
+                "install.sh",
+                "scripts",
+                "test.sh",
+            ],
             sources: ["ClaudeMonitorTests", "TestRunner"],
             swiftSettings: [
                 .swiftLanguageMode(.v6),

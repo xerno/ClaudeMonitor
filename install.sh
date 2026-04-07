@@ -4,6 +4,13 @@ set -euo pipefail
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 APP_NAME="ClaudeMonitor"
 SRC_DIR="${PROJECT_DIR}/${APP_NAME}"
+
+SKIP_TESTS=false
+for arg in "$@"; do
+    case "$arg" in
+        --skip-tests) SKIP_TESTS=true ;;
+    esac
+done
 BUILD_DIR="${PROJECT_DIR}/.build"
 BUNDLE="${BUILD_DIR}/${APP_NAME}.app"
 CONTENTS="${BUNDLE}/Contents"
@@ -88,11 +95,23 @@ fi
 echo "Generating localization from Translations/..."
 swift "${PROJECT_DIR}/scripts/generate-xcstrings.swift" "${CONTENTS}/Resources"
 
-# --- 5. Code sign
+# --- 5. Test
+
+if [ "${SKIP_TESTS}" = false ]; then
+    echo ""
+    echo "Running tests..."
+    # Generate .lproj resources for SPM module bundle
+    swift "${PROJECT_DIR}/scripts/generate-xcstrings.swift" "${SRC_DIR}"
+    cd "${PROJECT_DIR}"
+    swift run ClaudeMonitorTestRunner
+    echo ""
+fi
+
+# --- 6. Code sign
 
 codesign --force --sign - "${BUNDLE}"
 
-# --- 6. Migrate sandbox preferences
+# --- 7. Migrate sandbox preferences
 
 SANDBOX_PREFS="${HOME}/Library/Containers/${BUNDLE_ID}/Data/Library/Preferences/${BUNDLE_ID}.plist"
 REGULAR_PREFS="${HOME}/Library/Preferences/${BUNDLE_ID}.plist"
@@ -102,7 +121,7 @@ if [ -f "${SANDBOX_PREFS}" ] && [ ! -f "${REGULAR_PREFS}" ]; then
     cp "${SANDBOX_PREFS}" "${REGULAR_PREFS}"
 fi
 
-# --- 7. Install & launch
+# --- 8. Install & launch
 
 pkill -x "${APP_NAME}" 2>/dev/null && sleep 0.5 || true
 

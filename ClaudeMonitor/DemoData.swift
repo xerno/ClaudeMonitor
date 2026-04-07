@@ -74,12 +74,12 @@ enum DemoData {
         return (usage, status)
     }
 
-    // Scenario 4: 5h window exhausted (100%) → countdown in menu bar, small 7d + Sonnet values
-    private static func scenario4() -> (UsageResponse, StatusSummary) {
+    // Scenario 3: Very high 5h + 7d + Sonnet usage + no incidents
+    private static func scenario3() -> (UsageResponse, StatusSummary) {
         let usage = UsageResponse(
-            fiveHour: UsageWindow(utilization: 100, resetsAt: Date().addingTimeInterval(2.25 * 3600)),
-            sevenDay: UsageWindow(utilization: 38, resetsAt: Date().addingTimeInterval(3.5 * 86400)),
-            sevenDaySonnet: UsageWindow(utilization: 22, resetsAt: Date().addingTimeInterval(3.5 * 86400))
+            fiveHour: UsageWindow(utilization: 91, resetsAt: Date().addingTimeInterval(0.8 * 3600)),
+            sevenDay: UsageWindow(utilization: 85, resetsAt: Date().addingTimeInterval(1.5 * 86400)),
+            sevenDaySonnet: UsageWindow(utilization: 88, resetsAt: Date().addingTimeInterval(1.5 * 86400))
         )
         let status = StatusSummary(
             components: [
@@ -94,12 +94,12 @@ enum DemoData {
         return (usage, status)
     }
 
-    // Scenario 3: Very high 5h + 7d + Sonnet usage + no incidents
-    private static func scenario3() -> (UsageResponse, StatusSummary) {
+    // Scenario 4: 5h window exhausted (100%) → countdown in menu bar, small 7d + Sonnet values
+    private static func scenario4() -> (UsageResponse, StatusSummary) {
         let usage = UsageResponse(
-            fiveHour: UsageWindow(utilization: 91, resetsAt: Date().addingTimeInterval(0.8 * 3600)),
-            sevenDay: UsageWindow(utilization: 85, resetsAt: Date().addingTimeInterval(1.5 * 86400)),
-            sevenDaySonnet: UsageWindow(utilization: 88, resetsAt: Date().addingTimeInterval(1.5 * 86400))
+            fiveHour: UsageWindow(utilization: 100, resetsAt: Date().addingTimeInterval(2.25 * 3600)),
+            sevenDay: UsageWindow(utilization: 38, resetsAt: Date().addingTimeInterval(3.5 * 86400)),
+            sevenDaySonnet: UsageWindow(utilization: 22, resetsAt: Date().addingTimeInterval(3.5 * 86400))
         )
         let status = StatusSummary(
             components: [

@@ -79,10 +79,11 @@ enum Formatting {
 
         var nextCenter = intervalStart - intervalSize / 2
 
-        if intervalSize == 3600 && nextCenter < 90000 {
-            nextCenter = 90000 - 30
-        } else if intervalSize == 60 && nextCenter < 120 {
-            nextCenter = 120 - 0.5
+        // Snap to just before zone transitions (25h = days↔hours, 2m = minutes↔seconds)
+        if intervalSize == 3600 && nextCenter < 25 * 3600 {
+            nextCenter = 25 * 3600 - 30
+        } else if intervalSize == 60 && nextCenter < 2 * 60 {
+            nextCenter = 2 * 60 - 0.5
         }
 
         guard nextCenter > 0 else {
@@ -191,25 +192,22 @@ enum Formatting {
         } else if let error = state.usageError {
             usageLines.append(String(format: String(localized: "tooltip.usage.error", bundle: .module), error))
         } else if let usage = state.currentUsage {
-            if let w = usage.fiveHour {
+            let windows: [(UsageWindow?, String, String)] = [
+                (usage.fiveHour,
+                 String(localized: "tooltip.window.5h", bundle: .module),
+                 String(localized: "tooltip.window.5h.resets", bundle: .module)),
+                (usage.sevenDay,
+                 String(localized: "tooltip.window.7d", bundle: .module),
+                 String(localized: "tooltip.window.7d.resets", bundle: .module)),
+                (usage.sevenDaySonnet,
+                 String(localized: "tooltip.window.sonnet", bundle: .module),
+                 String(localized: "tooltip.window.sonnet.resets", bundle: .module)),
+            ]
+            for case let (w?, label, labelWithReset) in windows {
                 if let resetsAt = w.resetsAt {
-                    usageLines.append(String(format: String(localized: "tooltip.window.5h.resets", bundle: .module), w.utilization, timeUntil(resetsAt)))
+                    usageLines.append(String(format: labelWithReset, w.utilization, timeUntil(resetsAt)))
                 } else {
-                    usageLines.append(String(format: String(localized: "tooltip.window.5h", bundle: .module), w.utilization))
-                }
-            }
-            if let w = usage.sevenDay {
-                if let resetsAt = w.resetsAt {
-                    usageLines.append(String(format: String(localized: "tooltip.window.7d.resets", bundle: .module), w.utilization, timeUntil(resetsAt)))
-                } else {
-                    usageLines.append(String(format: String(localized: "tooltip.window.7d", bundle: .module), w.utilization))
-                }
-            }
-            if let w = usage.sevenDaySonnet {
-                if let resetsAt = w.resetsAt {
-                    usageLines.append(String(format: String(localized: "tooltip.window.sonnet.resets", bundle: .module), w.utilization, timeUntil(resetsAt)))
-                } else {
-                    usageLines.append(String(format: String(localized: "tooltip.window.sonnet", bundle: .module), w.utilization))
+                    usageLines.append(String(format: label, w.utilization))
                 }
             }
         } else {

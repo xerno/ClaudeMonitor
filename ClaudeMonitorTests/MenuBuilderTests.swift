@@ -56,8 +56,8 @@ private final class MockMenuActions: NSObject, MenuActions {
             currentPollInterval: nil
         )
         let items = menuItems(for: state)
-        #expect(items.contains { $0.title.contains("5h window") && $0.title.contains("42%") })
-        #expect(items.contains { $0.title.contains("7d window") && $0.title.contains("18%") })
+        #expect(items.contains { $0.title.contains("5h all") && $0.title.contains("42%") })
+        #expect(items.contains { $0.title.contains("7d all") && $0.title.contains("18%") })
     }
 
     // MARK: - Services Section

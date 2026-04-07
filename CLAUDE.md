@@ -10,14 +10,17 @@
 # Open in Xcode and press ⌘R
 open ClaudeMonitor.xcodeproj
 
-# Build from CLI — always use the project script, never raw xcodebuild or xcode-select
-./build.sh
+# Build + test + install from CLI (like Maven's clean install)
+./install.sh
 
-# Run tests — always use the project script
+# Skip tests for quick rebuild
+./install.sh --skip-tests
+
+# Run tests only
 ./test.sh
 ```
 
-**IMPORTANT**: Always use `./build.sh` and `./test.sh` for CLI builds and tests. Never search for Xcode, never use raw `xcodebuild`, and never run `xcode-select`.
+**IMPORTANT**: Always use `./install.sh` and `./test.sh` for CLI builds and tests. Never search for Xcode, never use raw `xcodebuild`, and never run `xcode-select`.
 
 Xcode 26 project uses `PBXFileSystemSynchronizedRootGroup` — new `.swift` files in source/test directories are auto-discovered, no pbxproj edits needed.
 

@@ -31,7 +31,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let editMenuItem = NSMenuItem()
         mainMenu.addItem(editMenuItem)
         let editMenu = NSMenu(title: String(localized: "app.menu.edit"))
-        editMenu.addItem(withTitle: String(localized: "app.menu.undo"), action: Selector(("undo:")), keyEquivalent: "z")
+        editMenu.addItem(withTitle: String(localized: "app.menu.undo"), action: NSSelectorFromString("undo:"), keyEquivalent: "z")
         editMenu.addItem(withTitle: String(localized: "app.menu.cut"), action: #selector(NSText.cut(_:)), keyEquivalent: "x")
         editMenu.addItem(withTitle: String(localized: "app.menu.copy"), action: #selector(NSText.copy(_:)), keyEquivalent: "c")
         editMenu.addItem(withTitle: String(localized: "app.menu.paste"), action: #selector(NSText.paste(_:)), keyEquivalent: "v")
@@ -52,7 +52,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             case "c": #selector(NSText.copy(_:))
             case "v": #selector(NSText.paste(_:))
             case "a": #selector(NSText.selectAll(_:))
-            case "z": Selector(("undo:"))
+            case "z": NSSelectorFromString("undo:")
             default: nil
             }
             if let action {

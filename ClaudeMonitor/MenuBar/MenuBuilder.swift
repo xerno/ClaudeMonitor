@@ -58,14 +58,11 @@ enum MenuBuilder {
     // MARK: - Live Refresh (countdown loop)
 
     static func refreshTimes(in menu: NSMenu, usage: UsageResponse) {
-        let windows: [(tag: Int, label: String, window: UsageWindow?)] = [
-            (fiveHourTag, String(localized: "menu.window.5h", bundle: .module), usage.fiveHour),
-            (sevenDayTag, String(localized: "menu.window.7d", bundle: .module), usage.sevenDay),
-            (sevenDaySonnetTag, String(localized: "menu.window.sonnet", bundle: .module), usage.sevenDaySonnet),
-        ]
-        for (tag, label, window) in windows {
+        let labels = usageLabels(usage: usage)
+        let style = usageParagraphStyle(labelColumnWidth: maxLabelWidth(labels: labels.map(\.label)))
+        for (tag, label, window) in labels {
             guard let window, let item = menu.item(withTag: tag) else { continue }
-            item.attributedTitle = usageAttributedTitle(label: label, window: window)
+            item.attributedTitle = usageAttributedTitle(label: label, window: window, style: style)
         }
     }
 
@@ -111,15 +108,13 @@ enum MenuBuilder {
         guard let usage = state.currentUsage else {
             return [staticItem(String(localized: "menu.loading", bundle: .module), tag: usagePlaceholderTag)]
         }
+        let labels = usageLabels(usage: usage)
+        let style = usageParagraphStyle(labelColumnWidth: maxLabelWidth(labels: labels.map(\.label)))
+
         var items: [NSMenuItem] = []
-        if let w = usage.fiveHour {
-            items.append(usageItem(label: String(localized: "menu.window.5h", bundle: .module), window: w, tag: fiveHourTag))
-        }
-        if let w = usage.sevenDay {
-            items.append(usageItem(label: String(localized: "menu.window.7d", bundle: .module), window: w, tag: sevenDayTag))
-        }
-        if let w = usage.sevenDaySonnet {
-            items.append(usageItem(label: String(localized: "menu.window.sonnet", bundle: .module), window: w, tag: sevenDaySonnetTag))
+        for (tag, label, window) in labels {
+            guard let window else { continue }
+            items.append(usageItem(label: label, window: window, tag: tag, style: style))
         }
         return items
     }
@@ -230,33 +225,67 @@ enum MenuBuilder {
 
     // MARK: - Attributed Title
 
-    private static func usageItem(label: String, window: UsageWindow, tag: Int) -> NSMenuItem {
+    private static func usageItem(label: String, window: UsageWindow, tag: Int, style: NSParagraphStyle) -> NSMenuItem {
         let item = NSMenuItem()
-        item.attributedTitle = usageAttributedTitle(label: label, window: window)
+        item.attributedTitle = usageAttributedTitle(label: label, window: window, style: style)
         item.isEnabled = false
         item.tag = tag
         return item
     }
 
-    private static func usageAttributedTitle(label: String, window: UsageWindow) -> NSAttributedString {
+    private static func usageLabels(usage: UsageResponse) -> [(tag: Int, label: String, window: UsageWindow?)] {
+        [
+            (fiveHourTag, String(localized: "menu.window.5h", bundle: .module), usage.fiveHour),
+            (sevenDayTag, String(localized: "menu.window.7d", bundle: .module), usage.sevenDay),
+            (sevenDaySonnetTag, String(localized: "menu.window.sonnet", bundle: .module), usage.sevenDaySonnet),
+        ]
+    }
+
+    private static func usageParagraphStyle(labelColumnWidth: CGFloat) -> NSParagraphStyle {
+        let padding: CGFloat = 8
+        let barPercentWidth = NSAttributedString(
+            string: "\(Formatting.progressBar(percent: 50))  100%",
+            attributes: [.font: NSFont.menuFont(ofSize: 0)]
+        ).size().width
+
+        let barStart = labelColumnWidth + padding
+        let resetsStart = barStart + barPercentWidth + padding
+
+        let style = NSMutableParagraphStyle()
+        style.tabStops = [
+            NSTextTab(textAlignment: .left, location: barStart),
+            NSTextTab(textAlignment: .left, location: resetsStart),
+        ]
+        return style
+    }
+
+    private static func maxLabelWidth(labels: [String]) -> CGFloat {
+        let font = NSFont.menuFont(ofSize: 0)
+        return labels.map { label in
+            NSAttributedString(string: "  \(label):", attributes: [.font: font]).size().width
+        }.max() ?? 0
+    }
+
+    private static func usageAttributedTitle(label: String, window: UsageWindow, style: NSParagraphStyle) -> NSAttributedString {
         let menuFont = NSFont.menuFont(ofSize: 0)
         let boldFont = NSFontManager.shared.convert(menuFont, toHaveTrait: .boldFontMask)
         let bar = Formatting.progressBar(percent: window.utilization)
+        let attrs: [NSAttributedString.Key: Any] = [.font: menuFont, .paragraphStyle: style]
 
         guard let resetsAt = window.resetsAt else {
             return NSMutableAttributedString(
-                string: "  \(label):  \(bar)  \(window.utilization)%",
-                attributes: [.font: menuFont]
+                string: "  \(label):\t\(bar)  \(window.utilization)%",
+                attributes: attrs
             )
         }
 
         let reset = Formatting.timeUntil(resetsAt)
         let text = NSMutableAttributedString(
-            string: "  \(label):  \(bar)  \(window.utilization)%   \(String(localized: "menu.resets.prefix", bundle: .module))",
-            attributes: [.font: menuFont]
+            string: "  \(label):\t\(bar)  \(window.utilization)%\t\(String(localized: "menu.resets.prefix", bundle: .module))",
+            attributes: attrs
         )
-        text.append(NSAttributedString(string: reset, attributes: [.font: boldFont]))
-        text.append(NSAttributedString(string: ")", attributes: [.font: menuFont]))
+        text.append(NSAttributedString(string: reset, attributes: [.font: boldFont, .paragraphStyle: style]))
+        text.append(NSAttributedString(string: ")", attributes: attrs))
         return text
     }
 
@@ -269,7 +298,7 @@ enum MenuBuilder {
         let nextDate = lastRefreshed.addingTimeInterval(interval)
         let nextLabel = String(format: String(localized: "menu.next", bundle: .module),
                                nextDate.formatted(.dateTime.hour().minute().second()))
-        return "\(updated)     \(intervalLabel)     \(nextLabel)"
+        return "\(updated)      \(intervalLabel)      \(nextLabel)"
     }
 
     // MARK: - Helpers

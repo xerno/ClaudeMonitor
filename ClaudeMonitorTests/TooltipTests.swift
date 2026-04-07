@@ -40,8 +40,8 @@ import Foundation
             currentPollInterval: nil
         )
         let tooltip = Formatting.buildTooltip(state: state)
-        #expect(tooltip.contains("5h window: 42%"))
-        #expect(tooltip.contains("7d window: 18%"))
+        #expect(tooltip.contains("5h all: 42%"))
+        #expect(tooltip.contains("7d all: 18%"))
         #expect(tooltip.contains("Updated:"))
     }
 
