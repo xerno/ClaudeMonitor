@@ -6,6 +6,7 @@
   "about.heading.status_icon": "About window section heading",
   "about.line.additional_windows": "About window: description of additional usage numbers",
   "about.line.blue_icon": "About window status icon legend",
+  "about.line.warning_icon": "About window status icon legend — refresh warning (triangle icon, distinct from circle degraded icon)",
   "about.line.bold_suffix": "About window color coding legend — suffix after bold label",
   "about.line.color_intro": "About window color coding intro line",
   "about.line.first_window": "About window: description of first/shortest usage number",

@@ -186,6 +186,7 @@ final class AboutWindowController: NSWindowController, NSWindowDelegate {
         s.append(line("  " + String(localized: "about.line.orange_icon", bundle: .module)))
         s.append(line("  " + String(localized: "about.line.red_icon", bundle: .module)))
         s.append(line("  " + String(localized: "about.line.blue_icon", bundle: .module)))
+        s.append(line("  " + String(localized: "about.line.warning_icon", bundle: .module)))
 
         heading(String(localized: "about.heading.100_percent", bundle: .module), into: s)
         s.append(secondary(String(localized: "about.secondary.100_percent_explain", bundle: .module)))
