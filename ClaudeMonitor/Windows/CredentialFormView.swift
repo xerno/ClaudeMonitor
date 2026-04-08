@@ -1,5 +1,6 @@
 import AppKit
 
+@MainActor
 final class CredentialFormView: NSView {
     private let orgIdField = NSTextField()
     private let cookieTextView = NSTextView()

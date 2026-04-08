@@ -1,10 +1,16 @@
-import AppKit
+import Foundation
 
 extension Formatting {
-    struct UsageStyle {
-        let color: NSColor
+    enum UsageLevel: Sendable, Equatable {
+        case normal
+        case warning
+        case critical
+    }
+
+    struct UsageStyle: Sendable, Equatable {
+        let level: UsageLevel
         let isBold: Bool
-        let isCritical: Bool
+        var isCritical: Bool { level == .critical }
     }
 
     static func usageStyle(
@@ -17,7 +23,7 @@ extension Formatting {
             let isRed = utilization >= 80
             let isOrange = utilization >= 70
             let isBold = utilization >= 50
-            return UsageStyle(color: colorForThresholds(isRed: isRed, isOrange: isOrange), isBold: isBold, isCritical: isRed)
+            return UsageStyle(level: levelForThresholds(isRed: isRed, isOrange: isOrange), isBold: isBold)
         }
 
         let timeRemaining = max(resetsAt.timeIntervalSince(now), 0)
@@ -27,13 +33,13 @@ extension Formatting {
         let isOrange = utilization >= 70 || Double(utilization) > timeElapsedPercent + 20
         let isBold = utilization >= 50 || Double(utilization) > timeElapsedPercent
 
-        return UsageStyle(color: colorForThresholds(isRed: isRed, isOrange: isOrange), isBold: isBold, isCritical: isRed)
+        return UsageStyle(level: levelForThresholds(isRed: isRed, isOrange: isOrange), isBold: isBold)
     }
 
-    private static func colorForThresholds(isRed: Bool, isOrange: Bool) -> NSColor {
-        if isRed { return .systemRed }
-        if isOrange { return .systemOrange }
-        return .labelColor
+    private static func levelForThresholds(isRed: Bool, isOrange: Bool) -> UsageLevel {
+        if isRed { return .critical }
+        if isOrange { return .warning }
+        return .normal
     }
 
     static func shouldShowInMenuBar(

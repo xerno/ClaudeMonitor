@@ -1,5 +1,6 @@
 import AppKit
 
+@MainActor
 final class AboutWindowController: NSWindowController, NSWindowDelegate {
     init() {
         let windowWidth: CGFloat = 700

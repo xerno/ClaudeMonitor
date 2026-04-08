@@ -1,5 +1,6 @@
 import AppKit
 
+@MainActor
 final class SetupWindowController: NSWindowController, NSWindowDelegate {
     private let credentialForm = CredentialFormView()
     private let onComplete: () -> Void

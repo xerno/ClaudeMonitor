@@ -2,7 +2,7 @@ import Testing
 import Foundation
 @testable import ClaudeMonitor
 
-@MainActor struct WindowKeyParserTests {
+struct WindowKeyParserTests {
 
     // MARK: - WindowKeyParser
 

@@ -1,12 +1,13 @@
 import AppKit
 
-@objc protocol MenuActions {
+@MainActor @objc protocol MenuActions {
     func didSelectRefresh()
     func openIncident(_ sender: NSMenuItem)
     func didSelectPreferences()
     func didSelectAbout()
 }
 
+@MainActor
 enum MenuBuilder {
     // Usage items
     static let usageSectionTag = 10

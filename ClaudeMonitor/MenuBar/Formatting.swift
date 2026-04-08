@@ -1,4 +1,4 @@
-import AppKit
+import Foundation
 
 enum Formatting {
     static func timeUntil(_ date: Date, now: Date = Date()) -> String {

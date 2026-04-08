@@ -1,9 +1,8 @@
 import Testing
 import Foundation
-import AppKit
 @testable import ClaudeMonitor
 
-@MainActor struct ComponentStatusTests {
+struct ComponentStatusTests {
 
     // MARK: - ComponentStatus Comparable
 

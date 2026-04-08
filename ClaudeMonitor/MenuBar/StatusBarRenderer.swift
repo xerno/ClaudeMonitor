@@ -1,5 +1,6 @@
 import AppKit
 
+@MainActor
 enum StatusBarRenderer {
     private static let iconPointSize: CGFloat = 14
 
@@ -150,9 +151,17 @@ enum StatusBarRenderer {
             windowDuration: duration
         )
         parts.append(NSAttributedString(string: "\(window.utilization)%", attributes: [
-            .foregroundColor: style.color,
+            .foregroundColor: nsColor(for: style.level),
             .font: style.isBold ? boldFont : regularFont,
         ]))
+    }
+
+    static func nsColor(for level: Formatting.UsageLevel) -> NSColor {
+        switch level {
+        case .normal: .labelColor
+        case .warning: .systemOrange
+        case .critical: .systemRed
+        }
     }
 
     static func makeImage(symbolName: String, color: NSColor) -> NSImage? {

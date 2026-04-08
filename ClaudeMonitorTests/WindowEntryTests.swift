@@ -2,7 +2,7 @@ import Testing
 import Foundation
 @testable import ClaudeMonitor
 
-@MainActor struct WindowEntryTests {
+struct WindowEntryTests {
 
     // MARK: - WindowEntry Sorting
 

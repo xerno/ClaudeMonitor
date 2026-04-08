@@ -2,7 +2,7 @@ import Testing
 import Foundation
 @testable import ClaudeMonitor
 
-@MainActor struct TimeUntilTests {
+struct TimeUntilTests {
 
     @Test func timeUntilZero() {
         let now = Date()

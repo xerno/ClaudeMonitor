@@ -2,7 +2,7 @@ import Testing
 import Foundation
 @testable import ClaudeMonitor
 
-@MainActor struct NextTickTargetTests {
+struct NextTickTargetTests {
 
     @Test func nextTickTargetSecondsZone() {
         let T = Date(timeIntervalSinceReferenceDate: 10000)

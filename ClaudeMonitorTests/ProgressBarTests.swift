@@ -2,7 +2,7 @@ import Testing
 import Foundation
 @testable import ClaudeMonitor
 
-@MainActor struct ProgressBarTests {
+struct ProgressBarTests {
 
     @Test func progressBarZero() {
         #expect(Formatting.progressBar(percent: 0) == "░░░░░░░░░░")

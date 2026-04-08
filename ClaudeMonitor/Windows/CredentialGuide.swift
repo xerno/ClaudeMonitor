@@ -1,5 +1,6 @@
 import AppKit
 
+@MainActor
 enum CredentialGuide {
     static func orgInstructions() -> NSAttributedString {
         let body = bodyAttrs()

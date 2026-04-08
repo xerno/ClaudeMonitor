@@ -18,7 +18,6 @@ let package = Package(
             ],
             swiftSettings: [
                 .swiftLanguageMode(.v6),
-                .defaultIsolation(MainActor.self),
                 .enableUpcomingFeature("MemberImportVisibility"),
                 // Enable @testable import for the TestRunner executable target.
                 .unsafeFlags(["-enable-testing"]),

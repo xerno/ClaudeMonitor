@@ -1,9 +1,8 @@
 import Testing
 import Foundation
-import AppKit
 @testable import ClaudeMonitor
 
-@MainActor struct UsageStyleTests {
+struct UsageStyleTests {
 
     private func style(utilization: Int, timeRemainingPercent: Double) -> Formatting.UsageStyle {
         let now = Date()
@@ -19,55 +18,55 @@ import AppKit
 
     @Test func styleNormal() {
         let s = style(utilization: 30, timeRemainingPercent: 70)
-        #expect(s.color == .labelColor)
+        #expect(s.level == .normal)
         #expect(!s.isBold)
     }
 
     @Test func styleBoldByFixedThreshold() {
         // 55% used, 50% time remaining (50% elapsed) — bold by fixed (≥50), not orange (55 < 70)
         let s = style(utilization: 55, timeRemainingPercent: 50)
-        #expect(s.color == .labelColor)
+        #expect(s.level == .normal)
         #expect(s.isBold)
     }
 
     @Test func styleBoldByTimeRule() {
         // 45% used, 60% time remaining (40% elapsed) — projected 112%, outpacing
         let s = style(utilization: 45, timeRemainingPercent: 60)
-        #expect(s.color == .labelColor)
+        #expect(s.level == .normal)
         #expect(s.isBold)
     }
 
     @Test func styleOrangeByFixedThreshold() {
         // 72% used, 50% time remaining (50% elapsed) — orange by fixed (≥70), not red (72 < 85)
         let s = style(utilization: 72, timeRemainingPercent: 50)
-        #expect(s.color == .systemOrange)
+        #expect(s.level == .warning)
         #expect(s.isBold)
     }
 
     @Test func styleOrangeByTimeRule() {
         // 65% used, 60% time remaining (40% elapsed) — 65 > 40+20, projected 162%
         let s = style(utilization: 65, timeRemainingPercent: 60)
-        #expect(s.color == .systemOrange)
+        #expect(s.level == .warning)
         #expect(s.isBold)
     }
 
     @Test func styleRedByFixedThreshold() {
         let s = style(utilization: 85, timeRemainingPercent: 80)
-        #expect(s.color == .systemRed)
+        #expect(s.level == .critical)
         #expect(s.isBold)
     }
 
     @Test func styleRedByTimeRule() {
         // 78% used, 60% time remaining (40% elapsed) — 78 > 40+35, projected 195%
         let s = style(utilization: 78, timeRemainingPercent: 60)
-        #expect(s.color == .systemRed)
+        #expect(s.level == .critical)
         #expect(s.isBold)
     }
 
     @Test func styleNotBoldWhenPlentyOfTime() {
         // 15% used, 80% time remaining (20% elapsed) — projected 75%, comfortable
         let s = style(utilization: 15, timeRemainingPercent: 80)
-        #expect(s.color == .labelColor)
+        #expect(s.level == .normal)
         #expect(!s.isBold)
     }
 

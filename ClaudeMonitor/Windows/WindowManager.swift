@@ -1,7 +1,7 @@
 import AppKit
 
+@MainActor
 enum WindowManager {
-    @MainActor
     static func bringToFront(_ window: NSWindow?) {
         NSApp.setActivationPolicy(.regular)
         window?.level = .floating
@@ -12,7 +12,6 @@ enum WindowManager {
         }
     }
 
-    @MainActor
     static func revertActivationPolicyIfNeeded(excluding closingWindow: NSWindow? = nil) {
         Task { @MainActor in
             let hasVisibleWindows = NSApp.windows.contains {

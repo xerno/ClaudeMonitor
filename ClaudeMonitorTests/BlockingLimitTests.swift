@@ -2,7 +2,7 @@ import Testing
 import Foundation
 @testable import ClaudeMonitor
 
-@MainActor struct BlockingLimitTests {
+struct BlockingLimitTests {
 
     @Test func blockingLimitNilUsage() {
         #expect(Formatting.blockingLimit(nil) == nil)

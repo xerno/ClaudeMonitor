@@ -3,6 +3,7 @@ set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 APP_NAME="ClaudeMonitor"
+PRODUCT="ClaudeMonitorTestRunner"
 
 # Generate Localizable.xcstrings so SPM can include it as a module resource.
 # String(localized:) in Swift 6 uses the module bundle, which SPM builds from
@@ -15,6 +16,7 @@ swift "${PROJECT_DIR}/scripts/generate-xcstrings.swift" "${PROJECT_DIR}/ClaudeMo
 
 echo "Running ${APP_NAME} tests..."
 cd "${PROJECT_DIR}"
-swift run ClaudeMonitorTestRunner
+swift build --product "${PRODUCT}"
+"$(swift build --product "${PRODUCT}" --show-bin-path)/${PRODUCT}"
 
 echo "Done."

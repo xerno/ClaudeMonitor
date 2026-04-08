@@ -2,7 +2,7 @@ import Testing
 import Foundation
 @testable import ClaudeMonitor
 
-@MainActor struct TooltipTests {
+struct TooltipTests {
 
     @Test func tooltipWithNoCredentials() {
         let state = MonitorState(

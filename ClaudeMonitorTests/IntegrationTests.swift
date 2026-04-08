@@ -5,7 +5,7 @@ import CFNetwork
 
 /// Integration tests that hit real APIs. These verify network connectivity,
 /// DNS resolution, TLS, and response parsing against live endpoints.
-@MainActor struct IntegrationTests {
+struct IntegrationTests {
 
     // MARK: - Status API
 
