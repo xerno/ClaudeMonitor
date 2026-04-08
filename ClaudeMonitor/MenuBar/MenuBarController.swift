@@ -155,9 +155,7 @@ final class MenuBarController: NSObject, MenuActions {
             resetTimes.append(blockedUntil)
         }
         if isMenuOpen, let usage = coordinator.currentUsage {
-            if let w = usage.fiveHour, let r = w.resetsAt { resetTimes.append(r) }
-            if let w = usage.sevenDay, let r = w.resetsAt { resetTimes.append(r) }
-            if let w = usage.sevenDaySonnet, let r = w.resetsAt { resetTimes.append(r) }
+            resetTimes.append(contentsOf: usage.allWindows.compactMap(\.resetsAt))
         }
         guard !resetTimes.isEmpty else { return nil }
         return Formatting.nextTickTarget(resetTimes: resetTimes, now: Date())

@@ -18,7 +18,8 @@ struct PollingScheduler {
     }
 
     func nextPollInterval(usage: UsageResponse?) -> TimeInterval {
-        if statusState.lastError != nil || usageState.lastError != nil {
+        if statusState.consecutiveFailures >= Constants.Retry.failureThreshold
+            || usageState.consecutiveFailures >= Constants.Retry.failureThreshold {
             let statusRetry = retryInterval(for: statusState)
             let usageRetry = retryInterval(for: usageState)
             return min(
@@ -29,14 +30,14 @@ struct PollingScheduler {
 
         if let usage {
             let now = Date()
-            let resetDates: [Date] = [usage.fiveHour?.resetsAt, usage.sevenDay?.resetsAt, usage.sevenDaySonnet?.resetsAt]
-                .compactMap { $0 }
+            let resetDates = usage.allWindows.compactMap(\.resetsAt)
             let nearest = resetDates
                 .map { $0.timeIntervalSince(now) }
                 .filter { $0 > 0 && $0 < effectivePollingInterval }
                 .min()
             if let nearestReset = nearest {
-                return nearestReset + 1
+                let resetPadding: TimeInterval = 1
+                return nearestReset + resetPadding
             }
         }
 
@@ -44,9 +45,7 @@ struct PollingScheduler {
     }
 
     mutating func adjustPollingRate(usage: UsageResponse?, isCritical: Bool) {
-        let utils = [usage?.fiveHour?.utilization, usage?.sevenDay?.utilization, usage?.sevenDaySonnet?.utilization]
-            .compactMap { $0 }
-        let currentUtil = utils.max()
+        let currentUtil = usage?.allWindows.map(\.utilization).max()
         defer { previousMaxUtil = currentUtil }
 
         guard let current = currentUtil, let previous = previousMaxUtil else {
@@ -86,7 +85,7 @@ struct PollingScheduler {
             }
         }
 
-        let isHighUtil = currentUtil.map { $0 >= Constants.Polling.highUtilizationThreshold } ?? false
+        let isHighUtil = current >= Constants.Polling.highUtilizationThreshold
         if isCritical || isHighUtil {
             effectivePollingInterval = min(effectivePollingInterval, Constants.Polling.criticalFloor)
         }

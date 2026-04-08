@@ -1,8 +1,8 @@
 import AppKit
 
 final class CredentialFormView: NSView {
-    let orgIdField = NSTextField()
-    let cookieTextView = NSTextView()
+    private let orgIdField = NSTextField()
+    private let cookieTextView = NSTextView()
     private let cookieScrollView = NSScrollView()
 
     override init(frame frameRect: NSRect) {

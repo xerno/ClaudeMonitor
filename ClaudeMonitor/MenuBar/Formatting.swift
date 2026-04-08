@@ -41,12 +41,10 @@ enum Formatting {
 
     static func blockingLimit(_ usage: UsageResponse?) -> Date? {
         guard let usage else { return nil }
-        let windows: [UsageWindow?] = [usage.fiveHour, usage.sevenDay, usage.sevenDaySonnet]
-        let blockedResets = windows.compactMap { w -> Date? in
-            guard let w, w.utilization >= 100, let resetsAt = w.resetsAt else { return nil }
-            return resetsAt
-        }
-        return blockedResets.max()
+        return usage.allWindows
+            .filter { $0.utilization >= 100 }
+            .compactMap(\.resetsAt)
+            .max()
     }
 
     static func nextTickTarget(resetTimes: [Date], now: Date) -> Date? {
@@ -101,6 +99,7 @@ enum Formatting {
     struct UsageStyle {
         let color: NSColor
         let isBold: Bool
+        let isCritical: Bool
     }
 
     static func usageStyle(
@@ -117,7 +116,7 @@ enum Formatting {
             if isRed { color = .systemRed }
             else if isOrange { color = .systemOrange }
             else { color = .labelColor }
-            return UsageStyle(color: color, isBold: isBold)
+            return UsageStyle(color: color, isBold: isBold, isCritical: isRed)
         }
 
         let timeRemaining = max(resetsAt.timeIntervalSince(now), 0)
@@ -132,7 +131,7 @@ enum Formatting {
         else if isOrange { color = .systemOrange }
         else { color = .labelColor }
 
-        return UsageStyle(color: color, isBold: isBold)
+        return UsageStyle(color: color, isBold: isBold, isCritical: isRed)
     }
 
     static func shouldShowInMenuBar(
@@ -144,11 +143,7 @@ enum Formatting {
         guard let resetsAt else { return false }
         let timeRemaining = max(resetsAt.timeIntervalSince(now), 0)
         let timeElapsedPercent = (1 - timeRemaining / windowDuration) * 100
-        let hasFormatting = usageStyle(
-            utilization: utilization, resetsAt: resetsAt,
-            windowDuration: windowDuration, now: now
-        ).isBold
-        return hasFormatting && Double(utilization) > timeElapsedPercent
+        return Double(utilization) > timeElapsedPercent
     }
 
     static func detectCriticalReset(previous: UsageResponse, current: UsageResponse) -> Bool {
@@ -157,18 +152,16 @@ enum Formatting {
             (previous.sevenDay, current.sevenDay, Constants.UsageWindows.sevenDayDuration),
             (previous.sevenDaySonnet, current.sevenDaySonnet, Constants.UsageWindows.sevenDayDuration),
         ]
-        for check in checks {
-            guard let prev = check.prev, let curr = check.curr else { continue }
-            guard let prevReset = prev.resetsAt, let currReset = curr.resetsAt else { continue }
-            guard currReset.timeIntervalSince(prevReset) > check.duration / 2 else { continue }
-            let wasCritical = usageStyle(
+        return checks.contains { check in
+            guard let prev = check.prev, let curr = check.curr,
+                  let prevReset = prev.resetsAt, let currReset = curr.resetsAt else { return false }
+            guard currReset.timeIntervalSince(prevReset) > check.duration / 2 else { return false }
+            return usageStyle(
                 utilization: prev.utilization,
                 resetsAt: prev.resetsAt,
                 windowDuration: check.duration
-            ).color == .systemRed
-            if wasCritical { return true }
+            ).isCritical
         }
-        return false
     }
 
     static func hasAnyCriticalWindow(_ usage: UsageResponse) -> Bool {
@@ -176,7 +169,7 @@ enum Formatting {
             guard let w = window else { return false }
             return usageStyle(
                 utilization: w.utilization, resetsAt: w.resetsAt, windowDuration: duration
-            ).color == .systemRed
+            ).isCritical
         }
         return isCritical(usage.fiveHour, duration: Constants.UsageWindows.fiveHourDuration)
             || isCritical(usage.sevenDay, duration: Constants.UsageWindows.sevenDayDuration)

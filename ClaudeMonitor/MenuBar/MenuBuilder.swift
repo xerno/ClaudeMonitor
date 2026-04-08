@@ -241,13 +241,13 @@ enum MenuBuilder {
         ]
     }
 
+    private static let barPercentWidth: CGFloat = NSAttributedString(
+        string: "\(Formatting.progressBar(percent: 50))  100%",
+        attributes: [.font: NSFont.menuFont(ofSize: 0)]
+    ).size().width
+
     private static func usageParagraphStyle(labelColumnWidth: CGFloat) -> NSParagraphStyle {
         let padding: CGFloat = 8
-        let barPercentWidth = NSAttributedString(
-            string: "\(Formatting.progressBar(percent: 50))  100%",
-            attributes: [.font: NSFont.menuFont(ofSize: 0)]
-        ).size().width
-
         let barStart = labelColumnWidth + padding
         let resetsStart = barStart + barPercentWidth + padding
 
@@ -353,7 +353,10 @@ enum MenuBuilder {
         return item
     }
 
+    private static let maxDisplayLength = 40
+    private static let truncatedPrefixLength = 30
+
     private static func truncatedName(_ name: String) -> String {
-        name.count > 40 ? String(name.prefix(30)).trimmingCharacters(in: .whitespaces) + "…" : name
+        name.count > maxDisplayLength ? String(name.prefix(truncatedPrefixLength)).trimmingCharacters(in: .whitespaces) + "…" : name
     }
 }

@@ -21,7 +21,6 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
         super.init(window: window)
         window.delegate = self
         buildUI()
-        loadSavedValues()
     }
 
     @available(*, unavailable)

@@ -43,6 +43,6 @@ enum RetryCategory: Sendable {
             }
             return
         }
-        self = .transient
+        self = .permanent
     }
 }

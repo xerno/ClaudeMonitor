@@ -5,6 +5,8 @@ protocol StatusFetching: Sendable {
 }
 
 struct StatusService: StatusFetching, Sendable {
+    private static let decoder = JSONDecoder.iso8601WithFractionalSeconds
+
     func fetch() async throws -> StatusSummary {
         var request = URLRequest(url: Constants.API.statusURL)
         request.timeoutInterval = Constants.Network.requestTimeout
@@ -14,7 +16,7 @@ struct StatusService: StatusFetching, Sendable {
         }
         switch http.statusCode {
         case 200:
-            return try JSONDecoder().decode(StatusSummary.self, from: data)
+            return try Self.decoder.decode(StatusSummary.self, from: data)
         case 429:
             throw ServiceError.rateLimited
         default:

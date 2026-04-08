@@ -88,6 +88,10 @@ struct UsageResponse: Decodable, Sendable, Equatable, Hashable {
         case sevenDay = "seven_day"
         case sevenDaySonnet = "seven_day_sonnet"
     }
+
+    var allWindows: [UsageWindow] {
+        [fiveHour, sevenDay, sevenDaySonnet].compactMap { $0 }
+    }
 }
 
 struct UsageWindow: Decodable, Sendable, Equatable, Hashable {
@@ -111,9 +115,9 @@ struct MonitorState: Sendable, Equatable {
 }
 
 struct ServiceState: Sendable {
-    var consecutiveFailures = 0
-    var lastError: RetryCategory?
-    var lastSuccess: Date?
+    private(set) var consecutiveFailures = 0
+    private(set) var lastError: RetryCategory?
+    private(set) var lastSuccess: Date?
     private(set) var currentBackoff: TimeInterval = Constants.Retry.initialBackoff
 
     mutating func recordSuccess() {

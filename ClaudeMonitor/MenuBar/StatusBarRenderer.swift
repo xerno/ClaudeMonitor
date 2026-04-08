@@ -1,6 +1,8 @@
 import AppKit
 
 enum StatusBarRenderer {
+    private static let iconPointSize: CGFloat = 14
+
     private static let blockedOctagon: NSImage? = {
         guard let symbol = NSImage(systemSymbolName: "octagon.fill", accessibilityDescription: nil) else { return nil }
         let config = NSImage.SymbolConfiguration(pointSize: NSFont.systemFontSize, weight: .medium)
@@ -34,7 +36,7 @@ enum StatusBarRenderer {
             button.image = makeImage(symbolName: "exclamationmark.circle.fill", color: .systemYellow)
         case .underMaintenance:
             button.image = makeImage(symbolName: "wrench.and.screwdriver.fill", color: .systemBlue)
-        default:
+        case .operational, .unknown:
             button.image = makeImage(symbolName: "checkmark.circle.fill", color: .systemGreen)
         }
     }
@@ -151,7 +153,7 @@ enum StatusBarRenderer {
 
     static func makeImage(symbolName: String, color: NSColor) -> NSImage? {
         guard let symbol = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil) else { return nil }
-        let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .medium)
+        let config = NSImage.SymbolConfiguration(pointSize: iconPointSize, weight: .medium)
             .applying(.init(paletteColors: [color]))
         guard let configured = symbol.withSymbolConfiguration(config) else { return nil }
         configured.isTemplate = false

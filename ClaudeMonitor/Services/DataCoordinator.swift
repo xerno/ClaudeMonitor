@@ -7,6 +7,7 @@ final class DataCoordinator {
     private let loadCredential: @Sendable (String) -> String?
     private var pollTask: Task<Void, Never>?
     private var demoRotationIndex = 0
+    private var loadedCredentials: (cookie: String, orgId: String)?
 
     private(set) var currentStatus: StatusSummary?
     private(set) var currentUsage: UsageResponse?
@@ -28,14 +29,11 @@ final class DataCoordinator {
         self.statusService = statusService
         self.usageService = usageService
         self.loadCredential = loadCredential
+        reloadCredentials()
     }
 
     var hasCredentials: Bool {
-        if Constants.Demo.isActive { return true }
-        guard let cookie = loadCredential(Constants.Keychain.cookieString),
-              let orgId = loadCredential(Constants.Keychain.organizationId),
-              !cookie.isEmpty, !orgId.isEmpty else { return false }
-        return true
+        Constants.Demo.isActive || loadedCredentials != nil
     }
 
     var monitorState: MonitorState {
@@ -65,6 +63,7 @@ final class DataCoordinator {
 
     func restartPolling() {
         pollTask?.cancel()
+        reloadCredentials()
         scheduler.reset()
         startPolling()
     }
@@ -91,9 +90,10 @@ final class DataCoordinator {
         guard !Task.isCancelled else { return }
         let isCritical = currentUsage.map(Formatting.hasAnyCriticalWindow) ?? false
         scheduler.adjustPollingRate(usage: currentUsage, isCritical: isCritical)
-        lastRefreshed = Date()
+        let now = Date()
+        lastRefreshed = now
         let pollInterval = scheduler.nextPollInterval(usage: currentUsage)
-        nextPollDate = Date().addingTimeInterval(pollInterval)
+        nextPollDate = now.addingTimeInterval(pollInterval)
         currentPollInterval = pollInterval
         onUpdate?()
         if let prev = usageBeforeRefresh, let curr = currentUsage,
@@ -119,16 +119,25 @@ final class DataCoordinator {
         }
     }
 
-    private func refreshUsage() async {
-        guard !Task.isCancelled else { return }
-        guard let cookie = loadCredential(Constants.Keychain.cookieString),
+    private func reloadCredentials() {
+        guard !Constants.Demo.isActive,
+              let cookie = loadCredential(Constants.Keychain.cookieString),
               let orgId = loadCredential(Constants.Keychain.organizationId),
               !cookie.isEmpty, !orgId.isEmpty else {
+            loadedCredentials = nil
+            return
+        }
+        loadedCredentials = (cookie, orgId)
+    }
+
+    private func refreshUsage() async {
+        guard !Task.isCancelled else { return }
+        guard let credentials = loadedCredentials else {
             usageError = String(localized: "credentials.configure", bundle: .module)
             return
         }
         do {
-            currentUsage = try await usageService.fetch(organizationId: orgId, cookieString: cookie)
+            currentUsage = try await usageService.fetch(organizationId: credentials.orgId, cookieString: credentials.cookie)
             usageError = nil
             scheduler.recordUsageSuccess()
         } catch {

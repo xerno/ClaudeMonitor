@@ -32,19 +32,24 @@ enum Constants {
     }
 
     enum UsageWindows {
-        static let fiveHourDuration: TimeInterval = 5 * 3600
-        static let sevenDayDuration: TimeInterval = 7 * 86400
+        static let fiveHourDuration: TimeInterval = 5 * Time.secondsPerHour
+        static let sevenDayDuration: TimeInterval = 7 * Time.secondsPerDay
     }
 
     enum Retry {
         static let initialBackoff: TimeInterval = 10
         static let maxBackoff: TimeInterval = 300
-        static let failureThreshold = 2
+        static let failureThreshold: Int = 2
         static let staleDataMaxAge: TimeInterval = 3600
     }
 
     enum Network {
         static let requestTimeout: TimeInterval = 15
+    }
+
+    enum Time {
+        static let secondsPerHour: TimeInterval = 3600
+        static let secondsPerDay: TimeInterval = 86_400
     }
 
     enum Preferences {
