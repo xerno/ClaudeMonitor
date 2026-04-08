@@ -15,15 +15,11 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Build
-        run: |
-          xcodebuild -project ClaudeMonitor.xcodeproj \
-                     -scheme ClaudeMonitor \
-                     -configuration Release \
-                     -derivedDataPath build
+        run: ./build.sh --release
 
       - name: Zip
         run: |
-          cd build/Build/Products/Release
+          cd .build
           zip -r ClaudeMonitor.zip ClaudeMonitor.app
 
       - name: Release (latest)
@@ -32,4 +28,4 @@ jobs:
           tag_name: latest
           name: Latest build
           prerelease: true
-          files: build/Build/Products/Release/ClaudeMonitor.zip
+          files: .build/ClaudeMonitor.zip
