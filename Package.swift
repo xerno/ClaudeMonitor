@@ -31,6 +31,7 @@ let package = Package(
             dependencies: ["ClaudeMonitor"],
             path: ".",
             exclude: [
+                "build.sh",
                 "CLAUDE.md",
                 "ClaudeMonitor",
                 "ClaudeMonitor.xcodeproj",

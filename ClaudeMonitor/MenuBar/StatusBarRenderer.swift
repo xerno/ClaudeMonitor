@@ -106,30 +106,30 @@ enum StatusBarRenderer {
                      into: parts, regularFont: regularFont, boldFont: boldFont)
 
         let rest = usage.entries.dropFirst()
-        var shouldShow = Set<String>()
-        for entry in rest {
-            if Formatting.shouldShowInMenuBar(
-                utilization: entry.window.utilization,
-                resetsAt: entry.window.resetsAt,
-                windowDuration: entry.duration
-            ) {
-                shouldShow.insert(entry.key)
-                if entry.modelScope != nil {
-                    if let allModels = rest.first(where: {
-                        $0.durationLabel == entry.durationLabel && $0.modelScope == nil
-                    }) {
-                        shouldShow.insert(allModels.key)
-                    }
-                }
-            }
-        }
-
-        for entry in rest where shouldShow.contains(entry.key) {
+        let visible = secondaryWindowKeys(from: rest)
+        for entry in rest where visible.contains(entry.key) {
             appendWindow(entry.window, duration: entry.duration,
                          into: parts, regularFont: regularFont, boldFont: boldFont)
         }
 
         return parts.length > 0 ? parts : NSAttributedString()
+    }
+
+    private static func secondaryWindowKeys(from entries: some Collection<WindowEntry>) -> Set<String> {
+        var keys = Set<String>()
+        for entry in entries {
+            guard Formatting.shouldShowInMenuBar(
+                utilization: entry.window.utilization,
+                resetsAt: entry.window.resetsAt,
+                windowDuration: entry.duration
+            ) else { continue }
+            keys.insert(entry.key)
+            if entry.modelScope != nil,
+               let allModels = entries.first(where: { $0.durationLabel == entry.durationLabel && $0.modelScope == nil }) {
+                keys.insert(allModels.key)
+            }
+        }
+        return keys
     }
 
     private static func appendWindow(

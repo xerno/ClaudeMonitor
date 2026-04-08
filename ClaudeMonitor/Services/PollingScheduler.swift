@@ -55,39 +55,50 @@ struct PollingScheduler {
         }
 
         let delta = current - previous
-
         if delta > 0 {
-            consecutiveNoChange = 0
-            if effectivePollingInterval > Constants.Polling.baseInterval {
-                effectivePollingInterval = Constants.Polling.baseInterval
-            } else {
-                effectivePollingInterval = max(
-                    floor(effectivePollingInterval * Constants.Polling.speedupFactor),
-                    Constants.Polling.minInterval
-                )
-            }
+            applySpeedup()
         } else if delta < 0 {
-            if effectivePollingInterval > Constants.Polling.baseInterval {
-                effectivePollingInterval = Constants.Polling.baseInterval
-                consecutiveNoChange = 0
-            }
-            // fast mode (≤ base): cooldown counter continues uninterrupted
+            applyDeceleration()
         } else {
-            consecutiveNoChange += 1
-            if consecutiveNoChange >= Constants.Polling.cooldownCycles {
-                let slower = ceil(effectivePollingInterval / Constants.Polling.speedupFactor)
-                if effectivePollingInterval < Constants.Polling.baseInterval && slower >= Constants.Polling.baseInterval {
-                    effectivePollingInterval = Constants.Polling.baseInterval
-                    consecutiveNoChange = 0
-                } else {
-                    effectivePollingInterval = min(slower, Constants.Polling.maxInterval)
-                }
-            }
+            applyCooldown()
         }
 
         let isHighUtil = current >= Constants.Polling.highUtilizationThreshold
         if isCritical || isHighUtil {
             effectivePollingInterval = min(effectivePollingInterval, Constants.Polling.criticalFloor)
+        }
+    }
+
+    private mutating func applySpeedup() {
+        consecutiveNoChange = 0
+        if effectivePollingInterval > Constants.Polling.baseInterval {
+            effectivePollingInterval = Constants.Polling.baseInterval
+        } else {
+            effectivePollingInterval = max(
+                floor(effectivePollingInterval * Constants.Polling.speedupFactor),
+                Constants.Polling.minInterval
+            )
+        }
+    }
+
+    private mutating func applyDeceleration() {
+        if effectivePollingInterval > Constants.Polling.baseInterval {
+            effectivePollingInterval = Constants.Polling.baseInterval
+            consecutiveNoChange = 0
+        }
+        // fast mode (≤ base): cooldown counter continues uninterrupted
+    }
+
+    private mutating func applyCooldown() {
+        consecutiveNoChange += 1
+        if consecutiveNoChange >= Constants.Polling.cooldownCycles {
+            let slower = ceil(effectivePollingInterval / Constants.Polling.speedupFactor)
+            if effectivePollingInterval < Constants.Polling.baseInterval && slower >= Constants.Polling.baseInterval {
+                effectivePollingInterval = Constants.Polling.baseInterval
+                consecutiveNoChange = 0
+            } else {
+                effectivePollingInterval = min(slower, Constants.Polling.maxInterval)
+            }
         }
     }
 
