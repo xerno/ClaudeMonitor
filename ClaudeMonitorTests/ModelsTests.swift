@@ -79,9 +79,14 @@ import AppKit
         """.data(using: .utf8)!
 
         let response = try JSONDecoder.iso8601WithFractionalSeconds.decode(UsageResponse.self, from: json)
-        #expect(response.fiveHour?.utilization == 42)
-        #expect(response.sevenDay?.utilization == 18)
-        #expect(response.sevenDaySonnet == nil)
+        #expect(response.entries.count == 2)
+        #expect(response.entries[0].key == "five_hour")
+        #expect(response.entries[0].window.utilization == 42)
+        #expect(response.entries[0].duration == 5 * 3600)
+        #expect(response.entries[0].durationLabel == "5h")
+        #expect(response.entries[0].modelScope == nil)
+        #expect(response.entries[1].key == "seven_day")
+        #expect(response.entries[1].window.utilization == 18)
     }
 
     @Test func usageResponseDecodingWithoutFractionalSeconds() throws {
@@ -92,15 +97,172 @@ import AppKit
         """.data(using: .utf8)!
 
         let response = try JSONDecoder.iso8601WithFractionalSeconds.decode(UsageResponse.self, from: json)
-        #expect(response.fiveHour?.utilization == 50)
+        #expect(response.entries.count == 1)
+        #expect(response.entries[0].window.utilization == 50)
     }
 
-    @Test func usageResponseAllNil() throws {
+    @Test func usageResponseEmptyJSON() throws {
         let json = "{}".data(using: .utf8)!
         let response = try JSONDecoder().decode(UsageResponse.self, from: json)
-        #expect(response.fiveHour == nil)
-        #expect(response.sevenDay == nil)
-        #expect(response.sevenDaySonnet == nil)
+        #expect(response.entries.isEmpty)
+        #expect(response.allWindows.isEmpty)
+    }
+
+    @Test func usageResponseDecodingWithModelScope() throws {
+        let json = """
+        {
+            "seven_day": {"utilization": 18, "resets_at": "2026-04-07T00:00:00.000Z"},
+            "seven_day_sonnet": {"utilization": 22, "resets_at": "2026-04-07T00:00:00.000Z"}
+        }
+        """.data(using: .utf8)!
+
+        let response = try JSONDecoder.iso8601WithFractionalSeconds.decode(UsageResponse.self, from: json)
+        #expect(response.entries.count == 2)
+        #expect(response.entries[0].modelScope == nil)
+        #expect(response.entries[1].modelScope == "Sonnet")
+        #expect(response.entries[1].durationLabel == "7d")
+    }
+
+    @Test func usageResponseSkipsUnparseableKeys() throws {
+        let json = """
+        {
+            "five_hour": {"utilization": 42, "resets_at": "2026-04-01T15:00:00.000Z"},
+            "unknown_format": {"utilization": 10, "resets_at": "2026-04-01T15:00:00.000Z"}
+        }
+        """.data(using: .utf8)!
+
+        let response = try JSONDecoder.iso8601WithFractionalSeconds.decode(UsageResponse.self, from: json)
+        #expect(response.entries.count == 1)
+        #expect(response.entries[0].key == "five_hour")
+    }
+
+    @Test func usageResponseSkipsNonWindowValues() throws {
+        let json = """
+        {
+            "five_hour": {"utilization": 42, "resets_at": "2026-04-01T15:00:00.000Z"},
+            "one_day": "not_a_window_object",
+            "two_hour": {"unexpected": "structure"}
+        }
+        """.data(using: .utf8)!
+
+        let response = try JSONDecoder.iso8601WithFractionalSeconds.decode(UsageResponse.self, from: json)
+        #expect(response.entries.count == 1)
+        #expect(response.entries[0].key == "five_hour")
+    }
+
+    // MARK: - WindowKeyParser
+
+    @Test func parserBasicHour() {
+        let parsed = WindowKeyParser.parse("five_hour")
+        #expect(parsed?.duration == 5.0 * 3600)
+        #expect(parsed?.durationLabel == "5h")
+        #expect(parsed?.modelScope == nil)
+    }
+
+    @Test func parserBasicDay() {
+        let parsed = WindowKeyParser.parse("seven_day")
+        #expect(parsed?.duration == 7.0 * 86400)
+        #expect(parsed?.durationLabel == "7d")
+        #expect(parsed?.modelScope == nil)
+    }
+
+    @Test func parserWithModel() {
+        let parsed = WindowKeyParser.parse("seven_day_sonnet")
+        #expect(parsed?.duration == 7.0 * 86400)
+        #expect(parsed?.durationLabel == "7d")
+        #expect(parsed?.modelScope == "Sonnet")
+    }
+
+    @Test func parserCompoundNumber() {
+        let parsed = WindowKeyParser.parse("twenty_four_hour")
+        #expect(parsed?.duration == 24.0 * 3600)
+        #expect(parsed?.durationLabel == "24h")
+        #expect(parsed?.modelScope == nil)
+    }
+
+    @Test func parserTwoWordModel() {
+        let parsed = WindowKeyParser.parse("seven_day_claude_code")
+        #expect(parsed?.duration == 7.0 * 86400)
+        #expect(parsed?.modelScope == "Claude Code")
+    }
+
+    @Test func parserUnknownFormat() {
+        #expect(WindowKeyParser.parse("foo") == nil)
+        #expect(WindowKeyParser.parse("") == nil)
+        #expect(WindowKeyParser.parse("five") == nil)
+        #expect(WindowKeyParser.parse("blah_hour") == nil)
+    }
+
+    // MARK: - WindowEntry Sorting
+
+    @Test func windowEntrySorting() {
+        let entries = [
+            WindowEntry.make(key: "seven_day_sonnet", utilization: 10, resetsAt: nil),
+            WindowEntry.make(key: "five_hour", utilization: 10, resetsAt: nil),
+            WindowEntry.make(key: "seven_day", utilization: 10, resetsAt: nil),
+        ]
+        let sorted = entries.sorted()
+        #expect(sorted[0].key == "five_hour")
+        #expect(sorted[1].key == "seven_day")
+        #expect(sorted[2].key == "seven_day_sonnet")
+    }
+
+    // MARK: - Display Label
+
+    @Test func displayLabelAllModelsOnly() {
+        let usage = UsageResponse(entries: [
+            .make(key: "five_hour", utilization: 42, resetsAt: nil),
+            .make(key: "seven_day", utilization: 18, resetsAt: nil),
+        ])
+        #expect(Formatting.displayLabel(for: usage.entries[0], in: usage) == "5h")
+        #expect(Formatting.displayLabel(for: usage.entries[1], in: usage) == "7d")
+    }
+
+    @Test func displayLabelSingleWindow() {
+        let usage = UsageResponse(entries: [
+            .make(key: "five_hour", utilization: 42, resetsAt: nil),
+        ])
+        #expect(Formatting.displayLabel(for: usage.entries[0], in: usage) == "5h")
+    }
+
+    @Test func displayLabelWithModelSpecificShowsAllOnEveryAllModelsWindow() {
+        let usage = UsageResponse(entries: [
+            .make(key: "five_hour", utilization: 42, resetsAt: nil),
+            .make(key: "seven_day", utilization: 18, resetsAt: nil),
+            .make(key: "seven_day_sonnet", utilization: 22, resetsAt: nil),
+        ])
+        #expect(Formatting.displayLabel(for: usage.entries[0], in: usage) == "5h all")
+        #expect(Formatting.displayLabel(for: usage.entries[1], in: usage) == "7d all")
+        #expect(Formatting.displayLabel(for: usage.entries[2], in: usage) == "7d Sonnet")
+    }
+
+    @Test func displayLabelOnlyModelSpecific() {
+        let usage = UsageResponse(entries: [
+            .make(key: "seven_day_sonnet", utilization: 22, resetsAt: nil),
+        ])
+        #expect(Formatting.displayLabel(for: usage.entries[0], in: usage) == "7d Sonnet")
+    }
+
+    @Test func displayLabelMultipleModelSpecificSameDuration() {
+        let usage = UsageResponse(entries: [
+            .make(key: "seven_day", utilization: 18, resetsAt: nil),
+            .make(key: "seven_day_opus", utilization: 10, resetsAt: nil),
+            .make(key: "seven_day_sonnet", utilization: 22, resetsAt: nil),
+        ])
+        #expect(Formatting.displayLabel(for: usage.entries[0], in: usage) == "7d all")
+        #expect(Formatting.displayLabel(for: usage.entries[1], in: usage) == "7d Opus")
+        #expect(Formatting.displayLabel(for: usage.entries[2], in: usage) == "7d Sonnet")
+    }
+
+    @Test func displayLabelModelSpecificAtDifferentDuration() {
+        let usage = UsageResponse(entries: [
+            .make(key: "five_hour", utilization: 42, resetsAt: nil),
+            .make(key: "five_hour_sonnet", utilization: 30, resetsAt: nil),
+            .make(key: "seven_day", utilization: 18, resetsAt: nil),
+        ])
+        #expect(Formatting.displayLabel(for: usage.entries[0], in: usage) == "5h all")
+        #expect(Formatting.displayLabel(for: usage.entries[1], in: usage) == "5h Sonnet")
+        #expect(Formatting.displayLabel(for: usage.entries[2], in: usage) == "7d all")
     }
 
     // MARK: - StatusSummary

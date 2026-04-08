@@ -100,28 +100,32 @@ enum StatusBarRenderer {
         let boldFont = NSFont.monospacedDigitSystemFont(ofSize: fontSize, weight: .bold)
         let parts = NSMutableAttributedString()
 
-        if let w = usage.fiveHour {
-            appendWindow(w, duration: Constants.UsageWindows.fiveHourDuration,
-                         into: parts, regularFont: regularFont, boldFont: boldFont)
+        guard let first = usage.entries.first else { return NSAttributedString() }
+
+        appendWindow(first.window, duration: first.duration,
+                     into: parts, regularFont: regularFont, boldFont: boldFont)
+
+        let rest = usage.entries.dropFirst()
+        var shouldShow = Set<String>()
+        for entry in rest {
+            if Formatting.shouldShowInMenuBar(
+                utilization: entry.window.utilization,
+                resetsAt: entry.window.resetsAt,
+                windowDuration: entry.duration
+            ) {
+                shouldShow.insert(entry.key)
+                if entry.modelScope != nil {
+                    if let allModels = rest.first(where: {
+                        $0.durationLabel == entry.durationLabel && $0.modelScope == nil
+                    }) {
+                        shouldShow.insert(allModels.key)
+                    }
+                }
+            }
         }
 
-        let showSevenDay = usage.sevenDay.map {
-            Formatting.shouldShowInMenuBar(
-                utilization: $0.utilization, resetsAt: $0.resetsAt,
-                windowDuration: Constants.UsageWindows.sevenDayDuration)
-        } ?? false
-        let showSonnet = usage.sevenDaySonnet.map {
-            Formatting.shouldShowInMenuBar(
-                utilization: $0.utilization, resetsAt: $0.resetsAt,
-                windowDuration: Constants.UsageWindows.sevenDayDuration)
-        } ?? false
-
-        if showSevenDay || showSonnet, let w = usage.sevenDay {
-            appendWindow(w, duration: Constants.UsageWindows.sevenDayDuration,
-                         into: parts, regularFont: regularFont, boldFont: boldFont)
-        }
-        if showSonnet, let w = usage.sevenDaySonnet {
-            appendWindow(w, duration: Constants.UsageWindows.sevenDayDuration,
+        for entry in rest where shouldShow.contains(entry.key) {
+            appendWindow(entry.window, duration: entry.duration,
                          into: parts, regularFont: regularFont, boldFont: boldFont)
         }
 

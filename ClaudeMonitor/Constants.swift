@@ -31,11 +31,6 @@ enum Constants {
         static let highUtilizationThreshold: Int = 90
     }
 
-    enum UsageWindows {
-        static let fiveHourDuration: TimeInterval = 5 * Time.secondsPerHour
-        static let sevenDayDuration: TimeInterval = 7 * Time.secondsPerDay
-    }
-
     enum Retry {
         static let initialBackoff: TimeInterval = 10
         static let maxBackoff: TimeInterval = 300

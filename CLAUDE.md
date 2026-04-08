@@ -30,7 +30,7 @@ Xcode 26 project uses `PBXFileSystemSynchronizedRootGroup` — new `.swift` file
 ClaudeMonitor/
 ├── AppDelegate.swift          — @main entry point, lifecycle, editing shortcuts
 ├── Constants.swift            — all hardcoded values (URLs, intervals, keychain keys)
-├── Models.swift               — StatusSummary, UsageResponse, MonitorState, etc.
+├── Models.swift               — StatusSummary, UsageResponse, WindowEntry, WindowKeyParser, MonitorState
 ├── DemoData.swift             — demo mode data for screenshots/testing
 ├── JSONDecoder+ISO8601.swift  — shared ISO8601 decoder with fractional seconds
 ├── Services/
@@ -44,7 +44,7 @@ ClaudeMonitor/
 │   ├── MenuBarController.swift  — status bar item, countdown timer, UI coordination
 │   ├── MenuBuilder.swift        — MenuActions protocol + stateless NSMenu construction
 │   ├── StatusBarRenderer.swift  — status bar icon rendering
-│   └── Formatting.swift         — timeUntil(), progressBar(), usageStyle(), buildTooltip()
+│   └── Formatting.swift         — timeUntil(), progressBar(), usageStyle(), displayLabel(), buildTooltip()
 └── Windows/
     ├── AboutWindowController.swift        — about window
     ├── SetupWindowController.swift        — first-run setup window
@@ -62,14 +62,15 @@ Key patterns:
 - **WindowManager** — centralized activation policy management for `.accessory` ↔ `.regular` transitions.
 - **DataCoordinator** — owns services, state, and polling lifecycle. Notifies `MenuBarController` via `onUpdate` callback. Pure data orchestration with no UI dependencies.
 - **Async polling** — `DataCoordinator` uses `Task` + `Task.sleep(for:)` instead of `Timer`, with dynamic retry intervals via `PollingScheduler`.
-- **Formatting** — pure functions, testable in isolation. `usageStyle()` is the core UX logic.
+- **Formatting** — pure functions, testable in isolation. `usageStyle()` is the core UX logic. `displayLabel()` implements smart "all" labeling.
 - **Sendable conformance** — all models conform to `Sendable` for strict concurrency safety. `ComponentStatus` is `Comparable` for natural severity ordering.
+- **Dynamic windows** — `UsageResponse` decodes any API window key dynamically via `WindowKeyParser`. Window durations and model scopes are parsed from key names (e.g., `seven_day_sonnet` → 7d, Sonnet). `WindowEntry` is `Comparable` for deterministic ordering (shortest duration first, all-models before model-specific).
 
 ## What it shows in the menu bar
 
 **Icon** — service status (green checkmark = all OK, colored icons for outages/maintenance).
 
-**Text** — `42% | 18%` showing 5-hour and 7-day usage. Styled with bold and color based on urgency (see UX rules below).
+**Text** — `42% | 18%` showing usage windows. First (shortest) window always visible; additional windows appear when outpacing time. "all" suffix shown only when model-specific variants exist for the same duration. Styled with bold and color based on urgency (see UX rules below).
 
 **Tooltip** — single shared tooltip on the entire status item with usage details, time until reset, service status, and last refresh time.
 
@@ -89,13 +90,13 @@ Dual-rule pattern: each visual level triggers on EITHER a fixed utilization thre
 
 The time-based rule checks whether consumption at the current rate would exceed the limit before the window resets. The offsets (+20, +35) require progressively more severe overpacing.
 
-Window durations are hardcoded constants (5h, 7d) since the API doesn't return them.
+Window durations are parsed from API key names by `WindowKeyParser` (e.g., `five_hour` → 5h = 18000s).
 
 ## APIs
 
 **Status**: `GET https://status.claude.com/api/v2/summary.json` — public, no auth. Returns `StatusSummary` with components, incidents, page status.
 
-**Usage**: `GET https://claude.ai/api/organizations/{orgId}/usage` — requires session cookie. Returns `UsageResponse` with optional `five_hour`, `seven_day`, `seven_day_sonnet` windows (each has `utilization: Int` and `resets_at: ISO8601`).
+**Usage**: `GET https://claude.ai/api/organizations/{orgId}/usage` — requires session cookie. Returns a JSON object with dynamic window keys (e.g., `five_hour`, `seven_day`, `seven_day_sonnet`), each containing `utilization: Int` and `resets_at: ISO8601`. `UsageResponse` decodes all keys dynamically — new window types are handled without code changes.
 
 Both APIs are polled together. Adaptive polling: base 60s, speeds up to 30s when usage is increasing, slows to 10min when stable. In critical state (red), floor is 2min. Exponential backoff on failures (10s→300s cap).
 
@@ -140,7 +141,7 @@ When delegating translation work to a Sonnet agent, the prompt MUST include:
 Unit tests in `ClaudeMonitorTests/`:
 - **DataCoordinatorTests** — success/failure paths, auth failure, credential handling, scheduler integration, onUpdate callback, mixed service results (uses mock services via `StatusFetching`/`UsageFetching` protocols)
 - **FormattingTests** — `timeUntil`, `progressBar`, `usageStyle` (dual-rule thresholds, edge cases), `buildTooltip` (all state permutations)
-- **ModelsTests** — JSON decoding, `ComponentStatus` severity/`Comparable` ordering, `Equatable` conformance, fractional-seconds fallback
+- **ModelsTests** — JSON decoding (dynamic windows, unknown keys), `WindowKeyParser` (basic/compound numbers, model scopes, unknown formats), `WindowEntry` sorting, `displayLabel` (disambiguation vs no-disambiguation), `ComponentStatus` severity/`Comparable` ordering, `Equatable` conformance, fractional-seconds fallback
 - **MenuBuilderTests** — menu structure, section content, incident links, sorted components, controls
 
 All formatting, model, data coordination, and menu-building logic is tested. Services and UI are not unit-tested (they hit real APIs / AppKit).

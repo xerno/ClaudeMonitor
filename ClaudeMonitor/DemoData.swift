@@ -20,11 +20,9 @@ enum DemoData {
 
     // Scenario 1: Normal 5h-only usage + serious incidents
     private static func scenario1() -> (UsageResponse, StatusSummary) {
-        let usage = UsageResponse(
-            fiveHour: UsageWindow(utilization: 42, resetsAt: Date().addingTimeInterval(2.7 * Constants.Time.secondsPerHour)),
-            sevenDay: nil,
-            sevenDaySonnet: nil
-        )
+        let usage = UsageResponse(entries: [
+            .make(key: "five_hour", utilization: 42, resetsAt: Date().addingTimeInterval(2.7 * Constants.Time.secondsPerHour)),
+        ])
         let status = StatusSummary(
             components: [
                 StatusComponent(id: "1", name: "API", status: .majorOutage),
@@ -55,11 +53,10 @@ enum DemoData {
 
     // Scenario 2: Moderate 5h + 7d usage + minor incident
     private static func scenario2() -> (UsageResponse, StatusSummary) {
-        let usage = UsageResponse(
-            fiveHour: UsageWindow(utilization: 74, resetsAt: Date().addingTimeInterval(1.4 * Constants.Time.secondsPerHour)),
-            sevenDay: UsageWindow(utilization: 61, resetsAt: Date().addingTimeInterval(4.2 * Constants.Time.secondsPerDay)),
-            sevenDaySonnet: nil
-        )
+        let usage = UsageResponse(entries: [
+            .make(key: "five_hour", utilization: 74, resetsAt: Date().addingTimeInterval(1.4 * Constants.Time.secondsPerHour)),
+            .make(key: "seven_day", utilization: 61, resetsAt: Date().addingTimeInterval(4.2 * Constants.Time.secondsPerDay)),
+        ])
         let status = StatusSummary(
             components: [
                 StatusComponent(id: "1", name: "API", status: .degradedPerformance),
@@ -83,11 +80,11 @@ enum DemoData {
 
     // Scenario 3: Very high 5h + 7d + Sonnet usage + no incidents
     private static func scenario3() -> (UsageResponse, StatusSummary) {
-        let usage = UsageResponse(
-            fiveHour: UsageWindow(utilization: 91, resetsAt: Date().addingTimeInterval(0.8 * Constants.Time.secondsPerHour)),
-            sevenDay: UsageWindow(utilization: 85, resetsAt: Date().addingTimeInterval(1.5 * Constants.Time.secondsPerDay)),
-            sevenDaySonnet: UsageWindow(utilization: 88, resetsAt: Date().addingTimeInterval(1.5 * Constants.Time.secondsPerDay))
-        )
+        let usage = UsageResponse(entries: [
+            .make(key: "five_hour", utilization: 91, resetsAt: Date().addingTimeInterval(0.8 * Constants.Time.secondsPerHour)),
+            .make(key: "seven_day", utilization: 85, resetsAt: Date().addingTimeInterval(1.5 * Constants.Time.secondsPerDay)),
+            .make(key: "seven_day_sonnet", utilization: 88, resetsAt: Date().addingTimeInterval(1.5 * Constants.Time.secondsPerDay)),
+        ])
         let status = StatusSummary(
             components: allOperationalComponents,
             incidents: [],
@@ -98,11 +95,11 @@ enum DemoData {
 
     // Scenario 4: 5h window exhausted (100%) → countdown in menu bar, small 7d + Sonnet values
     private static func scenario4() -> (UsageResponse, StatusSummary) {
-        let usage = UsageResponse(
-            fiveHour: UsageWindow(utilization: 100, resetsAt: Date().addingTimeInterval(2.25 * Constants.Time.secondsPerHour)),
-            sevenDay: UsageWindow(utilization: 38, resetsAt: Date().addingTimeInterval(3.5 * Constants.Time.secondsPerDay)),
-            sevenDaySonnet: UsageWindow(utilization: 22, resetsAt: Date().addingTimeInterval(3.5 * Constants.Time.secondsPerDay))
-        )
+        let usage = UsageResponse(entries: [
+            .make(key: "five_hour", utilization: 100, resetsAt: Date().addingTimeInterval(2.25 * Constants.Time.secondsPerHour)),
+            .make(key: "seven_day", utilization: 38, resetsAt: Date().addingTimeInterval(3.5 * Constants.Time.secondsPerDay)),
+            .make(key: "seven_day_sonnet", utilization: 22, resetsAt: Date().addingTimeInterval(3.5 * Constants.Time.secondsPerDay)),
+        ])
         let status = StatusSummary(
             components: allOperationalComponents,
             incidents: [],

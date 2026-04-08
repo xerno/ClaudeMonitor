@@ -90,6 +90,16 @@ enum Formatting {
         return resetTime.addingTimeInterval(-nextCenter)
     }
 
+    static func displayLabel(for entry: WindowEntry, in usage: UsageResponse) -> String {
+        if let scope = entry.modelScope {
+            return "\(entry.durationLabel) \(scope)"
+        }
+        let hasAnyModelSpecific = usage.entries.contains { $0.modelScope != nil }
+        return hasAnyModelSpecific
+            ? "\(entry.durationLabel) \(String(localized: "window.scope.all", bundle: .module))"
+            : entry.durationLabel
+    }
+
     static func progressBar(percent: Int, width: Int = 10) -> String {
         let clamped = min(max(percent, 0), 100)
         let filled = Int(round(Double(clamped) / 100.0 * Double(width)))
@@ -147,33 +157,31 @@ enum Formatting {
     }
 
     static func detectCriticalReset(previous: UsageResponse, current: UsageResponse) -> Bool {
-        let checks: [(prev: UsageWindow?, curr: UsageWindow?, duration: TimeInterval)] = [
-            (previous.fiveHour, current.fiveHour, Constants.UsageWindows.fiveHourDuration),
-            (previous.sevenDay, current.sevenDay, Constants.UsageWindows.sevenDayDuration),
-            (previous.sevenDaySonnet, current.sevenDaySonnet, Constants.UsageWindows.sevenDayDuration),
-        ]
-        return checks.contains { check in
-            guard let prev = check.prev, let curr = check.curr,
-                  let prevReset = prev.resetsAt, let currReset = curr.resetsAt else { return false }
-            guard currReset.timeIntervalSince(prevReset) > check.duration / 2 else { return false }
-            return usageStyle(
+        for currEntry in current.entries {
+            guard let prevEntry = previous.entries.first(where: { $0.key == currEntry.key }) else { continue }
+            let prev = prevEntry.window
+            let curr = currEntry.window
+            guard let prevReset = prev.resetsAt, let currReset = curr.resetsAt else { continue }
+            guard currReset.timeIntervalSince(prevReset) > currEntry.duration / 2 else { continue }
+            if usageStyle(
                 utilization: prev.utilization,
                 resetsAt: prev.resetsAt,
-                windowDuration: check.duration
-            ).isCritical
+                windowDuration: currEntry.duration
+            ).isCritical {
+                return true
+            }
         }
+        return false
     }
 
     static func hasAnyCriticalWindow(_ usage: UsageResponse) -> Bool {
-        func isCritical(_ window: UsageWindow?, duration: TimeInterval) -> Bool {
-            guard let w = window else { return false }
-            return usageStyle(
-                utilization: w.utilization, resetsAt: w.resetsAt, windowDuration: duration
+        usage.entries.contains { entry in
+            usageStyle(
+                utilization: entry.window.utilization,
+                resetsAt: entry.window.resetsAt,
+                windowDuration: entry.duration
             ).isCritical
         }
-        return isCritical(usage.fiveHour, duration: Constants.UsageWindows.fiveHourDuration)
-            || isCritical(usage.sevenDay, duration: Constants.UsageWindows.sevenDayDuration)
-            || isCritical(usage.sevenDaySonnet, duration: Constants.UsageWindows.sevenDayDuration)
     }
 
     static func buildTooltip(state: MonitorState) -> String {
@@ -185,22 +193,19 @@ enum Formatting {
         } else if let error = state.usageError {
             usageLines.append(String(format: String(localized: "tooltip.usage.error", bundle: .module), error))
         } else if let usage = state.currentUsage {
-            let windows: [(UsageWindow?, String, String)] = [
-                (usage.fiveHour,
-                 String(localized: "tooltip.window.5h", bundle: .module),
-                 String(localized: "tooltip.window.5h.resets", bundle: .module)),
-                (usage.sevenDay,
-                 String(localized: "tooltip.window.7d", bundle: .module),
-                 String(localized: "tooltip.window.7d.resets", bundle: .module)),
-                (usage.sevenDaySonnet,
-                 String(localized: "tooltip.window.sonnet", bundle: .module),
-                 String(localized: "tooltip.window.sonnet.resets", bundle: .module)),
-            ]
-            for case let (w?, label, labelWithReset) in windows {
+            for entry in usage.entries {
+                let label = Formatting.displayLabel(for: entry, in: usage)
+                let w = entry.window
                 if let resetsAt = w.resetsAt {
-                    usageLines.append(String(format: labelWithReset, w.utilization, timeUntil(resetsAt)))
+                    usageLines.append(String(
+                        format: String(localized: "tooltip.window.resets", bundle: .module),
+                        label, w.utilization, timeUntil(resetsAt)
+                    ))
                 } else {
-                    usageLines.append(String(format: label, w.utilization))
+                    usageLines.append(String(
+                        format: String(localized: "tooltip.window", bundle: .module),
+                        label, w.utilization
+                    ))
                 }
             }
         } else {

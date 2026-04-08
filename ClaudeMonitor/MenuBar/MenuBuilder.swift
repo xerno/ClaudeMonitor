@@ -10,10 +10,8 @@ import AppKit
 enum MenuBuilder {
     // Usage items
     private static let usageSectionTag = 10
-    private static let fiveHourTag = 100
-    private static let sevenDayTag = 101
-    private static let sevenDaySonnetTag = 102
-    private static let usagePlaceholderTag = 103
+    private static let usageBaseTag = 100
+    private static let usagePlaceholderTag = 199
 
     // Services items
     private static let servicesSectionTag = 20
@@ -234,11 +232,9 @@ enum MenuBuilder {
     }
 
     private static func usageLabels(usage: UsageResponse) -> [(tag: Int, label: String, window: UsageWindow?)] {
-        [
-            (fiveHourTag, String(localized: "menu.window.5h", bundle: .module), usage.fiveHour),
-            (sevenDayTag, String(localized: "menu.window.7d", bundle: .module), usage.sevenDay),
-            (sevenDaySonnetTag, String(localized: "menu.window.sonnet", bundle: .module), usage.sevenDaySonnet),
-        ]
+        usage.entries.enumerated().map { index, entry in
+            (usageBaseTag + index, Formatting.displayLabel(for: entry, in: usage), entry.window)
+        }
     }
 
     private static let barPercentWidth: CGFloat = NSAttributedString(
@@ -262,7 +258,7 @@ enum MenuBuilder {
     private static func maxLabelWidth(labels: [String]) -> CGFloat {
         let font = NSFont.menuFont(ofSize: 0)
         return labels.map { label in
-            NSAttributedString(string: "  \(label):", attributes: [.font: font]).size().width
+            NSAttributedString(string: "  \(label)  ", attributes: [.font: font]).size().width
         }.max() ?? 0
     }
 
@@ -274,18 +270,17 @@ enum MenuBuilder {
 
         guard let resetsAt = window.resetsAt else {
             return NSMutableAttributedString(
-                string: "  \(label):\t\(bar)  \(window.utilization)%",
+                string: "  \(label)  \t\(bar)  \(window.utilization)%",
                 attributes: attrs
             )
         }
 
         let reset = Formatting.timeUntil(resetsAt)
         let text = NSMutableAttributedString(
-            string: "  \(label):\t\(bar)  \(window.utilization)%\t\(String(localized: "menu.resets.prefix", bundle: .module))",
+            string: "  \(label)  \t\(bar)  \(window.utilization)%\t \(String(localized: "menu.resets.prefix", bundle: .module))",
             attributes: attrs
         )
         text.append(NSAttributedString(string: reset, attributes: [.font: boldFont, .paragraphStyle: style]))
-        text.append(NSAttributedString(string: ")", attributes: attrs))
         return text
     }
 

@@ -28,11 +28,10 @@ import Foundation
 
     @Test func tooltipWithUsageData() {
         let now = Date()
-        let usage = UsageResponse(
-            fiveHour: UsageWindow(utilization: 42, resetsAt: now.addingTimeInterval(3600)),
-            sevenDay: UsageWindow(utilization: 18, resetsAt: now.addingTimeInterval(86400)),
-            sevenDaySonnet: nil
-        )
+        let usage = UsageResponse(entries: [
+            .make(key: "five_hour", utilization: 42, resetsAt: now.addingTimeInterval(3600)),
+            .make(key: "seven_day", utilization: 18, resetsAt: now.addingTimeInterval(86400)),
+        ])
         let state = MonitorState(
             currentUsage: usage, currentStatus: nil,
             usageError: nil, statusError: nil,
@@ -40,18 +39,17 @@ import Foundation
             currentPollInterval: nil
         )
         let tooltip = Formatting.buildTooltip(state: state)
-        #expect(tooltip.contains("5h all: 42%"))
-        #expect(tooltip.contains("7d all: 18%"))
+        #expect(tooltip.contains("5h: 42%"))
+        #expect(tooltip.contains("7d: 18%"))
         #expect(tooltip.contains("Updated:"))
     }
 
     @Test func tooltipWithUsageDataAndInterval() {
         let now = Date()
-        let usage = UsageResponse(
-            fiveHour: UsageWindow(utilization: 42, resetsAt: now.addingTimeInterval(3600)),
-            sevenDay: UsageWindow(utilization: 18, resetsAt: now.addingTimeInterval(86400)),
-            sevenDaySonnet: nil
-        )
+        let usage = UsageResponse(entries: [
+            .make(key: "five_hour", utilization: 42, resetsAt: now.addingTimeInterval(3600)),
+            .make(key: "seven_day", utilization: 18, resetsAt: now.addingTimeInterval(86400)),
+        ])
         let state = MonitorState(
             currentUsage: usage, currentStatus: nil,
             usageError: nil, statusError: nil,
