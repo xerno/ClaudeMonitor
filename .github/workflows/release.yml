@@ -14,10 +14,9 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Select Xcode 26
+      - name: Select Swift 6.3 (Command Line Tools)
         run: |
-          XCODE_PATH=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | head -1)
-          sudo xcode-select -s "$XCODE_PATH"
+          sudo xcode-select -s /Library/Developer/CommandLineTools
           swift --version
 
       - name: Test
