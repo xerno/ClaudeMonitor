@@ -116,7 +116,7 @@ enum StatusBarRenderer {
         return parts.length > 0 ? parts : NSAttributedString()
     }
 
-    private static func secondaryWindowKeys(from entries: some Collection<WindowEntry>) -> Set<String> {
+    static func secondaryWindowKeys(from entries: some Collection<WindowEntry>) -> Set<String> {
         var keys = Set<String>()
         for entry in entries {
             guard Formatting.shouldShowInMenuBar(
