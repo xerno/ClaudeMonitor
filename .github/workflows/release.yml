@@ -14,6 +14,12 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Select Xcode 26
+        run: |
+          XCODE_PATH=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | head -1)
+          sudo xcode-select -s "$XCODE_PATH"
+          swift --version
+
       - name: Test
         run: ./test.sh
 
