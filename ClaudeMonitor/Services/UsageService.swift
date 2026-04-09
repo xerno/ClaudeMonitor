@@ -11,7 +11,7 @@ struct UsageService: UsageFetching, Sendable {
         }
         var request = URLRequest(url: url)
         request.timeoutInterval = Constants.Network.requestTimeout
-        let sanitizedCookie = cookieString.filter { $0 != "\r" && $0 != "\n" }
+        let sanitizedCookie = cookieString.filter { $0 != "\r" && $0 != "\n" && $0 != "\t" }
         request.setValue(sanitizedCookie, forHTTPHeaderField: "Cookie")
         request.setValue(Constants.API.referer, forHTTPHeaderField: "Referer")
         request.setValue(Constants.API.userAgent, forHTTPHeaderField: "User-Agent")

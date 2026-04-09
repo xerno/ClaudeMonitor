@@ -5,8 +5,10 @@ final class AboutWindowController: NSWindowController, NSWindowDelegate {
     init() {
         let windowWidth: CGFloat = 700
         let columnWidth = windowWidth / 2
-        let leftHeight = Self.columnHeight(Self.leftColumnContent(), columnWidth: columnWidth)
-        let rightHeight = Self.columnHeight(Self.rightColumnContent(), columnWidth: columnWidth)
+        let leftContent = Self.leftColumnContent()
+        let rightContent = Self.rightColumnContent()
+        let leftHeight = Self.columnHeight(leftContent, columnWidth: columnWidth)
+        let rightHeight = Self.columnHeight(rightContent, columnWidth: columnWidth)
         let signatureHeight: CGFloat = 32
         let windowHeight = max(leftHeight, rightHeight) + signatureHeight
 
@@ -22,13 +24,13 @@ final class AboutWindowController: NSWindowController, NSWindowDelegate {
         window.isReleasedWhenClosed = false
         super.init(window: window)
         window.delegate = self
-        buildUI()
+        buildUI(leftContent: leftContent, rightContent: rightContent)
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
-    private func buildUI() {
+    private func buildUI(leftContent: NSAttributedString, rightContent: NSAttributedString) {
         guard let contentView = window?.contentView else { return }
 
         let stack = NSStackView()
@@ -38,8 +40,8 @@ final class AboutWindowController: NSWindowController, NSWindowDelegate {
         stack.spacing = 0
         stack.translatesAutoresizingMaskIntoConstraints = false
 
-        stack.addArrangedSubview(makeColumn(Self.leftColumnContent()))
-        stack.addArrangedSubview(makeColumn(Self.rightColumnContent()))
+        stack.addArrangedSubview(makeColumn(leftContent))
+        stack.addArrangedSubview(makeColumn(rightContent))
 
         let signature = NSTextField(labelWithString: "Zdeněk Kopš · 2026")
         signature.font = NSFont.systemFont(ofSize: 11)

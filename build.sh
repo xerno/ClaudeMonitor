@@ -2,7 +2,7 @@
 set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
-APP_NAME="ClaudeMonitor"
+source "${PROJECT_DIR}/BuildConfig.sh"
 SRC_DIR="${PROJECT_DIR}/${APP_NAME}"
 
 RELEASE=false
@@ -15,7 +15,7 @@ done
 BUILD_DIR="${PROJECT_DIR}/.build"
 BUNDLE="${BUILD_DIR}/${APP_NAME}.app"
 CONTENTS="${BUNDLE}/Contents"
-BUNDLE_ID="com.dancingZdenda.ClaudeMonitor"
+## BUNDLE_ID, APP_NAME, VERSION sourced from BuildConfig.sh
 
 # --- Prerequisites
 
@@ -40,20 +40,20 @@ mkdir -p "${CONTENTS}/MacOS" "${CONTENTS}/Resources"
 # --- 1. Compile
 
 if [ "${RELEASE}" = true ]; then
-    echo "Compiling ${APP_NAME} (${ARCH}, Swift 6, Release)..."
+    echo "Compiling ${APP_NAME} (${ARCH}, Swift ${SWIFT_VERSION}, Release)..."
     OPT_FLAGS="-O"
 else
-    echo "Compiling ${APP_NAME} (${ARCH}, Swift 6, Debug)..."
+    echo "Compiling ${APP_NAME} (${ARCH}, Swift ${SWIFT_VERSION}, Debug)..."
     OPT_FLAGS="-Onone -D DEBUG"
 fi
 
 swiftc $(find "${SRC_DIR}" -name "*.swift") \
     -o "${CONTENTS}/MacOS/${APP_NAME}" \
-    -target "${ARCH}-apple-macosx15.0" \
+    -target "${ARCH}-apple-macosx${DEPLOYMENT_TARGET}" \
     -sdk "${SDK_PATH}" \
-    -swift-version 6 \
-    -default-isolation MainActor \
-    -enable-upcoming-feature MemberImportVisibility \
+    -swift-version "${SWIFT_VERSION}" \
+    -default-isolation "${DEFAULT_ISOLATION}" \
+    $(for f in ${UPCOMING_FEATURES}; do printf -- "-enable-upcoming-feature %s " "$f"; done) \
     -framework AppKit \
     -framework CryptoKit \
     -framework IOKit \
@@ -76,7 +76,7 @@ cat > "${CONTENTS}/Info.plist" << PLIST
     <key>CFBundleVersion</key>
     <string>1</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0</string>
+    <string>${VERSION}</string>
     <key>CFBundleExecutable</key>
     <string>${APP_NAME}</string>
     <key>CFBundlePackageType</key>

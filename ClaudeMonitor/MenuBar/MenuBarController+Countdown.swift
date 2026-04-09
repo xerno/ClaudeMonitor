@@ -12,8 +12,9 @@ extension MenuBarController {
 
     private func animateResetIcon() {
         guard let button = statusItem.button else { return }
+        animationTask?.cancel()
         button.image = StatusBarRenderer.makeImage(symbolName: "checkmark.circle.fill", color: .systemGreen)
-        Task {
+        animationTask = Task {
             try? await Task.sleep(for: .seconds(2))
             guard !Task.isCancelled else { return }
             StatusBarRenderer.updateIcon(
@@ -92,7 +93,7 @@ extension MenuBarController {
             resetTimes.append(blockedUntil)
         }
         if isMenuOpen, let usage = coordinator.currentUsage {
-            resetTimes.append(contentsOf: usage.allWindows.compactMap(\.resetsAt))
+            resetTimes.append(contentsOf: usage.entries.compactMap(\.window.resetsAt))
         }
         guard !resetTimes.isEmpty else { return nil }
         return Formatting.nextTickTarget(resetTimes: resetTimes, now: Date())

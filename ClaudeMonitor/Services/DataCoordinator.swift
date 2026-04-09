@@ -49,6 +49,7 @@ final class DataCoordinator {
     }
 
     func startPolling() {
+        pollTask?.cancel()
         pollTask = Task {
             while !Task.isCancelled {
                 await refresh()

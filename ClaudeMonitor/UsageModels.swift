@@ -32,11 +32,13 @@ enum WindowKeyParser {
         "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
         "eleven": 11, "twelve": 12, "thirteen": 13, "fourteen": 14,
         "fifteen": 15, "sixteen": 16, "seventeen": 17, "eighteen": 18,
-        "nineteen": 19, "twenty": 20, "thirty": 30,
+        "nineteen": 19, "twenty": 20, "thirty": 30, "forty": 40,
+        "fifty": 50, "sixty": 60, "seventy": 70, "eighty": 80, "ninety": 90,
     ]
 
     private static let compoundTens: [String: Int] = [
-        "twenty": 20, "thirty": 30,
+        "twenty": 20, "thirty": 30, "forty": 40, "fifty": 50,
+        "sixty": 60, "seventy": 70, "eighty": 80, "ninety": 90,
     ]
 
     private static let timeUnits: [String: (seconds: TimeInterval, suffix: String)] = [
@@ -84,8 +86,13 @@ enum WindowKeyParser {
 
 struct UsageResponse: Sendable, Equatable, Hashable {
     let entries: [WindowEntry]
+    let hasAnyModelSpecific: Bool
 
-    var allWindows: [UsageWindow] { entries.map(\.window) }
+    init(entries: [WindowEntry]) {
+        self.entries = entries
+        self.hasAnyModelSpecific = entries.contains { $0.modelScope != nil }
+    }
+
 }
 
 extension UsageResponse: Decodable {

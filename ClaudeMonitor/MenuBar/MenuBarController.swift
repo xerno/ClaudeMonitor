@@ -8,6 +8,7 @@ final class MenuBarController: NSObject, MenuActions {
     private var setupController: SetupWindowController?
     private var aboutController: AboutWindowController?
     var countdownTask: Task<Void, Never>?
+    var animationTask: Task<Void, Never>?
     var isMenuOpen = false
 
     override init() {
@@ -21,9 +22,9 @@ final class MenuBarController: NSObject, MenuActions {
             name: NSWorkspace.didWakeNotification, object: nil
         )
         if !coordinator.hasCredentials {
-            Task {
+            Task { [weak self] in
                 try? await Task.sleep(for: .milliseconds(300))
-                showSetup()
+                self?.showSetup()
             }
         }
     }
@@ -48,6 +49,8 @@ final class MenuBarController: NSObject, MenuActions {
     // MARK: - UI Updates
 
     private func applyUIUpdates() {
+        animationTask?.cancel()
+        let state = coordinator.monitorState
         if let button = statusItem.button {
             StatusBarRenderer.updateIcon(
                 button: button, status: coordinator.currentStatus,
@@ -58,9 +61,11 @@ final class MenuBarController: NSObject, MenuActions {
                 hasCredentials: coordinator.hasCredentials,
                 isStale: coordinator.scheduler.isUsageStale
             )
-            button.toolTip = Formatting.buildTooltip(state: coordinator.monitorState)
+            button.toolTip = Formatting.buildTooltip(state: state)
         }
-        rebuildMenu()
+        if let menu = statusItem.menu {
+            MenuBuilder.populate(menu: menu, state: state, target: self)
+        }
         updateCountdownState()
     }
 

@@ -56,9 +56,9 @@ extension Formatting {
 
     static func blockingLimit(_ usage: UsageResponse?) -> Date? {
         guard let usage else { return nil }
-        return usage.allWindows
-            .filter { $0.utilization >= 100 }
-            .compactMap(\.resetsAt)
+        return usage.entries
+            .filter { $0.window.utilization >= 100 }
+            .compactMap(\.window.resetsAt)
             .max()
     }
 

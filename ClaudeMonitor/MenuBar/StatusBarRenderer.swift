@@ -4,6 +4,9 @@ import AppKit
 enum StatusBarRenderer {
     private static let iconPointSize: CGFloat = 14
 
+    static let regularFont = NSFont.monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .regular)
+    static let boldFont = NSFont.monospacedDigitSystemFont(ofSize: NSFont.systemFontSize, weight: .bold)
+
     private static let blockedOctagon: NSImage? = {
         guard let symbol = NSImage(systemSymbolName: "octagon.fill", accessibilityDescription: nil) else { return nil }
         let config = NSImage.SymbolConfiguration(pointSize: NSFont.systemFontSize, weight: .medium)
@@ -13,33 +16,39 @@ enum StatusBarRenderer {
         return configured
     }()
 
+    static func resolveIcon(
+        status: StatusSummary?,
+        hasRefreshWarning: Bool
+    ) -> (symbolName: String, color: NSColor) {
+        if hasRefreshWarning {
+            return ("exclamationmark.triangle.fill", .systemYellow)
+        }
+
+        guard let worst = status?.components.map(\.status).max() else {
+            return ("checkmark.circle.fill", .systemGreen)
+        }
+
+        switch worst {
+        case .majorOutage:
+            return ("xmark.circle.fill", .systemRed)
+        case .partialOutage:
+            return ("exclamationmark.circle.fill", .systemOrange)
+        case .degradedPerformance:
+            return ("exclamationmark.circle.fill", .systemYellow)
+        case .underMaintenance:
+            return ("wrench.and.screwdriver.fill", .systemBlue)
+        case .operational, .unknown:
+            return ("checkmark.circle.fill", .systemGreen)
+        }
+    }
+
     static func updateIcon(
         button: NSStatusBarButton,
         status: StatusSummary?,
         hasRefreshWarning: Bool
     ) {
-        if hasRefreshWarning {
-            button.image = makeImage(symbolName: "exclamationmark.triangle.fill", color: .systemYellow)
-            return
-        }
-
-        guard let worst = status?.components.map(\.status).max() else {
-            button.image = makeImage(symbolName: "checkmark.circle.fill", color: .systemGreen)
-            return
-        }
-
-        switch worst {
-        case .majorOutage:
-            button.image = makeImage(symbolName: "xmark.circle.fill", color: .systemRed)
-        case .partialOutage:
-            button.image = makeImage(symbolName: "exclamationmark.circle.fill", color: .systemOrange)
-        case .degradedPerformance:
-            button.image = makeImage(symbolName: "exclamationmark.circle.fill", color: .systemYellow)
-        case .underMaintenance:
-            button.image = makeImage(symbolName: "wrench.and.screwdriver.fill", color: .systemBlue)
-        case .operational, .unknown:
-            button.image = makeImage(symbolName: "checkmark.circle.fill", color: .systemGreen)
-        }
+        let icon = resolveIcon(status: status, hasRefreshWarning: hasRefreshWarning)
+        button.image = makeImage(symbolName: icon.symbolName, color: icon.color)
     }
 
     static func updateText(
@@ -48,39 +57,35 @@ enum StatusBarRenderer {
         hasCredentials: Bool,
         isStale: Bool
     ) {
-        let fontSize = NSFont.systemFontSize
         if !hasCredentials {
-            button.attributedTitle = noCredentialsTitle(fontSize: fontSize)
+            button.attributedTitle = noCredentialsTitle()
             return
         }
         guard let usage, !isStale else {
-            button.attributedTitle = loadingTitle(fontSize: fontSize)
+            button.attributedTitle = loadingTitle()
             return
         }
         if let blockedUntil = Formatting.blockingLimit(usage) {
-            button.attributedTitle = blockedTitle(blockedUntil: blockedUntil, fontSize: fontSize)
+            button.attributedTitle = blockedTitle(blockedUntil: blockedUntil)
             return
         }
-        button.attributedTitle = usageTitle(usage: usage, fontSize: fontSize)
+        button.attributedTitle = usageTitle(usage: usage)
     }
 
-    private static func noCredentialsTitle(fontSize: CGFloat) -> NSAttributedString {
-        let regularFont = NSFont.monospacedDigitSystemFont(ofSize: fontSize, weight: .regular)
-        return NSAttributedString(string: "-%", attributes: [
+    static func noCredentialsTitle() -> NSAttributedString {
+        NSAttributedString(string: "-%", attributes: [
             .foregroundColor: NSColor.secondaryLabelColor, .font: regularFont,
         ])
     }
 
-    private static func loadingTitle(fontSize: CGFloat) -> NSAttributedString {
-        let regularFont = NSFont.monospacedDigitSystemFont(ofSize: fontSize, weight: .regular)
-        return NSAttributedString(string: "…", attributes: [
+    static func loadingTitle() -> NSAttributedString {
+        NSAttributedString(string: "…", attributes: [
             .foregroundColor: NSColor.secondaryLabelColor, .font: regularFont,
         ])
     }
 
-    private static func blockedTitle(blockedUntil: Date, fontSize: CGFloat) -> NSAttributedString {
-        let regularFont = NSFont.monospacedDigitSystemFont(ofSize: fontSize, weight: .regular)
-        let countdown = Formatting.timeUntil(blockedUntil)
+    static func blockedTitle(blockedUntil: Date, now: Date = Date()) -> NSAttributedString {
+        let countdown = Formatting.timeUntil(blockedUntil, now: now)
         let result = NSMutableAttributedString()
         if let octagon = blockedOctagon {
             let attachment = NSTextAttachment()
@@ -96,9 +101,7 @@ enum StatusBarRenderer {
         return result
     }
 
-    private static func usageTitle(usage: UsageResponse, fontSize: CGFloat) -> NSAttributedString {
-        let regularFont = NSFont.monospacedDigitSystemFont(ofSize: fontSize, weight: .regular)
-        let boldFont = NSFont.monospacedDigitSystemFont(ofSize: fontSize, weight: .bold)
+    static func usageTitle(usage: UsageResponse) -> NSAttributedString {
         let parts = NSMutableAttributedString()
 
         guard let first = usage.entries.first else { return NSAttributedString() }
@@ -113,7 +116,7 @@ enum StatusBarRenderer {
                          into: parts, regularFont: regularFont, boldFont: boldFont)
         }
 
-        return parts.length > 0 ? parts : NSAttributedString()
+        return parts
     }
 
     static func secondaryWindowKeys(from entries: some Collection<WindowEntry>) -> Set<String> {

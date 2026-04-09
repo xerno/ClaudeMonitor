@@ -2,7 +2,7 @@
 set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
-APP_NAME="ClaudeMonitor"
+source "${PROJECT_DIR}/BuildConfig.sh"
 
 SKIP_TESTS=false
 for arg in "$@"; do
@@ -28,7 +28,7 @@ fi
 
 # --- Migrate sandbox preferences
 
-BUNDLE_ID="com.dancingZdenda.ClaudeMonitor"
+## BUNDLE_ID sourced from BuildConfig.sh
 SANDBOX_PREFS="${HOME}/Library/Containers/${BUNDLE_ID}/Data/Library/Preferences/${BUNDLE_ID}.plist"
 REGULAR_PREFS="${HOME}/Library/Preferences/${BUNDLE_ID}.plist"
 

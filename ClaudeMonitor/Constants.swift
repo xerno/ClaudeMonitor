@@ -11,10 +11,10 @@ enum Constants {
         static let usageBasePath = "https://claude.ai/api/organizations"
         static let referer = "https://claude.ai"
 
-        static var userAgent: String {
+        static let userAgent: String = {
             let v = ProcessInfo.processInfo.operatingSystemVersion
             return "Mozilla/5.0 (Macintosh; Intel Mac OS X \(v.majorVersion)_\(v.minorVersion)_\(v.patchVersion)) AppleWebKit/605.1.15 (KHTML, like Gecko)"
-        }
+        }()
 
         static func usageURL(organizationId: String) -> URL? {
             URL(string: "\(usageBasePath)/\(organizationId)/usage")

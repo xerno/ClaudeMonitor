@@ -14,6 +14,9 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Test
+        run: ./test.sh
+
       - name: Build
         run: ./build.sh --release
 

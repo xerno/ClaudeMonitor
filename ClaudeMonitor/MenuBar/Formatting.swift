@@ -88,8 +88,7 @@ enum Formatting {
         if let scope = entry.modelScope {
             return "\(entry.durationLabel) \(scope)"
         }
-        let hasAnyModelSpecific = usage.entries.contains { $0.modelScope != nil }
-        return hasAnyModelSpecific
+        return usage.hasAnyModelSpecific
             ? "\(entry.durationLabel) \(String(localized: "window.scope.all", bundle: .module))"
             : entry.durationLabel
     }

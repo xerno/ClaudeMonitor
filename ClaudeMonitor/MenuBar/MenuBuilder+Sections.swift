@@ -106,9 +106,12 @@ extension MenuBuilder {
         }
     }
 
+    private static let menuFont = NSFont.menuFont(ofSize: 0)
+    private static let boldMenuFont = NSFontManager.shared.convert(menuFont, toHaveTrait: .boldFontMask)
+
     static let barPercentWidth: CGFloat = NSAttributedString(
         string: "\(Formatting.progressBar(percent: 50))  100%",
-        attributes: [.font: NSFont.menuFont(ofSize: 0)]
+        attributes: [.font: menuFont]
     ).size().width
 
     static func usageParagraphStyle(labelColumnWidth: CGFloat) -> NSParagraphStyle {
@@ -125,15 +128,12 @@ extension MenuBuilder {
     }
 
     static func maxLabelWidth(labels: [String]) -> CGFloat {
-        let font = NSFont.menuFont(ofSize: 0)
-        return labels.map { label in
-            NSAttributedString(string: "  \(label)  ", attributes: [.font: font]).size().width
+        labels.map { label in
+            NSAttributedString(string: "  \(label)  ", attributes: [.font: menuFont]).size().width
         }.max() ?? 0
     }
 
     static func usageAttributedTitle(label: String, window: UsageWindow, style: NSParagraphStyle) -> NSAttributedString {
-        let menuFont = NSFont.menuFont(ofSize: 0)
-        let boldFont = NSFontManager.shared.convert(menuFont, toHaveTrait: .boldFontMask)
         let bar = Formatting.progressBar(percent: window.utilization)
         let attrs: [NSAttributedString.Key: Any] = [.font: menuFont, .paragraphStyle: style]
 
@@ -149,7 +149,7 @@ extension MenuBuilder {
             string: "  \(label)  \t\(bar)  \(window.utilization)%\t \(String(localized: "menu.resets.prefix", bundle: .module))",
             attributes: attrs
         )
-        text.append(NSAttributedString(string: reset, attributes: [.font: boldFont, .paragraphStyle: style]))
+        text.append(NSAttributedString(string: reset, attributes: [.font: boldMenuFont, .paragraphStyle: style]))
         return text
     }
 

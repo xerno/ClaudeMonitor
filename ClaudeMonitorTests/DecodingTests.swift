@@ -41,7 +41,6 @@ struct DecodingTests {
         let json = "{}".data(using: .utf8)!
         let response = try JSONDecoder().decode(UsageResponse.self, from: json)
         #expect(response.entries.isEmpty)
-        #expect(response.allWindows.isEmpty)
     }
 
     @Test func usageResponseDecodingWithModelScope() throws {

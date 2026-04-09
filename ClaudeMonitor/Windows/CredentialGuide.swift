@@ -24,13 +24,7 @@ enum CredentialGuide {
         s.append(NSAttributedString(string: "\n", attributes: body))
 
         let step2 = String(localized: "guide.step2", bundle: .module)
-        let step2Attr = NSMutableAttributedString(string: step2 + "\n", attributes: body)
-        for term in ["DevTools", "Network"] {
-            if let range = step2.range(of: term) {
-                step2Attr.addAttributes(bold, range: NSRange(range, in: step2))
-            }
-        }
-        s.append(step2Attr)
+        s.append(parseBoldMarkdown(step2 + "\n", body: body, bold: bold))
 
         s.append(NSAttributedString(string: String(localized: "guide.step3.prefix", bundle: .module), attributes: body))
         let attachment = NSTextAttachment()
@@ -60,13 +54,7 @@ enum CredentialGuide {
 
         let s = NSMutableAttributedString()
         let step5 = String(localized: "guide.step5", bundle: .module)
-        let step5Attr = NSMutableAttributedString(string: step5, attributes: body)
-        for term in ["Headers", "Cookie"] {
-            if let range = step5.range(of: term) {
-                step5Attr.addAttributes(bold, range: NSRange(range, in: step5))
-            }
-        }
-        s.append(step5Attr)
+        s.append(parseBoldMarkdown(step5, body: body, bold: bold))
         return s
     }
 
@@ -91,6 +79,38 @@ enum CredentialGuide {
         tv.textStorage?.setAttributedString(content)
         scrollView.documentView = tv
         return scrollView
+    }
+
+    static func parseBoldMarkdown(
+        _ text: String,
+        body: [NSAttributedString.Key: Any],
+        bold: [NSAttributedString.Key: Any]
+    ) -> NSAttributedString {
+        let result = NSMutableAttributedString()
+        var remaining = text[text.startIndex...]
+
+        while let openRange = remaining.range(of: "**") {
+            result.append(NSAttributedString(
+                string: String(remaining[remaining.startIndex..<openRange.lowerBound]),
+                attributes: body
+            ))
+            remaining = remaining[openRange.upperBound...]
+
+            guard let closeRange = remaining.range(of: "**") else {
+                result.append(NSAttributedString(string: "**" + String(remaining), attributes: body))
+                return result
+            }
+            result.append(NSAttributedString(
+                string: String(remaining[remaining.startIndex..<closeRange.lowerBound]),
+                attributes: bold
+            ))
+            remaining = remaining[closeRange.upperBound...]
+        }
+
+        if !remaining.isEmpty {
+            result.append(NSAttributedString(string: String(remaining), attributes: body))
+        }
+        return result
     }
 
     private static func bodyAttrs() -> [NSAttributedString.Key: Any] {

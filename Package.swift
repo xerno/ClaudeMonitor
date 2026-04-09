@@ -1,6 +1,12 @@
 // swift-tools-version: 6.2
 import PackageDescription
 
+// Keep in sync with BuildConfig.sh (single source of truth for build settings).
+let commonSwiftSettings: [SwiftSetting] = [
+    .swiftLanguageMode(.v6),
+    .enableUpcomingFeature("MemberImportVisibility"),
+]
+
 let package = Package(
     name: "ClaudeMonitor",
     defaultLocalization: "en",
@@ -16,9 +22,7 @@ let package = Package(
             resources: [
                 .process("Localizable.xcstrings"),
             ],
-            swiftSettings: [
-                .swiftLanguageMode(.v6),
-                .enableUpcomingFeature("MemberImportVisibility"),
+            swiftSettings: commonSwiftSettings + [
                 // Enable @testable import for the TestRunner executable target.
                 .unsafeFlags(["-enable-testing"]),
             ]
@@ -31,6 +35,7 @@ let package = Package(
             path: ".",
             exclude: [
                 "build.sh",
+                "BuildConfig.sh",
                 "CLAUDE.md",
                 "ClaudeMonitor",
                 "ClaudeMonitor.xcodeproj",
@@ -43,9 +48,7 @@ let package = Package(
                 "test.sh",
             ],
             sources: ["ClaudeMonitorTests", "TestRunner"],
-            swiftSettings: [
-                .swiftLanguageMode(.v6),
-                .enableUpcomingFeature("MemberImportVisibility"),
+            swiftSettings: commonSwiftSettings + [
                 .unsafeFlags([
                     "-F", "/Library/Developer/CommandLineTools/Library/Developer/Frameworks",
                     "-Xfrontend", "-disable-cross-import-overlays",

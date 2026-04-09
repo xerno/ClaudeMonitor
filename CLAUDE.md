@@ -24,34 +24,45 @@ open ClaudeMonitor.xcodeproj
 
 Xcode 26 project uses `PBXFileSystemSynchronizedRootGroup` — new `.swift` files in source/test directories are auto-discovered, no pbxproj edits needed.
 
+### Build settings — single source of truth
+
+**`BuildConfig.sh`** is the authoritative source for shared build parameters (app name, bundle ID, version, deployment target, Swift version, default isolation, upcoming features). `build.sh` and `install.sh` source it directly. `Package.swift` and the Xcode project (`project.pbxproj`) must be kept in sync manually — when changing a build setting, update `BuildConfig.sh` first, then propagate to `Package.swift` and the Xcode project.
+
 ## Architecture
 
 ```
 ClaudeMonitor/
-├── AppDelegate.swift          — @main entry point, lifecycle, editing shortcuts
-├── Constants.swift            — all hardcoded values (URLs, intervals, keychain keys)
-├── Models.swift               — StatusSummary, UsageResponse, WindowEntry, WindowKeyParser, MonitorState
-├── DemoData.swift             — demo mode data for screenshots/testing
-├── JSONDecoder+ISO8601.swift  — shared ISO8601 decoder with fractional seconds
+├── AppDelegate.swift                    — @main entry point, lifecycle, editing shortcuts
+├── AppState.swift                       — MonitorState, ServiceState value types
+├── BundleModule.swift                   — Bundle.module shim for Xcode builds
+├── Constants.swift                      — all hardcoded values (URLs, intervals, keychain keys)
+├── DemoData.swift                       — demo mode data for screenshots/testing
+├── JSONDecoder+ISO8601.swift            — shared ISO8601 decoder with fractional seconds
+├── StatusModels.swift                   — StatusSummary, StatusComponent, ComponentStatus, Incident, PageStatus
+├── UsageModels.swift                    — UsageResponse, UsageWindow, WindowEntry, WindowKeyParser
 ├── Services/
-│   ├── DataCoordinator.swift  — data fetching orchestration, polling, state management
-│   ├── StatusService.swift    — fetches status.claude.com/api/v2/summary.json
-│   ├── UsageService.swift     — fetches claude.ai/api/organizations/{orgId}/usage
-│   ├── PollingScheduler.swift — adaptive polling intervals
-│   ├── KeychainService.swift  — encrypted credential storage (UserDefaults + AES-GCM)
-│   └── ServiceError.swift     — shared error type for both services
+│   ├── DataCoordinator.swift            — data fetching orchestration, polling, state management
+│   ├── StatusService.swift              — fetches status.claude.com/api/v2/summary.json
+│   ├── UsageService.swift               — fetches claude.ai/api/organizations/{orgId}/usage
+│   ├── PollingScheduler.swift           — adaptive polling intervals
+│   ├── KeychainService.swift            — encrypted credential storage (UserDefaults + AES-GCM)
+│   └── ServiceError.swift               — shared error type for both services, RetryCategory
 ├── MenuBar/
-│   ├── MenuBarController.swift  — status bar item, countdown timer, UI coordination
-│   ├── MenuBuilder.swift        — MenuActions protocol + stateless NSMenu construction
-│   ├── StatusBarRenderer.swift  — status bar icon rendering
-│   └── Formatting.swift         — timeUntil(), progressBar(), usageStyle(), displayLabel(), buildTooltip()
+│   ├── MenuBarController.swift          — status bar item, UI coordination
+│   ├── MenuBarController+Countdown.swift — countdown timer, critical reset animation
+│   ├── MenuBuilder.swift                — MenuActions protocol + NSMenu construction
+│   ├── MenuBuilder+Sections.swift       — menu section builders + attributed titles
+│   ├── StatusBarRenderer.swift          — status bar icon + text rendering
+│   ├── Formatting.swift                 — timeUntil(), progressBar(), displayLabel()
+│   ├── Formatting+UsageAnalysis.swift   — usageStyle(), shouldShowInMenuBar(), blockingLimit(), detectCriticalReset()
+│   └── Formatting+Tooltip.swift         — buildTooltip()
 └── Windows/
-    ├── AboutWindowController.swift        — about window
-    ├── SetupWindowController.swift        — first-run setup window
-    ├── PreferencesWindowController.swift  — preferences window
-    ├── CredentialFormView.swift           — reusable NSView with org ID + cookie fields
-    ├── CredentialGuide.swift              — NSAttributedString instructions for credentials
-    └── WindowManager.swift               — activation policy + window focus management
+    ├── AboutWindowController.swift      — about window
+    ├── SetupWindowController.swift      — first-run setup window
+    ├── PreferencesWindowController.swift — preferences window
+    ├── CredentialFormView.swift          — reusable NSView with org ID + cookie fields
+    ├── CredentialGuide.swift             — NSAttributedString instructions for credentials
+    └── WindowManager.swift              — activation policy + window focus management
 ```
 
 Key patterns:
@@ -70,7 +81,7 @@ Key patterns:
 
 **Icon** — service status (green checkmark = all OK, colored icons for outages/maintenance).
 
-**Text** — `42% | 18%` showing usage windows. First (shortest) window always visible; additional windows appear when outpacing time. "all" suffix shown only when model-specific variants exist for the same duration. Styled with bold and color based on urgency (see UX rules below).
+**Text** — `42% | 18%` showing usage windows. First (shortest) window always visible; additional windows appear when outpacing time. "all" suffix shown on all non-model-specific entries when any model-specific variant exists (regardless of duration). Styled with bold and color based on urgency (see UX rules below).
 
 **Tooltip** — single shared tooltip on the entire status item with usage details, time until reset, service status, and last refresh time.
 
@@ -144,7 +155,11 @@ Unit tests in `ClaudeMonitorTests/`:
 - **ModelsTests** — JSON decoding (dynamic windows, unknown keys), `WindowKeyParser` (basic/compound numbers, model scopes, unknown formats), `WindowEntry` sorting, `displayLabel` (disambiguation vs no-disambiguation), `ComponentStatus` severity/`Comparable` ordering, `Equatable` conformance, fractional-seconds fallback
 - **MenuBuilderTests** — menu structure, section content, incident links, sorted components, controls
 
-All formatting, model, data coordination, and menu-building logic is tested. Services and UI are not unit-tested (they hit real APIs / AppKit).
+- **StatusBarRendererTests** — icon resolution (status → symbol/color mapping, refresh warning, worst-severity), title methods (no credentials, loading, blocked countdown, usage with styled percentages), `nsColor` mapping
+- **DemoDataTests** — all scenarios produce valid data, rotation order covers all scenarios, default fallback
+- **CredentialGuideTests** — `parseBoldMarkdown` (plain text, single/nested markers, unclosed markers, adjacent markers, empty bold)
+
+All formatting, model, data coordination, rendering logic, and menu-building logic is tested. Services and window UI are not unit-tested (they hit real APIs / AppKit).
 
 ## Token-Efficient Workflow
 

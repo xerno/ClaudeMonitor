@@ -30,7 +30,7 @@ struct PollingScheduler {
 
         if let usage {
             let now = Date()
-            let resetDates = usage.allWindows.compactMap(\.resetsAt)
+            let resetDates = usage.entries.compactMap(\.window.resetsAt)
             let nearest = resetDates
                 .map { $0.timeIntervalSince(now) }
                 .filter { $0 > 0 && $0 < effectivePollingInterval }
@@ -45,7 +45,7 @@ struct PollingScheduler {
     }
 
     mutating func adjustPollingRate(usage: UsageResponse?, isCritical: Bool) {
-        let currentUtil = usage?.allWindows.map(\.utilization).max()
+        let currentUtil = usage?.entries.map(\.window.utilization).max()
         defer { previousMaxUtil = currentUtil }
 
         guard let current = currentUtil, let previous = previousMaxUtil else {
