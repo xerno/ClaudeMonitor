@@ -8,23 +8,33 @@ import Foundation
     private let mockIdleProvider = MockSystemIdleProvider()
 
     private func makeCoordinator(
-        credentials: [String: String] = [
+        testOrgId: String = UUID().uuidString,
+        credentials: [String: String]? = nil
+    ) -> (DataCoordinator, String) {
+        let resolvedCredentials = credentials ?? [
             Constants.Keychain.cookieString: "test-cookie",
-            Constants.Keychain.organizationId: "test-org-id",
+            Constants.Keychain.organizationId: testOrgId,
         ]
-    ) -> DataCoordinator {
-        DataCoordinator(
+        let coordinator = DataCoordinator(
             statusService: mockStatus,
             usageService: mockUsage,
             systemIdleProvider: mockIdleProvider,
-            loadCredential: { credentials[$0] }
+            loadCredential: { resolvedCredentials[$0] }
         )
+        return (coordinator, testOrgId)
+    }
+
+    private func cleanupTestOrg(_ orgId: String) {
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let orgDir = appSupport.appendingPathComponent("ClaudeMonitor/usage/\(orgId)")
+        try? FileManager.default.removeItem(at: orgDir)
     }
 
     // MARK: - Successful Fetch
 
     @Test func refreshUpdatesStateOnSuccess() async {
-        let coordinator = makeCoordinator()
+        let (coordinator, orgId) = makeCoordinator()
+        defer { cleanupTestOrg(orgId) }
         await coordinator.refresh()
 
         #expect(coordinator.currentStatus == testStatus)
@@ -35,7 +45,8 @@ import Foundation
     }
 
     @Test func refreshCallsBothServices() async {
-        let coordinator = makeCoordinator()
+        let (coordinator, orgId) = makeCoordinator()
+        defer { cleanupTestOrg(orgId) }
         await coordinator.refresh()
 
         #expect(mockStatus.fetchCount == 1)
@@ -43,15 +54,17 @@ import Foundation
     }
 
     @Test func refreshPassesCredentialsToUsageService() async {
-        let coordinator = makeCoordinator()
+        let (coordinator, orgId) = makeCoordinator()
+        defer { cleanupTestOrg(orgId) }
         await coordinator.refresh()
 
-        #expect(mockUsage.lastOrgId == "test-org-id")
+        #expect(mockUsage.lastOrgId == orgId)
         #expect(mockUsage.lastCookie == "test-cookie")
     }
 
     @Test func refreshCallsOnUpdate() async {
-        let coordinator = makeCoordinator()
+        let (coordinator, orgId) = makeCoordinator()
+        defer { cleanupTestOrg(orgId) }
         var updateCount = 0
         coordinator.onUpdate = { updateCount += 1 }
 
@@ -61,7 +74,8 @@ import Foundation
     }
 
     @Test func refreshRecordsSchedulerSuccess() async {
-        let coordinator = makeCoordinator()
+        let (coordinator, orgId) = makeCoordinator()
+        defer { cleanupTestOrg(orgId) }
         await coordinator.refresh()
 
         #expect(coordinator.scheduler.statusState.lastSuccess != nil)
@@ -73,7 +87,7 @@ import Foundation
     // MARK: - Credentials
 
     @Test func refreshWithNoCredentialsSetsUsageError() async {
-        let coordinator = makeCoordinator(credentials: [:])
+        let (coordinator, _) = makeCoordinator(credentials: [:])
         await coordinator.refresh()
 
         #expect(coordinator.usageError == "Configure credentials in Preferences")
@@ -81,10 +95,11 @@ import Foundation
     }
 
     @Test func refreshWithEmptyCredentialsSetsUsageError() async {
-        let coordinator = makeCoordinator(credentials: [
+        let (coordinator, orgId) = makeCoordinator(credentials: [
             Constants.Keychain.cookieString: "",
             Constants.Keychain.organizationId: "org",
         ])
+        defer { cleanupTestOrg(orgId) }
         await coordinator.refresh()
 
         #expect(coordinator.usageError == "Configure credentials in Preferences")
@@ -92,7 +107,7 @@ import Foundation
     }
 
     @Test func noCredentialsStillFetchesStatus() async {
-        let coordinator = makeCoordinator(credentials: [:])
+        let (coordinator, _) = makeCoordinator(credentials: [:])
         await coordinator.refresh()
 
         #expect(mockStatus.fetchCount == 1)
@@ -100,19 +115,20 @@ import Foundation
     }
 
     @Test func hasCredentialsReturnsFalseWhenMissing() {
-        let coordinator = makeCoordinator(credentials: [:])
+        let (coordinator, _) = makeCoordinator(credentials: [:])
         #expect(!coordinator.hasCredentials)
     }
 
     @Test func hasCredentialsReturnsTrueWhenPresent() {
-        let coordinator = makeCoordinator()
+        let (coordinator, _) = makeCoordinator()
         #expect(coordinator.hasCredentials)
     }
 
     // MARK: - MonitorState
 
     @Test func monitorStateReflectsCurrentData() async {
-        let coordinator = makeCoordinator()
+        let (coordinator, orgId) = makeCoordinator()
+        defer { cleanupTestOrg(orgId) }
         await coordinator.refresh()
 
         let state = coordinator.monitorState
@@ -125,7 +141,7 @@ import Foundation
     }
 
     @Test func monitorStateWithNoCredentials() {
-        let coordinator = makeCoordinator(credentials: [:])
+        let (coordinator, _) = makeCoordinator(credentials: [:])
         let state = coordinator.monitorState
 
         #expect(!state.hasCredentials)
@@ -136,7 +152,8 @@ import Foundation
 
     @Test func restartResetsScheduler() async {
         mockUsage.result = .failure(ServiceError.unexpectedStatus(500))
-        let coordinator = makeCoordinator()
+        let (coordinator, orgId) = makeCoordinator()
+        defer { cleanupTestOrg(orgId) }
         await coordinator.refresh()
         #expect(coordinator.scheduler.usageState.consecutiveFailures == 1)
 
@@ -150,7 +167,8 @@ import Foundation
     // MARK: - Multiple Refreshes
 
     @Test func onUpdateCalledOnEveryRefresh() async {
-        let coordinator = makeCoordinator()
+        let (coordinator, orgId) = makeCoordinator()
+        defer { cleanupTestOrg(orgId) }
         var updateCount = 0
         coordinator.onUpdate = { updateCount += 1 }
 
@@ -164,7 +182,8 @@ import Foundation
     // MARK: - Scheduler Adjustment
 
     @Test func schedulerNoRampUpAfterNormalUtilization() async {
-        let coordinator = makeCoordinator()
+        let (coordinator, orgId) = makeCoordinator()
+        defer { cleanupTestOrg(orgId) }
         await coordinator.refresh()
 
         // testUsage has 42% and 18% utilization — projected well below 100%, so no ramp-up.
@@ -182,7 +201,8 @@ import Foundation
             WindowEntry(key: "five_hour", duration: 18000, durationLabel: "5h", modelScope: nil,
                         window: UsageWindow(utilization: 50, resetsAt: Date().addingTimeInterval(17000))),
         ]))
-        let coordinator = makeCoordinator()
+        let (coordinator, orgId) = makeCoordinator()
+        defer { cleanupTestOrg(orgId) }
         await coordinator.refresh()
 
         // Critical projection (≥120%) → interval = max(minInterval, baseInterval / 2) = 30s.
@@ -194,7 +214,8 @@ import Foundation
     // MARK: - WindowAnalyses
 
     @Test func windowAnalysesPopulatedAfterRefresh() async {
-        let coordinator = makeCoordinator()
+        let (coordinator, orgId) = makeCoordinator()
+        defer { cleanupTestOrg(orgId) }
         await coordinator.refresh()
 
         let analyses = coordinator.monitorState.windowAnalyses
@@ -203,7 +224,8 @@ import Foundation
     }
 
     @Test func windowAnalysisEntriesMatchUsageEntries() async {
-        let coordinator = makeCoordinator()
+        let (coordinator, orgId) = makeCoordinator()
+        defer { cleanupTestOrg(orgId) }
         await coordinator.refresh()
 
         let analyses = coordinator.monitorState.windowAnalyses
@@ -217,7 +239,8 @@ import Foundation
     @Test func awayModeOffWhenIdleBelowThreshold() async {
         // Idle time below the away threshold: away mode must be off regardless.
         mockIdleProvider.idleTimeValue = Constants.Polling.awayThreshold - 1
-        let coordinator = makeCoordinator()
+        let (coordinator, orgId) = makeCoordinator()
+        defer { cleanupTestOrg(orgId) }
         await coordinator.refresh()
 
         #expect(coordinator.scheduler.isAwayMode == false)

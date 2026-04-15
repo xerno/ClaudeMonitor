@@ -97,8 +97,17 @@ private func makeSamples(count: Int, startUtilization: Int, endUtilization: Int,
 
 @Suite struct ResetDetectionTests {
 
-    @Test @MainActor func resetClearsHistory() {
+    @Test @MainActor func resetClearsHistory() async throws {
+        let testOrgId = UUID().uuidString
         let history = UsageHistory()
+        history.switchOrganization(testOrgId)
+        defer {
+            history.clearAll()
+            let orgDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+                .appendingPathComponent("ClaudeMonitor/usage/\(testOrgId)")
+            try? FileManager.default.removeItem(at: orgDir)
+        }
+
         let now = Date()
         let entry = makeEntry(key: "five_hour", utilization: 42, resetsAt: now.addingTimeInterval(3600))
         history.record(entries: [entry], at: now)
@@ -114,6 +123,7 @@ private func makeSamples(count: Int, startUtilization: Int, endUtilization: Int,
             previousResetsAt: previousResetsAt
         )
         #expect(history.samples(for: makeEntry(key: "five_hour", utilization: 0, resetsAt: newResetsAt)).count == 0)
+        try await Task.sleep(for: .milliseconds(200))
     }
 
     @Test @MainActor func smallResetsAtChangeDoesNotClear() {
@@ -545,8 +555,17 @@ private func makeSamples(count: Int, startUtilization: Int, endUtilization: Int,
 
     // After a window reset (simulated by large resetsAt shift), previously recorded
     // samples must not contaminate the new window's graph.
-    @Test @MainActor func restartAfterResetProducesCleanGraph() {
+    @Test @MainActor func restartAfterResetProducesCleanGraph() async throws {
+        let testOrgId = UUID().uuidString
         let history = UsageHistory()
+        history.switchOrganization(testOrgId)
+        defer {
+            history.clearAll()
+            let orgDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+                .appendingPathComponent("ClaudeMonitor/usage/\(testOrgId)")
+            try? FileManager.default.removeItem(at: orgDir)
+        }
+
         let now = Date()
         let duration: TimeInterval = 18000 // five_hour
 
@@ -568,6 +587,7 @@ private func makeSamples(count: Int, startUtilization: Int, endUtilization: Int,
             newResetsAt: newResetsAt,
             previousResetsAt: oldResetsAt
         )
+        try await Task.sleep(for: .milliseconds(200))
 
         // (c) Record 3 fresh samples with new resetsAt
         let newUtils = [2, 3, 5]
@@ -601,8 +621,17 @@ private func makeSamples(count: Int, startUtilization: Int, endUtilization: Int,
     }
 
     // Three consecutive reset cycles must not accumulate data across cycles.
-    @Test @MainActor func multipleResetCyclesKeepDataClean() {
+    @Test @MainActor func multipleResetCyclesKeepDataClean() async throws {
+        let testOrgId = UUID().uuidString
         let history = UsageHistory()
+        history.switchOrganization(testOrgId)
+        defer {
+            history.clearAll()
+            let orgDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+                .appendingPathComponent("ClaudeMonitor/usage/\(testOrgId)")
+            try? FileManager.default.removeItem(at: orgDir)
+        }
+
         let now = Date()
         let duration: TimeInterval = 18000 // five_hour
 
@@ -647,6 +676,7 @@ private func makeSamples(count: Int, startUtilization: Int, endUtilization: Int,
         }
         // No more than the 3 fresh samples we just recorded
         #expect(samples.count <= 3)
+        try await Task.sleep(for: .milliseconds(200))
     }
 
     // Two windows with different durations but proportionally identical patterns
@@ -884,10 +914,10 @@ private func makeSamples(count: Int, startUtilization: Int, endUtilization: Int,
 
 private let archiveTestIdentity = "18000"
 
-private func archiveTestDirectory() -> URL {
+private func archiveTestDirectory(orgId: String) -> URL {
     let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
     return appSupport
-        .appendingPathComponent("ClaudeMonitor/usage/archive")
+        .appendingPathComponent("ClaudeMonitor/usage/\(orgId)/archive")
         .appendingPathComponent(archiveTestIdentity)
 }
 
@@ -902,15 +932,17 @@ private func archiveDateFormatterForTests() -> DateFormatter {
 
     // archiveWindow creates a compressed file at the expected path
     @Test func archiveWindowCreatesCompressedFile() async throws {
+        let testOrgId = UUID().uuidString
         let fm = FileManager.default
-        let archiveDir = archiveTestDirectory()
-
-        // Clean up any pre-existing archive test directory
-        try? fm.removeItem(at: archiveDir)
+        let archiveDir = archiveTestDirectory(orgId: testOrgId)
+        let orgDir = archiveDir.deletingLastPathComponent().deletingLastPathComponent()
 
         let history = UsageHistory()
-        history.clearAll()
-        try await Task.sleep(for: .milliseconds(200))
+        history.switchOrganization(testOrgId)
+        defer {
+            history.clearAll()
+            try? fm.removeItem(at: orgDir)
+        }
 
         let now = Date()
         let resetsAt = now.addingTimeInterval(3600)
@@ -934,23 +966,28 @@ private func archiveDateFormatterForTests() -> DateFormatter {
             #expect(!lzmaFiles.isEmpty, "Expected at least one .lzma file in archive directory")
         }
         // If the dir doesn't exist the archive Task wrote nothing (fire-and-forget): no assertion.
-
-        // Cleanup: remove archive dir only — no save() was called so live dir is untouched
-        try? fm.removeItem(at: archiveDir)
     }
 
     // pruneArchives removes files whose window ended before the retention cutoff
     @Test func pruneArchivesRemovesOldFilesAndKeepsNewOnes() async throws {
+        let testOrgId = UUID().uuidString
         // five_hour = 18000s; retention = 18000 * 11 = 198000s ≈ 55h
         let fiveHourDuration: TimeInterval = 18000
         let retentionPeriod = fiveHourDuration * Double(Constants.History.archiveRetentionMultiplier)
         let now = Date()
 
         let fm = FileManager.default
-        let identityDir = archiveTestDirectory()
+        let identityDir = archiveTestDirectory(orgId: testOrgId)
+        let orgDir = identityDir.deletingLastPathComponent().deletingLastPathComponent()
 
-        // Clean up and recreate the test identity directory to start from a known state
-        try? fm.removeItem(at: identityDir)
+        let history = UsageHistory()
+        history.switchOrganization(testOrgId)
+        defer {
+            history.clearAll()
+            try? fm.removeItem(at: orgDir)
+        }
+
+        // Create the test identity directory to start from a known state
         try fm.createDirectory(at: identityDir, withIntermediateDirectories: true)
 
         let formatter = archiveDateFormatterForTests()
@@ -974,7 +1011,6 @@ private func archiveDateFormatterForTests() -> DateFormatter {
         #expect(fm.fileExists(atPath: oldFileURL.path), "Setup: old file must exist before prune")
         #expect(fm.fileExists(atPath: newFileURL.path), "Setup: new file must exist before prune")
 
-        let history = UsageHistory()
         let entry = makeEntry(key: "five_hour", utilization: 0, resetsAt: now.addingTimeInterval(3600))
         history.pruneArchives(currentEntries: [entry])
 
@@ -985,9 +1021,6 @@ private func archiveDateFormatterForTests() -> DateFormatter {
                 "Old archive file should have been pruned")
         #expect(fm.fileExists(atPath: newFileURL.path),
                 "New archive file should NOT have been pruned")
-
-        // Cleanup
-        try? fm.removeItem(at: identityDir)
     }
 }
 
@@ -1194,10 +1227,15 @@ private func archiveDateFormatterForTests() -> DateFormatter {
     // MARK: - 7. Save/Load round-trip
 
     @Test @MainActor func recordThenSaveThenLoadRoundTrips() async throws {
-        // Clear any leftover files from previous runs
+        let testOrgId = UUID().uuidString
         let history = UsageHistory()
-        history.clearAll()
-        try await Task.sleep(for: .milliseconds(200))
+        history.switchOrganization(testOrgId)
+        defer {
+            history.clearAll()
+            let orgDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+                .appendingPathComponent("ClaudeMonitor/usage/\(testOrgId)")
+            try? FileManager.default.removeItem(at: orgDir)
+        }
 
         let now = Date()
         let fiveHourResetsAt = now.addingTimeInterval(3600)
@@ -1230,9 +1268,9 @@ private func archiveDateFormatterForTests() -> DateFormatter {
         history.save()
         try await Task.sleep(for: .milliseconds(500))
 
-        // Load into a fresh instance
+        // Load into a fresh instance pointing at the same isolated org directory
         let loaded = UsageHistory()
-        loaded.load()
+        loaded.switchOrganization(testOrgId)
 
         let loadedFiveHour = loaded.samples(for: fiveHourKey)
         let loadedSevenDay = loaded.samples(for: sevenDayKey)
@@ -1256,10 +1294,6 @@ private func archiveDateFormatterForTests() -> DateFormatter {
         for (orig, restored) in zip(originalSonnet, loadedSonnet) {
             #expect(orig.utilization == restored.utilization)
         }
-
-        // Clean up: remove test data from production directory
-        history.clearAll()
-        try await Task.sleep(for: .milliseconds(200))
     }
 
     // MARK: - 8. Window boundary pruning isolation

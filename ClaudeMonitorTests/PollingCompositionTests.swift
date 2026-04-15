@@ -170,8 +170,15 @@ import Foundation
 
         // Credentials are read via a @Sendable closure — use a class wrapper so we can
         // mutate the orgId from the test body without a Sendable capture violation.
-        final class OrgIdBox: @unchecked Sendable { var value = "org-alpha" }
-        let orgIdBox = OrgIdBox()
+        let orgAlpha = "org-alpha-\(UUID().uuidString)"
+        let orgBeta = "org-beta-\(UUID().uuidString)"
+        defer {
+            let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+            try? FileManager.default.removeItem(at: base.appendingPathComponent("ClaudeMonitor/usage/\(orgAlpha)"))
+            try? FileManager.default.removeItem(at: base.appendingPathComponent("ClaudeMonitor/usage/\(orgBeta)"))
+        }
+        final class OrgIdBox: @unchecked Sendable { var value: String; init(_ v: String) { value = v } }
+        let orgIdBox = OrgIdBox(orgAlpha)
         let coordinator = DataCoordinator(
             statusService: mockStatus,
             usageService: mockUsage,
@@ -198,7 +205,7 @@ import Foundation
                 "windowAnalyses must be non-empty after a successful refresh")
 
         // Swap to a different org ID and restart polling (which calls reloadCredentials()).
-        orgIdBox.value = "org-beta"
+        orgIdBox.value = orgBeta
         coordinator.restartPolling()
 
         // After restartPolling() with a different org ID, reloadCredentials() detects the

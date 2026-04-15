@@ -12,17 +12,33 @@ import Foundation
         status: any StatusFetching = MockStatusService(),
         usage: any UsageFetching = MockUsageService(),
         idle: MockSystemIdleProvider = MockSystemIdleProvider(),
-        credentials: [String: String] = [
+        testOrgId: String = UUID().uuidString,
+        credentials: [String: String]? = nil
+    ) -> (DataCoordinator, String) {
+        let creds = credentials ?? [
             Constants.Keychain.cookieString: "test-cookie",
-            Constants.Keychain.organizationId: "test-org-id",
+            Constants.Keychain.organizationId: testOrgId,
         ]
-    ) -> DataCoordinator {
-        DataCoordinator(
+        let coordinator = DataCoordinator(
             statusService: status,
             usageService: usage,
             systemIdleProvider: idle,
-            loadCredential: { credentials[$0] }
+            loadCredential: { creds[$0] }
         )
+        return (coordinator, testOrgId)
+    }
+
+    private func cleanupTestOrg(_ orgId: String) {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let orgDir = base.appendingPathComponent("ClaudeMonitor/usage/\(orgId)")
+        try? FileManager.default.removeItem(at: orgDir)
+    }
+
+    private var testUsage: UsageResponse {
+        UsageResponse(entries: [
+            WindowEntry(key: "five_hour", duration: 18000, durationLabel: "5h", modelScope: nil,
+                        window: UsageWindow(utilization: 42, resetsAt: Date().addingTimeInterval(9000))),
+        ])
     }
 
     // MARK: - Test 1: JSON decode → coordinator pipeline
@@ -55,7 +71,8 @@ import Foundation
         // Feed the decoded response through DataCoordinator.
         let mockUsage = MockUsageService()
         mockUsage.result = .success(decoded)
-        let coordinator = makeCoordinator(usage: mockUsage)
+        let (coordinator, orgId) = makeCoordinator(usage: mockUsage)
+        defer { cleanupTestOrg(orgId) }
         await coordinator.refresh()
 
         // The coordinator's windowAnalyses must carry the same duration that came from the parser.
@@ -108,7 +125,8 @@ import Foundation
 
         let sequencedUsage = SequencedMockUsage(responses: [firstResponse, secondResponse])
         var criticalResetCount = 0
-        let coordinator = makeCoordinator(usage: sequencedUsage)
+        let (coordinator, orgId) = makeCoordinator(usage: sequencedUsage)
+        defer { cleanupTestOrg(orgId) }
         coordinator.onCriticalReset = { criticalResetCount += 1 }
 
         await coordinator.refresh() // Refresh 1: establishes critical baseline, no previous usage.
@@ -232,9 +250,16 @@ import Foundation
             var dict: [String: String]
             init(_ dict: [String: String]) { self.dict = dict }
         }
+        let orgA = "test-org-a-\(UUID().uuidString)"
+        let orgB = "test-org-b-\(UUID().uuidString)"
+        defer {
+            cleanupTestOrg(orgA)
+            cleanupTestOrg(orgB)
+        }
+
         let store = CredentialStore([
             Constants.Keychain.cookieString: "test-cookie",
-            Constants.Keychain.organizationId: "org-A",
+            Constants.Keychain.organizationId: orgA,
         ])
 
         let mockUsage = MockUsageService()
@@ -246,13 +271,13 @@ import Foundation
             loadCredential: { store.dict[$0] }
         )
 
-        // First refresh under org-A — populates windowAnalyses.
+        // First refresh under orgA — populates windowAnalyses.
         await coordinator.refresh()
         #expect(!coordinator.monitorState.windowAnalyses.isEmpty,
                 "windowAnalyses must be populated after a successful refresh")
 
-        // Switch to org-B and call restartPolling() which calls reloadCredentials() internally.
-        store.dict[Constants.Keychain.organizationId] = "org-B"
+        // Switch to orgB and call restartPolling() which calls reloadCredentials() internally.
+        store.dict[Constants.Keychain.organizationId] = orgB
         coordinator.restartPolling()
 
         // After reloadCredentials detects a different org ID, windowAnalyses must be cleared.

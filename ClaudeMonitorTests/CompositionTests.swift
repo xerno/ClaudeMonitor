@@ -12,17 +12,26 @@ import AppKit
     private let mockIdleProvider = MockSystemIdleProvider()
 
     private func makeCoordinator(
-        credentials: [String: String] = [
+        testOrgId: String = UUID().uuidString,
+        credentials: [String: String]? = nil
+    ) -> (DataCoordinator, String) {
+        let creds = credentials ?? [
             Constants.Keychain.cookieString: "test-cookie",
-            Constants.Keychain.organizationId: "test-org-id",
+            Constants.Keychain.organizationId: testOrgId,
         ]
-    ) -> DataCoordinator {
-        DataCoordinator(
+        let coordinator = DataCoordinator(
             statusService: mockStatus,
             usageService: mockUsage,
             systemIdleProvider: mockIdleProvider,
-            loadCredential: { credentials[$0] }
+            loadCredential: { creds[$0] }
         )
+        return (coordinator, testOrgId)
+    }
+
+    private func cleanupTestOrg(_ orgId: String) {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let orgDir = base.appendingPathComponent("ClaudeMonitor/usage/\(orgId)")
+        try? FileManager.default.removeItem(at: orgDir)
     }
 
     // MARK: - Test 1: JSON decode → WindowKeyParser → WindowEntry → analyze → scheduler
@@ -63,7 +72,8 @@ import AppKit
         #expect(decoded.entries[0].window.utilization == 65)
 
         mockUsage.result = .success(decoded)
-        let coordinator = makeCoordinator()
+        let (coordinator, orgId) = makeCoordinator()
+        defer { cleanupTestOrg(orgId) }
         await coordinator.refresh()
 
         // Critical projection (≥120%) → interval = max(minInterval, baseInterval/2) = 30s.
@@ -83,7 +93,8 @@ import AppKit
                         window: UsageWindow(utilization: 30, resetsAt: resetsAt)),
         ])
         mockUsage.result = .success(firstUsage)
-        let coordinator = makeCoordinator()
+        let (coordinator, orgId) = makeCoordinator()
+        defer { cleanupTestOrg(orgId) }
 
         // First refresh: utilization = 30
         await coordinator.refresh()
@@ -120,7 +131,8 @@ import AppKit
                         window: UsageWindow(utilization: 65, resetsAt: Date().addingTimeInterval(9000))),
         ])
         mockUsage.result = .success(criticalUsage)
-        let coordinator = makeCoordinator()
+        let (coordinator, orgId) = makeCoordinator()
+        defer { cleanupTestOrg(orgId) }
         await coordinator.refresh()
 
         let state = coordinator.monitorState
@@ -211,7 +223,8 @@ import AppKit
         ])
         let criticalInterval = max(Constants.Polling.minInterval, Constants.Polling.baseInterval / 2)
 
-        let coordinator = makeCoordinator()
+        let (coordinator, orgId) = makeCoordinator()
+        defer { cleanupTestOrg(orgId) }
         mockUsage.result = .success(criticalUsage)
         await coordinator.refresh()
         #expect(coordinator.monitorState.currentPollInterval == criticalInterval)
@@ -227,7 +240,8 @@ import AppKit
     /// Tests that windowAnalyses and currentUsage are kept consistent across state transitions.
     @Test func testWindowAnalysesRetainStaleValuesAfterAuthFailure() async {
         // First refresh: succeeds → windowAnalyses should be non-empty.
-        let coordinator = makeCoordinator()
+        let (coordinator, orgId) = makeCoordinator()
+        defer { cleanupTestOrg(orgId) }
         await coordinator.refresh()
 
         let firstState = coordinator.monitorState
