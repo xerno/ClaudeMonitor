@@ -61,7 +61,6 @@ final class MenuBarController: NSObject, MenuActions {
                 hasCredentials: coordinator.hasCredentials,
                 isStale: coordinator.scheduler.isUsageStale
             )
-            button.toolTip = Formatting.buildTooltip(state: state)
         }
         if let menu = statusItem.menu {
             MenuBuilder.populate(menu: menu, state: state, target: self)
@@ -91,6 +90,14 @@ final class MenuBarController: NSObject, MenuActions {
         guard let urlString = sender.representedObject as? String,
               let url = URL(string: urlString) else { return }
         NSWorkspace.shared.open(url)
+    }
+
+    @objc func didSelectUsageWindow(_ sender: NSMenuItem) {
+        guard let menu = statusItem.menu else { return }
+        let index = sender.tag - MenuBuilder.usageBaseTag
+        guard let graphView = menu.item(withTag: MenuBuilder.usageGraphTag)?.view as? UsageGraphView else { return }
+        graphView.selectWindow(at: index)
+        MenuBuilder.syncUsageCheckmarks(in: menu, selectedIndex: graphView.currentSelectedIndex)
     }
 
     @objc func didSelectAbout() {

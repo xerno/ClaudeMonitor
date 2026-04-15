@@ -4,7 +4,6 @@ struct PollingScheduler {
     private(set) var statusState = ServiceState()
     private(set) var usageState = ServiceState()
     private var effectivePollingInterval: TimeInterval = Constants.Polling.baseInterval
-    private var previousMaxUtil: Int?
     private var consecutiveNoChange: Int = 0
 
     var hasRefreshWarning: Bool {
@@ -44,49 +43,44 @@ struct PollingScheduler {
         return effectivePollingInterval
     }
 
-    mutating func adjustPollingRate(usage: UsageResponse?, isCritical: Bool) {
-        let currentUtil = usage?.entries.map(\.window.utilization).max()
-        defer { previousMaxUtil = currentUtil }
-
-        guard let current = currentUtil, let previous = previousMaxUtil else {
+    mutating func adjustPollingRate(windowAnalyses: [WindowAnalysis]) {
+        guard !windowAnalyses.isEmpty else {
             effectivePollingInterval = Constants.Polling.baseInterval
             consecutiveNoChange = 0
             return
         }
 
-        let delta = current - previous
-        if delta > 0 {
-            applySpeedup()
-        } else if delta < 0 {
-            applyDeceleration()
-        } else {
-            applyCooldown()
+        // Priority 1: Approaching limit (any window < 10 min to limit)
+        let timesToLimit = windowAnalyses.compactMap(\.timeToLimit)
+        if let nearest = timesToLimit.filter({ $0 < 600 }).min() {
+            effectivePollingInterval = max(Constants.Polling.minInterval, nearest / 5)
+            consecutiveNoChange = 0
+            return
         }
 
-        let isHighUtil = current >= Constants.Polling.highUtilizationThreshold
-        if isCritical || isHighUtil {
-            effectivePollingInterval = min(effectivePollingInterval, Constants.Polling.criticalFloor)
+        // Priority 2: Significantly outpacing (projected >= 120%)
+        if windowAnalyses.contains(where: { $0.projectedAtReset >= Constants.Projection.criticalThreshold }) {
+            effectivePollingInterval = max(Constants.Polling.minInterval, Constants.Polling.baseInterval / 2)
+            consecutiveNoChange = 0
+            return
         }
-    }
 
-    private mutating func applySpeedup() {
-        consecutiveNoChange = 0
-        if effectivePollingInterval > Constants.Polling.baseInterval {
-            effectivePollingInterval = Constants.Polling.baseInterval
-        } else {
-            effectivePollingInterval = max(
-                floor(effectivePollingInterval * Constants.Polling.speedupFactor),
-                Constants.Polling.minInterval
-            )
-        }
-    }
-
-    private mutating func applyDeceleration() {
-        if effectivePollingInterval > Constants.Polling.baseInterval {
+        // Priority 3: Mildly outpacing (projected 100–120%)
+        if windowAnalyses.contains(where: { $0.projectedAtReset >= Constants.Projection.warningThreshold }) {
             effectivePollingInterval = Constants.Polling.baseInterval
             consecutiveNoChange = 0
+            return
         }
-        // fast mode (≤ base): cooldown counter continues uninterrupted
+
+        // Priority 4: Active consumption (any rate > 0, all projected < 100%)
+        if windowAnalyses.contains(where: { $0.consumptionRate > 0 }) {
+            effectivePollingInterval = Constants.Polling.baseInterval
+            consecutiveNoChange = 0
+            return
+        }
+
+        // Priority 5: Idle — gradually extend but cap at 300s
+        applyCooldown()
     }
 
     private mutating func applyCooldown() {
@@ -97,7 +91,7 @@ struct PollingScheduler {
                 effectivePollingInterval = Constants.Polling.baseInterval
                 consecutiveNoChange = 0
             } else {
-                effectivePollingInterval = min(slower, Constants.Polling.maxInterval)
+                effectivePollingInterval = min(slower, Constants.Retry.maxBackoff)
             }
         }
     }
@@ -122,7 +116,6 @@ struct PollingScheduler {
         statusState = ServiceState()
         usageState = ServiceState()
         effectivePollingInterval = Constants.Polling.baseInterval
-        previousMaxUtil = nil
         consecutiveNoChange = 0
     }
 

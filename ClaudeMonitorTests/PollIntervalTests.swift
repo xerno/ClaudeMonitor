@@ -15,7 +15,7 @@ struct PollIntervalTests {
 
     @Test func nextPollIntervalNearReset() {
         var scheduler = PollingScheduler()
-        scheduler.adjustPollingRate(usage: usage(utilization: 40), isCritical: false)
+        scheduler.adjustPollingRate(windowAnalyses: [])
         // Window resets in 30s — within 60s effective interval
         let nearResetUsage = usage(utilization: 42, resetsIn: 30)
         let interval = scheduler.nextPollInterval(usage: nearResetUsage)
@@ -25,7 +25,7 @@ struct PollIntervalTests {
 
     @Test func nextPollIntervalResetBeyondEffectiveInterval() {
         var scheduler = PollingScheduler()
-        scheduler.adjustPollingRate(usage: usage(utilization: 40), isCritical: false)
+        scheduler.adjustPollingRate(windowAnalyses: [])
         // Reset 300s out — well beyond 60s interval → no snapping
         let farUsage = usage(utilization: 42, resetsIn: 300)
         #expect(scheduler.nextPollInterval(usage: farUsage) == Constants.Polling.baseInterval)
@@ -33,7 +33,7 @@ struct PollIntervalTests {
 
     @Test func nearResetWithMultipleWindowsPicksNearest() {
         var scheduler = PollingScheduler()
-        scheduler.adjustPollingRate(usage: usage(utilization: 40), isCritical: false)
+        scheduler.adjustPollingRate(windowAnalyses: [])
         let multiWindowUsage = UsageResponse(entries: [
             WindowEntry(key: "five_hour", duration: 18000, durationLabel: "5h", modelScope: nil,
                         window: UsageWindow(utilization: 42, resetsAt: Date().addingTimeInterval(45))),
@@ -137,8 +137,8 @@ struct PollIntervalTests {
         var scheduler = PollingScheduler()
         scheduler.recordStatusFailure(category: .transient)
         scheduler.recordUsageFailure(category: .rateLimited)
-        scheduler.adjustPollingRate(usage: usage(utilization: 40), isCritical: false)
-        scheduler.adjustPollingRate(usage: usage(utilization: 80), isCritical: false)
+        scheduler.adjustPollingRate(windowAnalyses: [])
+        scheduler.adjustPollingRate(windowAnalyses: [])
 
         scheduler.reset()
 

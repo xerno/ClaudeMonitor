@@ -3,7 +3,15 @@ import AppKit
 extension MenuBuilder {
     // MARK: - Section Builders
 
-    static func usageItems(state: MonitorState) -> [NSMenuItem] {
+    static func usageGraphPlaceholder() -> NSMenuItem {
+        let item = NSMenuItem()
+        item.tag = usageGraphTag
+        item.isEnabled = false
+        item.view = UsageGraphView()
+        return item
+    }
+
+    static func usageItems(state: MonitorState, target: (any MenuActions)?) -> [NSMenuItem] {
         if !state.hasCredentials {
             return [staticItem(String(localized: "menu.credentials.configure", bundle: .module), tag: usagePlaceholderTag)]
         }
@@ -19,7 +27,7 @@ extension MenuBuilder {
         var items: [NSMenuItem] = []
         for (tag, label, window) in labels {
             guard let window else { continue }
-            items.append(usageItem(label: label, window: window, tag: tag, style: style))
+            items.append(usageItem(label: label, window: window, tag: tag, style: style, target: target))
         }
         return items
     }
@@ -92,11 +100,27 @@ extension MenuBuilder {
 
     // MARK: - Attributed Title
 
-    static func usageItem(label: String, window: UsageWindow, tag: Int, style: NSParagraphStyle) -> NSMenuItem {
+    static func usageItem(label: String, window: UsageWindow, tag: Int, style: NSParagraphStyle, target: (any MenuActions)? = nil) -> NSMenuItem {
+        let attrTitle = usageAttributedTitle(label: label, window: window, style: style)
         let item = NSMenuItem()
-        item.attributedTitle = usageAttributedTitle(label: label, window: window, style: style)
-        item.isEnabled = false
         item.tag = tag
+        if let target {
+            // Use a custom view so that clicking does NOT close the menu (NSMenu behavior
+            // when item.view is set). The UsageRowView handles click internally.
+            let rowView = UsageRowView(attributedTitle: attrTitle)
+            let index = tag - usageBaseTag
+            rowView.onClick = { [weak target] in
+                // Synthesize a sender NSMenuItem so didSelectUsageWindow can read the tag
+                let sender = NSMenuItem()
+                sender.tag = tag
+                sender.representedObject = index
+                target?.didSelectUsageWindow(sender)
+            }
+            item.view = rowView
+        } else {
+            item.attributedTitle = attrTitle
+            item.isEnabled = false
+        }
         return item
     }
 
@@ -138,10 +162,15 @@ extension MenuBuilder {
         let attrs: [NSAttributedString.Key: Any] = [.font: menuFont, .paragraphStyle: style]
 
         guard let resetsAt = window.resetsAt else {
-            return NSMutableAttributedString(
-                string: "  \(label)  \t\(bar)  \(window.utilization)%",
+            let text = NSMutableAttributedString(
+                string: "  \(label)  \t\(bar)  \(window.utilization)%\t ",
                 attributes: attrs
             )
+            text.append(NSAttributedString(
+                string: String(localized: "graph.stats.no_reset", bundle: .module),
+                attributes: [.font: menuFont, .foregroundColor: NSColor.tertiaryLabelColor, .paragraphStyle: style]
+            ))
+            return text
         }
 
         let reset = Formatting.timeUntil(resetsAt)

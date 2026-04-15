@@ -8,6 +8,7 @@ final class DataCoordinator {
     private var pollTask: Task<Void, Never>?
     private var demoRotationIndex = 0
     private var loadedCredentials: (cookie: String, orgId: String)?
+    private let usageHistory = UsageHistory()
 
     private(set) var currentStatus: StatusSummary?
     private(set) var currentUsage: UsageResponse?
@@ -17,6 +18,7 @@ final class DataCoordinator {
     private var nextPollDate: Date?
     private(set) var currentPollInterval: TimeInterval?
     private(set) var scheduler = PollingScheduler()
+    private(set) var windowAnalyses: [WindowAnalysis] = []
 
     var onUpdate: (() -> Void)?
     var onCriticalReset: (() -> Void)?
@@ -29,6 +31,7 @@ final class DataCoordinator {
         self.statusService = statusService
         self.usageService = usageService
         self.loadCredential = loadCredential
+        UsageHistory.migrateAndDeleteLegacyData()
         reloadCredentials()
     }
 
@@ -44,7 +47,8 @@ final class DataCoordinator {
             statusError: statusError,
             lastRefreshed: lastRefreshed,
             hasCredentials: hasCredentials,
-            currentPollInterval: currentPollInterval
+            currentPollInterval: currentPollInterval,
+            windowAnalyses: windowAnalyses
         )
     }
 
@@ -73,14 +77,18 @@ final class DataCoordinator {
         if Constants.Demo.isActive {
             let scenario = Constants.Demo.rotationOrder[demoRotationIndex]
             demoRotationIndex = (demoRotationIndex + 1) % Constants.Demo.rotationOrder.count
-            let (usage, status) = DemoData.scenario(scenario)
+            let (usage, status, demoSamples) = DemoData.scenario(scenario)
             currentUsage = usage
             currentStatus = status
             usageError = nil
             statusError = nil
-            lastRefreshed = Date()
-            nextPollDate = Date().addingTimeInterval(Constants.Demo.rotationInterval)
+            let now = Date()
+            lastRefreshed = now
+            nextPollDate = now.addingTimeInterval(Constants.Demo.rotationInterval)
             currentPollInterval = Constants.Demo.rotationInterval
+            windowAnalyses = usage.entries.map { entry in
+                UsageHistory.analyze(entry: entry, samples: demoSamples[entry.key] ?? [], now: now)
+            }
             onUpdate?()
             return
         }
@@ -89,8 +97,38 @@ final class DataCoordinator {
         async let usageResult: Void = refreshUsage()
         _ = await (statusResult, usageResult)
         guard !Task.isCancelled else { return }
-        let isCritical = currentUsage.map(Formatting.hasAnyCriticalWindow) ?? false
-        scheduler.adjustPollingRate(usage: currentUsage, isCritical: isCritical)
+        if let newUsage = currentUsage {
+            let now = Date()
+            var anyReset = false
+            for entry in newUsage.entries {
+                let previousEntry = usageBeforeRefresh?.entries.first { $0.key == entry.key }
+                let didReset: Bool = {
+                    guard let prevRA = previousEntry?.window.resetsAt,
+                          let newRA = entry.window.resetsAt else { return false }
+                    return newRA > prevRA && newRA.timeIntervalSince(prevRA) > entry.duration * 0.5
+                }()
+                if didReset {
+                    anyReset = true
+                    if let resetsAt = previousEntry?.window.resetsAt {
+                        usageHistory.archiveWindow(identity: entry.storageIdentity, resetsAt: resetsAt, windowDuration: entry.duration)
+                    }
+                }
+                usageHistory.detectAndHandleReset(
+                    entry: entry,
+                    newResetsAt: entry.window.resetsAt,
+                    previousResetsAt: previousEntry?.window.resetsAt
+                )
+            }
+            if anyReset {
+                usageHistory.pruneArchives(currentEntries: newUsage.entries)
+            }
+            usageHistory.record(entries: newUsage.entries, at: now)
+            usageHistory.save()
+            windowAnalyses = newUsage.entries.map { entry in
+                UsageHistory.analyze(entry: entry, samples: usageHistory.samples(for: entry), now: now)
+            }
+        }
+        scheduler.adjustPollingRate(windowAnalyses: windowAnalyses)
         let now = Date()
         lastRefreshed = now
         let pollInterval = scheduler.nextPollInterval(usage: currentUsage)
@@ -125,10 +163,19 @@ final class DataCoordinator {
               let cookie = loadCredential(Constants.Keychain.cookieString),
               let orgId = loadCredential(Constants.Keychain.organizationId),
               !cookie.isEmpty, !orgId.isEmpty else {
+            if loadedCredentials != nil {
+                usageHistory.switchOrganization(nil)
+                windowAnalyses = []
+            }
             loadedCredentials = nil
             return
         }
+        let previousOrgId = loadedCredentials?.orgId
         loadedCredentials = (cookie, orgId)
+        if orgId != previousOrgId {
+            usageHistory.switchOrganization(orgId)
+            windowAnalyses = []
+        }
     }
 
     private func refreshUsage() async {

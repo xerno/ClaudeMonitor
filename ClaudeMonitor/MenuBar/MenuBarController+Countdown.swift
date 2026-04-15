@@ -73,12 +73,12 @@ extension MenuBarController {
                 hasCredentials: coordinator.hasCredentials,
                 isStale: coordinator.scheduler.isUsageStale
             )
-            button.toolTip = Formatting.buildTooltip(state: coordinator.monitorState)
         }
         if isMenuOpen, let menu = statusItem.menu {
             if let usage = coordinator.currentUsage {
                 MenuBuilder.refreshTimes(in: menu, usage: usage)
             }
+            MenuBuilder.refreshGraph(in: menu, analyses: coordinator.monitorState.windowAnalyses)
             MenuBuilder.refreshControlTimes(
                 in: menu,
                 lastRefreshed: coordinator.lastRefreshed,

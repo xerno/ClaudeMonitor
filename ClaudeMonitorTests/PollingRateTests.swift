@@ -4,150 +4,161 @@ import Foundation
 
 struct PollingRateTests {
 
-    private func usage(utilization: Int, resetsIn: TimeInterval = 3600) -> UsageResponse {
-        UsageResponse(entries: [
-            WindowEntry(key: "five_hour", duration: 18000, durationLabel: "5h", modelScope: nil,
-                        window: UsageWindow(utilization: utilization, resetsAt: Date().addingTimeInterval(resetsIn)))
-        ])
+    // MARK: - Helpers
+
+    private func makeEntry(resetsIn: TimeInterval = 3600) -> WindowEntry {
+        WindowEntry(
+            key: "five_hour",
+            duration: 18000,
+            durationLabel: "5h",
+            modelScope: nil,
+            window: UsageWindow(utilization: 50, resetsAt: Date().addingTimeInterval(resetsIn))
+        )
     }
 
-    // MARK: - Speedup
-
-    @Test func speedupFromBase() {
-        var scheduler = PollingScheduler()
-        scheduler.adjustPollingRate(usage: usage(utilization: 40), isCritical: false)
-        scheduler.adjustPollingRate(usage: usage(utilization: 60), isCritical: false)
-        // base 60 * 0.8 = 48
-        #expect(scheduler.nextPollInterval(usage: nil) == 48)
+    private func makeAnalysis(
+        projectedAtReset: Double = 50,
+        consumptionRate: Double = 0,
+        timeToLimit: TimeInterval? = nil,
+        resetsIn: TimeInterval = 3600
+    ) -> WindowAnalysis {
+        WindowAnalysis(
+            entry: makeEntry(resetsIn: resetsIn),
+            samples: [],
+            consumptionRate: consumptionRate,
+            projectedAtReset: projectedAtReset,
+            timeToLimit: timeToLimit,
+            rateSource: .insufficient,
+            style: Formatting.UsageStyle(level: .normal, isBold: false),
+            segments: []
+        )
     }
 
-    @Test func speedupChainsMultipleTimes() {
+    // MARK: - Priority 1: Approaching Limit
+
+    @Test func approachingLimitShortensInterval() {
         var scheduler = PollingScheduler()
-        scheduler.adjustPollingRate(usage: usage(utilization: 40), isCritical: false)
-        scheduler.adjustPollingRate(usage: usage(utilization: 50), isCritical: false) // 60*0.8=48
-        scheduler.adjustPollingRate(usage: usage(utilization: 60), isCritical: false) // 48*0.8=38.4→38
-        #expect(scheduler.nextPollInterval(usage: nil) == 38)
+        let analysis = makeAnalysis(timeToLimit: 300) // 300s < 600s threshold
+        scheduler.adjustPollingRate(windowAnalyses: [analysis])
+        // max(minInterval=24, 300/5=60) = 60
+        #expect(scheduler.nextPollInterval(usage: nil) == max(Constants.Polling.minInterval, 300.0 / 5))
     }
 
-    @Test func speedupFloorsAtMinInterval() {
+    @Test func approachingLimitRespectsMinInterval() {
         var scheduler = PollingScheduler()
-        scheduler.adjustPollingRate(usage: usage(utilization: 10), isCritical: false)
-        for i in stride(from: 20, through: 100, by: 10) {
-            scheduler.adjustPollingRate(usage: usage(utilization: i), isCritical: false)
-        }
-        #expect(scheduler.nextPollInterval(usage: nil) >= Constants.Polling.minInterval)
+        let analysis = makeAnalysis(timeToLimit: 10) // 10/5=2, below minInterval
+        scheduler.adjustPollingRate(windowAnalyses: [analysis])
+        #expect(scheduler.nextPollInterval(usage: nil) == Constants.Polling.minInterval)
     }
 
-    @Test func speedupFromAboveBaseSnapsToBase() {
+    // MARK: - Priority 2: Significantly Outpacing
+
+    @Test func significantlyOutpacingUsesHalfBase() {
         var scheduler = PollingScheduler()
-        scheduler.adjustPollingRate(usage: usage(utilization: 40), isCritical: false)
-        // Cooldown to above-base
-        for _ in 0..<(Constants.Polling.cooldownCycles + 3) {
-            scheduler.adjustPollingRate(usage: usage(utilization: 40), isCritical: false)
+        let analysis = makeAnalysis(projectedAtReset: 130, consumptionRate: 0.01)
+        scheduler.adjustPollingRate(windowAnalyses: [analysis])
+        // max(minInterval=24, baseInterval/2=30) = 30
+        let expected = max(Constants.Polling.minInterval, Constants.Polling.baseInterval / 2)
+        #expect(scheduler.nextPollInterval(usage: nil) == expected)
+    }
+
+    // MARK: - Priority 3: Mildly Outpacing
+
+    @Test func mildlyOutpacingUsesBase() {
+        var scheduler = PollingScheduler()
+        let analysis = makeAnalysis(projectedAtReset: 110, consumptionRate: 0.005)
+        scheduler.adjustPollingRate(windowAnalyses: [analysis])
+        #expect(scheduler.nextPollInterval(usage: nil) == Constants.Polling.baseInterval)
+    }
+
+    // MARK: - Priority 4: Active Consumption
+
+    @Test func activeConsumptionUsesBase() {
+        var scheduler = PollingScheduler()
+        let analysis = makeAnalysis(projectedAtReset: 70, consumptionRate: 0.001)
+        scheduler.adjustPollingRate(windowAnalyses: [analysis])
+        #expect(scheduler.nextPollInterval(usage: nil) == Constants.Polling.baseInterval)
+    }
+
+    // MARK: - Priority 5: Idle Cooldown
+
+    @Test func idleCooldownGraduallyIncreasesInterval() {
+        var scheduler = PollingScheduler()
+        let analysis = makeAnalysis(projectedAtReset: 50, consumptionRate: 0)
+
+        // First get to base
+        scheduler.adjustPollingRate(windowAnalyses: [analysis])
+        let baseInterval = scheduler.nextPollInterval(usage: nil)
+        #expect(baseInterval == Constants.Polling.baseInterval)
+
+        // Drive through cooldownCycles iterations to trigger slowdown
+        for _ in 0..<Constants.Polling.cooldownCycles {
+            scheduler.adjustPollingRate(windowAnalyses: [analysis])
         }
         let slowedInterval = scheduler.nextPollInterval(usage: nil)
-        #expect(slowedInterval > Constants.Polling.baseInterval)
-        // Speedup should snap to base (not multiply by 0.8)
-        scheduler.adjustPollingRate(usage: usage(utilization: 50), isCritical: false)
-        #expect(scheduler.nextPollInterval(usage: nil) == Constants.Polling.baseInterval)
+        #expect(slowedInterval > baseInterval)
     }
 
-    // MARK: - Deceleration
-
-    @Test func decelerationFromAboveBaseSnapsToBase() {
+    @Test func idleCooldownCapsAt300Seconds() {
         var scheduler = PollingScheduler()
-        scheduler.adjustPollingRate(usage: usage(utilization: 40), isCritical: false)
-        for _ in 0..<(Constants.Polling.cooldownCycles + 3) {
-            scheduler.adjustPollingRate(usage: usage(utilization: 40), isCritical: false)
+        let analysis = makeAnalysis(projectedAtReset: 50, consumptionRate: 0)
+
+        for _ in 0..<100 {
+            scheduler.adjustPollingRate(windowAnalyses: [analysis])
         }
-        #expect(scheduler.nextPollInterval(usage: nil) > Constants.Polling.baseInterval)
-        scheduler.adjustPollingRate(usage: usage(utilization: 30), isCritical: false)
-        #expect(scheduler.nextPollInterval(usage: nil) == Constants.Polling.baseInterval)
+        #expect(scheduler.nextPollInterval(usage: nil) <= Constants.Retry.maxBackoff)
     }
 
-    @Test func decelerationInFastModePreservesInterval() {
-        var scheduler = PollingScheduler()
-        scheduler.adjustPollingRate(usage: usage(utilization: 40), isCritical: false)
-        scheduler.adjustPollingRate(usage: usage(utilization: 50), isCritical: false)
-        let fastInterval = scheduler.nextPollInterval(usage: nil)
-        #expect(fastInterval < Constants.Polling.baseInterval)
-        // Usage decreased in fast mode — interval should stay (cooldown continues)
-        scheduler.adjustPollingRate(usage: usage(utilization: 45), isCritical: false)
-        #expect(scheduler.nextPollInterval(usage: nil) == fastInterval)
+    // MARK: - Near Reset
+
+    @Test func nearResetSchedulesAfterReset() {
+        let scheduler = PollingScheduler()
+        let resetsIn: TimeInterval = 5 // resets in 5 seconds
+        let entry = makeEntry(resetsIn: resetsIn)
+        let usage = UsageResponse(entries: [entry])
+
+        // effectivePollingInterval is base (60), so resetsIn < effectivePollingInterval
+        let interval = scheduler.nextPollInterval(usage: usage)
+        // Should be resetsIn + 1 padding ≈ 6 (allow small floating point tolerance)
+        #expect(abs(interval - (resetsIn + 1)) < 0.01)
     }
 
-    // MARK: - Cooldown
+    // MARK: - Failure Backoff
 
-    @Test func cooldownSlowsAfterThreeCycles() {
+    @Test func failureBackoffUsesExponentialBackoff() {
         var scheduler = PollingScheduler()
-        scheduler.adjustPollingRate(usage: usage(utilization: 40), isCritical: false)
-        scheduler.adjustPollingRate(usage: usage(utilization: 50), isCritical: false) // 48
-        let fastInterval = scheduler.nextPollInterval(usage: nil)
-        for _ in 0..<Constants.Polling.cooldownCycles {
-            scheduler.adjustPollingRate(usage: usage(utilization: 50), isCritical: false)
+
+        // Record enough failures to trigger backoff (each doubles: 10→20→40)
+        let threshold = Constants.Retry.failureThreshold
+        for _ in 0..<threshold {
+            scheduler.recordUsageFailure(category: .transient)
         }
-        #expect(scheduler.nextPollInterval(usage: nil) > fastInterval)
+
+        let interval = scheduler.nextPollInterval(usage: nil)
+        // initialBackoff=10, doubled threshold=2 times: 10*2=20, 20*2=40
+        let expectedBackoff = Constants.Retry.initialBackoff * pow(2.0, Double(threshold))
+        #expect(interval == min(expectedBackoff, Constants.Retry.maxBackoff))
     }
 
-    @Test func cooldownDoesNotExceedMaxInterval() {
+    @Test func failureBackoffStaysUnderMaxBackoff() {
         var scheduler = PollingScheduler()
-        scheduler.adjustPollingRate(usage: usage(utilization: 40), isCritical: false)
-        for _ in 0..<50 {
-            scheduler.adjustPollingRate(usage: usage(utilization: 40), isCritical: false)
-        }
-        #expect(scheduler.nextPollInterval(usage: nil) <= Constants.Polling.maxInterval)
-    }
 
-    @Test func cooldownResetsCounterWhenCrossingBase() {
-        var scheduler = PollingScheduler()
-        scheduler.adjustPollingRate(usage: usage(utilization: 40), isCritical: false)
-        scheduler.adjustPollingRate(usage: usage(utilization: 50), isCritical: false) // 48
-        // 3 cooldown cycles → ceil(48/0.8)=60 → snaps to base, resets counter
-        for _ in 0..<Constants.Polling.cooldownCycles {
-            scheduler.adjustPollingRate(usage: usage(utilization: 50), isCritical: false)
-        }
-        #expect(scheduler.nextPollInterval(usage: nil) == Constants.Polling.baseInterval)
-        // Only 2 more cycles — not enough to slow again
-        scheduler.adjustPollingRate(usage: usage(utilization: 50), isCritical: false)
-        scheduler.adjustPollingRate(usage: usage(utilization: 50), isCritical: false)
-        #expect(scheduler.nextPollInterval(usage: nil) == Constants.Polling.baseInterval)
-    }
-
-    // MARK: - Critical Floor
-
-    @Test func criticalFlagCapsInterval() {
-        var scheduler = PollingScheduler()
-        scheduler.adjustPollingRate(usage: usage(utilization: 40), isCritical: false)
+        // Record many failures to saturate backoff
         for _ in 0..<20 {
-            scheduler.adjustPollingRate(usage: usage(utilization: 40), isCritical: false)
+            scheduler.recordUsageFailure(category: .transient)
         }
-        #expect(scheduler.nextPollInterval(usage: nil) > Constants.Polling.criticalFloor)
-        scheduler.adjustPollingRate(usage: usage(utilization: 40), isCritical: true)
-        #expect(scheduler.nextPollInterval(usage: nil) <= Constants.Polling.criticalFloor)
+
+        let interval = scheduler.nextPollInterval(usage: nil)
+        // nextPollInterval returns min(statusRetry=effectiveInterval, usageRetry=maxBackoff)
+        #expect(interval <= Constants.Retry.maxBackoff)
     }
 
-    @Test func highUtilizationCapsInterval() {
-        var scheduler = PollingScheduler()
-        scheduler.adjustPollingRate(usage: usage(utilization: 40), isCritical: false)
-        for _ in 0..<20 {
-            scheduler.adjustPollingRate(usage: usage(utilization: 40), isCritical: false)
-        }
-        // ≥90 util caps at criticalFloor even without isCritical
-        scheduler.adjustPollingRate(usage: usage(utilization: 92), isCritical: false)
-        #expect(scheduler.nextPollInterval(usage: nil) <= Constants.Polling.criticalFloor)
-    }
+    // MARK: - Empty WindowAnalyses Resets to Base
 
-    // MARK: - Edge Cases
-
-    @Test func firstCallWithNoHistorySetsBase() {
+    @Test func emptyWindowAnalysesResetsToBase() {
         var scheduler = PollingScheduler()
-        scheduler.adjustPollingRate(usage: usage(utilization: 80), isCritical: false)
-        #expect(scheduler.nextPollInterval(usage: nil) == Constants.Polling.baseInterval)
-    }
-
-    @Test func nilUsageSetsBase() {
-        var scheduler = PollingScheduler()
-        scheduler.adjustPollingRate(usage: nil, isCritical: false)
+        // No window analyses → reset to base
+        scheduler.adjustPollingRate(windowAnalyses: [])
         #expect(scheduler.nextPollInterval(usage: nil) == Constants.Polling.baseInterval)
     }
 }

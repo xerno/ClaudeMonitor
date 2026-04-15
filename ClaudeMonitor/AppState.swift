@@ -8,6 +8,27 @@ struct MonitorState: Sendable, Equatable {
     let lastRefreshed: Date?
     let hasCredentials: Bool
     let currentPollInterval: TimeInterval?
+    let windowAnalyses: [WindowAnalysis]
+
+    init(
+        currentUsage: UsageResponse?,
+        currentStatus: StatusSummary?,
+        usageError: String?,
+        statusError: String?,
+        lastRefreshed: Date?,
+        hasCredentials: Bool,
+        currentPollInterval: TimeInterval?,
+        windowAnalyses: [WindowAnalysis] = []
+    ) {
+        self.currentUsage = currentUsage
+        self.currentStatus = currentStatus
+        self.usageError = usageError
+        self.statusError = statusError
+        self.lastRefreshed = lastRefreshed
+        self.hasCredentials = hasCredentials
+        self.currentPollInterval = currentPollInterval
+        self.windowAnalyses = windowAnalyses
+    }
 }
 
 struct ServiceState: Sendable {

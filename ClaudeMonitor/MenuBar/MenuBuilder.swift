@@ -5,6 +5,7 @@ import AppKit
     func openIncident(_ sender: NSMenuItem)
     func didSelectPreferences()
     func didSelectAbout()
+    func didSelectUsageWindow(_ sender: NSMenuItem)
 }
 
 @MainActor
@@ -30,6 +31,9 @@ enum MenuBuilder {
     static let aboutTag = 603
     static let quitTag = 604
 
+    // Graph view
+    static let usageGraphTag = 700
+
     // Separators
     static let separatorAfterUsageTag = 501
     static let separatorAfterServicesTag = 502
@@ -52,6 +56,7 @@ enum MenuBuilder {
         } else {
             reconcile(menu: menu, desired: desired)
         }
+        refreshGraph(in: menu, analyses: state.windowAnalyses)
     }
 
     // MARK: - Live Refresh (countdown loop)
@@ -61,7 +66,32 @@ enum MenuBuilder {
         let style = usageParagraphStyle(labelColumnWidth: maxLabelWidth(labels: labels.map(\.label)))
         for (tag, label, window) in labels {
             guard let window, let item = menu.item(withTag: tag) else { continue }
-            item.attributedTitle = usageAttributedTitle(label: label, window: window, style: style)
+            let attrTitle = usageAttributedTitle(label: label, window: window, style: style)
+            if let rowView = item.view as? UsageRowView {
+                rowView.updateTitle(attrTitle)
+            } else {
+                item.attributedTitle = attrTitle
+            }
+        }
+    }
+
+    static func refreshGraph(in menu: NSMenu, analyses: [WindowAnalysis]) {
+        guard let item = menu.item(withTag: usageGraphTag),
+              let graphView = item.view as? UsageGraphView else { return }
+        graphView.update(analyses: analyses)
+        syncUsageCheckmarks(in: menu, selectedIndex: graphView.currentSelectedIndex)
+    }
+
+    static func syncUsageCheckmarks(in menu: NSMenu, selectedIndex: Int) {
+        for item in menu.items {
+            let tag = item.tag
+            guard tag >= usageBaseTag && tag < usagePlaceholderTag else { continue }
+            let index = tag - usageBaseTag
+            if let rowView = item.view as? UsageRowView {
+                rowView.isSelected = index == selectedIndex
+            } else {
+                item.state = index == selectedIndex ? .on : .off
+            }
         }
     }
 
@@ -77,7 +107,8 @@ enum MenuBuilder {
         var items: [NSMenuItem] = []
 
         items.append(sectionHeader(String(localized: "menu.section.usage", bundle: .module), subtitle: "Claude Monitor", tag: usageSectionTag))
-        items.append(contentsOf: usageItems(state: state))
+        items.append(contentsOf: usageItems(state: state, target: target))
+        items.append(usageGraphPlaceholder())
         items.append(separator(tag: separatorAfterUsageTag))
 
         items.append(sectionHeader(String(localized: "menu.section.services", bundle: .module), tag: servicesSectionTag))
@@ -110,8 +141,13 @@ enum MenuBuilder {
 
         for (index, desiredItem) in desired.enumerated() {
             if let existing = menu.item(withTag: desiredItem.tag) {
-                if !existing.isSeparatorItem && existing.view == nil {
-                    updateItem(existing, from: desiredItem)
+                if !existing.isSeparatorItem {
+                    if existing.view == nil {
+                        updateItem(existing, from: desiredItem)
+                    } else if let existingRow = existing.view as? UsageRowView,
+                              let desiredRow = desiredItem.view as? UsageRowView {
+                        existingRow.updateTitle(desiredRow.currentAttributedTitle)
+                    }
                 }
                 let currentIndex = menu.index(of: existing)
                 if currentIndex != index {

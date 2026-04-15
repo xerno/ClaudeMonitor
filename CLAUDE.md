@@ -89,17 +89,15 @@ Key patterns:
 
 ### UX rules for usage text styling
 
-Dual-rule pattern: each visual level triggers on EITHER a fixed utilization threshold OR when the projected consumption rate exceeds the limit (with per-level offsets).
+Projection-based styling: implied rate = `utilization / timeElapsed`, projected = `utilization + rate × timeRemaining`. Levels:
 
-| Level  | Fixed threshold     | Time-based rule                        |
-|--------|--------------------|-----------------------------------------|
-| Bold   | utilization ≥ 50%  | utilization > timeElapsedPercent        |
-| Orange | utilization ≥ 70%  | utilization > timeElapsedPercent + 20   |
-| Red    | utilization ≥ 80%  | utilization > timeElapsedPercent + 35   |
+| Level  | Projection threshold            | Fallback (no resetsAt) |
+|--------|---------------------------------|------------------------|
+| Bold   | projectedAtReset ≥ 80%         | utilization ≥ 80%      |
+| Orange | projectedAtReset ≥ 100%        | utilization ≥ 90%      |
+| Red    | projectedAtReset ≥ 120%        | utilization ≥ 95%      |
 
-`timeElapsedPercent = (1 − timeRemaining / windowDuration) × 100`
-
-The time-based rule checks whether consumption at the current rate would exceed the limit before the window resets. The offsets (+20, +35) require progressively more severe overpacing.
+Special case: utilization ≥ 100% → always red (blocked). `timeRemaining = 0` → always normal (about to reset).
 
 Window durations are parsed from API key names by `WindowKeyParser` (e.g., `five_hour` → 5h = 18000s).
 
@@ -109,7 +107,7 @@ Window durations are parsed from API key names by `WindowKeyParser` (e.g., `five
 
 **Usage**: `GET https://claude.ai/api/organizations/{orgId}/usage` — requires session cookie. Returns a JSON object with dynamic window keys (e.g., `five_hour`, `seven_day`, `seven_day_sonnet`), each containing `utilization: Int` and `resets_at: ISO8601`. `UsageResponse` decodes all keys dynamically — new window types are handled without code changes.
 
-Both APIs are polled together. Adaptive polling: base 60s, speeds up to 30s when usage is increasing, slows to 10min when stable. In critical state (red), floor is 2min. Exponential backoff on failures (10s→300s cap).
+Both APIs are polled together. Adaptive polling based on projection: approaching limit (<10min to limit) → scales down to 24s; critical projection (≥120%) → 30s; warning/active → 60s base; idle → gradually extends to 300s cap. Exponential backoff on failures (10s→300s cap).
 
 Authentication: user provides session cookie string and organization ID via Preferences, stored in Keychain.
 
@@ -160,6 +158,8 @@ Unit tests in `ClaudeMonitorTests/`:
 - **CredentialGuideTests** — `parseBoldMarkdown` (plain text, single/nested markers, unclosed markers, adjacent markers, empty bold)
 
 All formatting, model, data coordination, rendering logic, and menu-building logic is tested. Services and window UI are not unit-tested (they hit real APIs / AppKit).
+
+**CRITICAL: Tests must NEVER contaminate production data.** `UsageHistory` uses a hardcoded production path (`~/Library/Application Support/ClaudeMonitor/usage/`). Any test that calls `save()`, `load()`, `archiveWindow()`, or other disk I/O **MUST call `clearAll()` in cleanup** and wait for the async Task to complete. Tests that write to disk and don't clean up will inject fake data into the running app — this caused a severe, hard-to-diagnose bug where synthetic test values (10+i, 20+i, 30+i) appeared as real usage data.
 
 ## Token-Efficient Workflow
 

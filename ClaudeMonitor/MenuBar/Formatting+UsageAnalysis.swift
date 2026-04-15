@@ -13,34 +13,73 @@ extension Formatting {
         var isCritical: Bool { level == .critical }
     }
 
+    // MARK: - usageStyle (original signature, projection-based logic)
+
     static func usageStyle(
         utilization: Int,
         resetsAt: Date?,
         windowDuration: TimeInterval,
         now: Date = Date()
     ) -> UsageStyle {
-        guard let resetsAt else {
-            let isRed = utilization >= 80
-            let isOrange = utilization >= 70
-            let isBold = utilization >= 50
-            return UsageStyle(level: levelForThresholds(isRed: isRed, isOrange: isOrange), isBold: isBold)
+        if utilization >= Constants.Projection.blockedUtilization {
+            return UsageStyle(level: .critical, isBold: true)
         }
-
+        guard let resetsAt else {
+            return usageStyleFallback(utilization: utilization)
+        }
         let timeRemaining = max(resetsAt.timeIntervalSince(now), 0)
-        let timeElapsedPercent = (1 - timeRemaining / windowDuration) * 100
-
-        let isRed = utilization >= 80 || Double(utilization) > timeElapsedPercent + 35
-        let isOrange = utilization >= 70 || Double(utilization) > timeElapsedPercent + 20
-        let isBold = utilization >= 50 || Double(utilization) > timeElapsedPercent
-
-        return UsageStyle(level: levelForThresholds(isRed: isRed, isOrange: isOrange), isBold: isBold)
+        if timeRemaining <= 0 {
+            return UsageStyle(level: .normal, isBold: false)
+        }
+        let timeElapsed = windowDuration - timeRemaining
+        let impliedRate = timeElapsed > 0 ? Double(utilization) / timeElapsed : 0
+        let projectedAtReset = Double(utilization) + impliedRate * timeRemaining
+        return usageStyle(projectedAtReset: projectedAtReset, utilization: utilization, resetsAt: resetsAt, timeRemaining: timeRemaining)
     }
 
-    private static func levelForThresholds(isRed: Bool, isOrange: Bool) -> UsageLevel {
-        if isRed { return .critical }
-        if isOrange { return .warning }
-        return .normal
+    // MARK: - usageStyle overload accepting pre-computed projection
+
+    static func usageStyle(
+        projectedAtReset: Double,
+        utilization: Int,
+        resetsAt: Date?,
+        timeRemaining: TimeInterval
+    ) -> UsageStyle {
+        if utilization >= Constants.Projection.blockedUtilization {
+            return UsageStyle(level: .critical, isBold: true)
+        }
+        guard resetsAt != nil else {
+            return usageStyleFallback(utilization: utilization)
+        }
+        if timeRemaining <= 0 {
+            return UsageStyle(level: .normal, isBold: false)
+        }
+        if projectedAtReset >= Constants.Projection.criticalThreshold {
+            return UsageStyle(level: .critical, isBold: true)
+        }
+        if projectedAtReset >= Constants.Projection.warningThreshold {
+            return UsageStyle(level: .warning, isBold: true)
+        }
+        if projectedAtReset >= Constants.Projection.boldThreshold {
+            return UsageStyle(level: .normal, isBold: true)
+        }
+        return UsageStyle(level: .normal, isBold: false)
     }
+
+    private static func usageStyleFallback(utilization: Int) -> UsageStyle {
+        if utilization >= Constants.Projection.fallbackCriticalThreshold {
+            return UsageStyle(level: .critical, isBold: true)
+        }
+        if utilization >= Constants.Projection.fallbackWarningThreshold {
+            return UsageStyle(level: .warning, isBold: true)
+        }
+        if utilization >= Constants.Projection.fallbackBoldThreshold {
+            return UsageStyle(level: .normal, isBold: true)
+        }
+        return UsageStyle(level: .normal, isBold: false)
+    }
+
+    // MARK: - shouldShowInMenuBar (original signature, projection-based logic)
 
     static func shouldShowInMenuBar(
         utilization: Int,
@@ -50,9 +89,20 @@ extension Formatting {
     ) -> Bool {
         guard let resetsAt else { return false }
         let timeRemaining = max(resetsAt.timeIntervalSince(now), 0)
-        let timeElapsedPercent = (1 - timeRemaining / windowDuration) * 100
-        return Double(utilization) > timeElapsedPercent
+        if timeRemaining <= 0 { return false }
+        let timeElapsed = windowDuration - timeRemaining
+        let impliedRate = timeElapsed > 0 ? Double(utilization) / timeElapsed : 0
+        let projectedAtReset = Double(utilization) + impliedRate * timeRemaining
+        return shouldShowInMenuBar(projectedAtReset: projectedAtReset)
     }
+
+    // MARK: - shouldShowInMenuBar overload accepting pre-computed projection
+
+    static func shouldShowInMenuBar(projectedAtReset: Double) -> Bool {
+        projectedAtReset >= Constants.Projection.boldThreshold
+    }
+
+    // MARK: - Unchanged functions
 
     static func blockingLimit(_ usage: UsageResponse?) -> Date? {
         guard let usage else { return nil }
@@ -89,4 +139,5 @@ extension Formatting {
             ).isCritical
         }
     }
+
 }

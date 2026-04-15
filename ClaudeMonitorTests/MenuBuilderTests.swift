@@ -8,6 +8,7 @@ private final class MockMenuActions: NSObject, MenuActions {
     @objc func openIncident(_ sender: NSMenuItem) {}
     @objc func didSelectPreferences() {}
     @objc func didSelectAbout() {}
+    @objc func didSelectUsageWindow(_ sender: NSMenuItem) {}
 }
 
 @MainActor struct MenuBuilderTests {
@@ -55,8 +56,14 @@ private final class MockMenuActions: NSObject, MenuActions {
             currentPollInterval: nil
         )
         let items = menuItems(for: state)
-        #expect(items.contains { $0.title.contains("5h") && $0.title.contains("42%") })
-        #expect(items.contains { $0.title.contains("7d") && $0.title.contains("18%") })
+        func rowText(_ item: NSMenuItem) -> String {
+            if let row = item.view as? UsageRowView {
+                return row.textContent
+            }
+            return item.attributedTitle?.string ?? item.title
+        }
+        #expect(items.contains { rowText($0).contains("5h") && rowText($0).contains("42%") })
+        #expect(items.contains { rowText($0).contains("7d") && rowText($0).contains("18%") })
     }
 
     // MARK: - Services Section

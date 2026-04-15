@@ -24,11 +24,8 @@ enum Constants {
     enum Polling {
         static let baseInterval: TimeInterval = 60
         static let minInterval: TimeInterval = 24
-        static let maxInterval: TimeInterval = 600
-        static let criticalFloor: TimeInterval = 120
         static let speedupFactor: Double = 0.8
         static let cooldownCycles: Int = 3
-        static let highUtilizationThreshold: Int = 90
     }
 
     enum Retry {
@@ -59,5 +56,21 @@ enum Constants {
         static let isActive: Bool = ProcessInfo.processInfo.arguments.contains("--demo")
         static let rotationOrder: [Int] = [3, 2, 1, 4]
         static let rotationInterval: TimeInterval = 5
+    }
+
+    enum History {
+        static let deduplicationInterval: TimeInterval = 30
+        static let gapThreshold: TimeInterval = 300
+        static let archiveRetentionMultiplier = 11
+    }
+
+    enum Projection {
+        static let boldThreshold: Double = 80
+        static let warningThreshold: Double = 100
+        static let criticalThreshold: Double = 120
+        static let blockedUtilization: Int = 100
+        static let fallbackBoldThreshold: Int = 80
+        static let fallbackWarningThreshold: Int = 90
+        static let fallbackCriticalThreshold: Int = 95
     }
 }

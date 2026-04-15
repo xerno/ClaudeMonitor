@@ -16,15 +16,15 @@ import Foundation
     }
 
     @Test func nonOutpacingWindowIsExcluded() {
-        // 30% used, ~70% time remaining → not outpacing
-        let entries = [entry(key: "seven_day", utilization: 30, resetsIn: 604_800 * 0.7)]
+        // 20% used, ~50% time remaining → projected = 20 + (20/duration*0.5)*duration*0.5 = 40 → < 80, no show
+        let entries = [entry(key: "seven_day", utilization: 20, resetsIn: 604_800 * 0.5)]
         let keys = StatusBarRenderer.secondaryWindowKeys(from: entries)
         #expect(keys.isEmpty)
     }
 
     @Test func outpacingWindowIsIncluded() {
-        // 65% used, 40% time remaining (60% elapsed) → outpacing (65 > 60)
-        let sevenDay = entry(key: "seven_day", utilization: 65, resetsIn: 604_800 * 0.4)
+        // 50% used, 50% time remaining → projected = 50+(50/duration*0.5)*duration*0.5 = 100 → ≥ 80, show
+        let sevenDay = entry(key: "seven_day", utilization: 50, resetsIn: 604_800 * 0.5)
         let keys = StatusBarRenderer.secondaryWindowKeys(from: [sevenDay])
         #expect(keys.contains("seven_day"))
     }
@@ -32,36 +32,36 @@ import Foundation
     // MARK: - Model-specific pull-in logic
 
     @Test func modelSpecificPullsInAllModelsWindow() {
-        // seven_day_sonnet outpacing → should also include seven_day (all-models)
-        let allModels = entry(key: "seven_day", utilization: 30, resetsIn: 604_800 * 0.7) // not outpacing on its own
-        let sonnet = entry(key: "seven_day_sonnet", utilization: 65, resetsIn: 604_800 * 0.4) // outpacing
+        // seven_day_sonnet qualifies → should also include seven_day (all-models, same duration)
+        let allModels = entry(key: "seven_day", utilization: 20, resetsIn: 604_800 * 0.5) // projected=40, no show alone
+        let sonnet = entry(key: "seven_day_sonnet", utilization: 50, resetsIn: 604_800 * 0.5) // projected=100, shows
         let keys = StatusBarRenderer.secondaryWindowKeys(from: [allModels, sonnet])
         #expect(keys.contains("seven_day_sonnet"))
         #expect(keys.contains("seven_day")) // pulled in because sonnet qualifies
     }
 
     @Test func modelSpecificDoesNotPullInDifferentDuration() {
-        // five_hour_sonnet outpacing should NOT pull in seven_day (different duration)
-        let sevenDay = entry(key: "seven_day", utilization: 30, resetsIn: 604_800 * 0.7)
-        let fiveHourSonnet = entry(key: "five_hour_sonnet", utilization: 65, resetsIn: 18000 * 0.4)
+        // five_hour_sonnet qualifies but should NOT pull in seven_day (different duration)
+        let sevenDay = entry(key: "seven_day", utilization: 20, resetsIn: 604_800 * 0.5) // projected=40, no show
+        let fiveHourSonnet = entry(key: "five_hour_sonnet", utilization: 50, resetsIn: 18000 * 0.5) // projected=100, shows
         let keys = StatusBarRenderer.secondaryWindowKeys(from: [sevenDay, fiveHourSonnet])
         #expect(keys.contains("five_hour_sonnet"))
         #expect(!keys.contains("seven_day")) // different duration, not pulled in
     }
 
     @Test func allModelsOutpacingAloneDoesNotPullInModelSpecific() {
-        // seven_day outpacing does NOT pull in seven_day_sonnet
-        let allModels = entry(key: "seven_day", utilization: 65, resetsIn: 604_800 * 0.4)
-        let sonnet = entry(key: "seven_day_sonnet", utilization: 30, resetsIn: 604_800 * 0.7)
+        // seven_day qualifies, seven_day_sonnet does not → sonnet should not be added
+        let allModels = entry(key: "seven_day", utilization: 50, resetsIn: 604_800 * 0.5) // projected=100, shows
+        let sonnet = entry(key: "seven_day_sonnet", utilization: 20, resetsIn: 604_800 * 0.5) // projected=40, no show
         let keys = StatusBarRenderer.secondaryWindowKeys(from: [allModels, sonnet])
         #expect(keys.contains("seven_day"))
         #expect(!keys.contains("seven_day_sonnet"))
     }
 
     @Test func multipleModelSpecificPullInSameAllModels() {
-        let allModels = entry(key: "seven_day", utilization: 30, resetsIn: 604_800 * 0.7)
-        let sonnet = entry(key: "seven_day_sonnet", utilization: 65, resetsIn: 604_800 * 0.4)
-        let opus = entry(key: "seven_day_opus", utilization: 70, resetsIn: 604_800 * 0.4)
+        let allModels = entry(key: "seven_day", utilization: 20, resetsIn: 604_800 * 0.5) // projected=40, no show alone
+        let sonnet = entry(key: "seven_day_sonnet", utilization: 50, resetsIn: 604_800 * 0.5) // projected=100, shows
+        let opus = entry(key: "seven_day_opus", utilization: 50, resetsIn: 604_800 * 0.5) // projected=100, shows
         let keys = StatusBarRenderer.secondaryWindowKeys(from: [allModels, sonnet, opus])
         #expect(keys.contains("seven_day"))
         #expect(keys.contains("seven_day_sonnet"))
@@ -69,8 +69,8 @@ import Foundation
     }
 
     @Test func noAllModelsWindowAvailableForPullIn() {
-        // Model-specific outpacing but no matching all-models window in the collection
-        let sonnet = entry(key: "seven_day_sonnet", utilization: 65, resetsIn: 604_800 * 0.4)
+        // Model-specific qualifies but no matching all-models window in the collection
+        let sonnet = entry(key: "seven_day_sonnet", utilization: 50, resetsIn: 604_800 * 0.5) // projected=100, shows
         let keys = StatusBarRenderer.secondaryWindowKeys(from: [sonnet])
         #expect(keys.contains("seven_day_sonnet"))
         #expect(keys.count == 1) // no all-models to pull in

@@ -49,7 +49,7 @@ struct FormatIntervalTests {
         // These are the actual intervals the app uses
         #expect(Formatting.formatInterval(Constants.Polling.minInterval) == "24s")
         #expect(Formatting.formatInterval(Constants.Polling.baseInterval) == "1m")
-        #expect(Formatting.formatInterval(Constants.Polling.criticalFloor) == "2m")
-        #expect(Formatting.formatInterval(Constants.Polling.maxInterval) == "10m")
+        #expect(Formatting.formatInterval(120) == "2m")
+        #expect(Formatting.formatInterval(600) == "10m")
     }
 }

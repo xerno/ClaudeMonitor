@@ -16,55 +16,53 @@ struct UsageStyleTests {
         )
     }
 
+    // windowDuration=1000, timeRemaining=500 (50% remaining), timeElapsed=500
+    // impliedRate = utilization / 500, projected = utilization + rate * 500 = utilization * 2
+
     @Test func styleNormal() {
-        let s = style(utilization: 30, timeRemainingPercent: 70)
+        // 10% used, 50% remaining → projected = 10 + (10/500)*500 = 20 → normal, not bold
+        let s = style(utilization: 10, timeRemainingPercent: 50)
         #expect(s.level == .normal)
         #expect(!s.isBold)
     }
 
-    @Test func styleBoldByFixedThreshold() {
-        // 55% used, 50% time remaining (50% elapsed) — bold by fixed (≥50), not orange (55 < 70)
-        let s = style(utilization: 55, timeRemainingPercent: 50)
+    @Test func styleBoldByProjection() {
+        // 40% used, 50% remaining → projected = 40 + (40/500)*500 = 80 → bold (≥80)
+        let s = style(utilization: 40, timeRemainingPercent: 50)
         #expect(s.level == .normal)
         #expect(s.isBold)
     }
 
-    @Test func styleBoldByTimeRule() {
-        // 45% used, 60% time remaining (40% elapsed) — projected 112%, outpacing
-        let s = style(utilization: 45, timeRemainingPercent: 60)
-        #expect(s.level == .normal)
-        #expect(s.isBold)
-    }
-
-    @Test func styleOrangeByFixedThreshold() {
-        // 72% used, 50% time remaining (50% elapsed) — orange by fixed (≥70), not red (72 < 85)
-        let s = style(utilization: 72, timeRemainingPercent: 50)
+    @Test func styleWarningByProjection() {
+        // 50% used, 50% remaining → projected = 50 + (50/500)*500 = 100 → warning (≥100)
+        let s = style(utilization: 50, timeRemainingPercent: 50)
         #expect(s.level == .warning)
         #expect(s.isBold)
     }
 
-    @Test func styleOrangeByTimeRule() {
-        // 65% used, 60% time remaining (40% elapsed) — 65 > 40+20, projected 162%
-        let s = style(utilization: 65, timeRemainingPercent: 60)
-        #expect(s.level == .warning)
-        #expect(s.isBold)
-    }
-
-    @Test func styleRedByFixedThreshold() {
-        let s = style(utilization: 85, timeRemainingPercent: 80)
+    @Test func styleCriticalByProjection() {
+        // 60% used, 50% remaining → projected = 60 + (60/500)*500 = 120 → critical (≥120)
+        let s = style(utilization: 60, timeRemainingPercent: 50)
         #expect(s.level == .critical)
         #expect(s.isBold)
     }
 
-    @Test func styleRedByTimeRule() {
-        // 78% used, 60% time remaining (40% elapsed) — 78 > 40+35, projected 195%
+    @Test func styleRedByFixedThreshold() {
+        // utilization ≥ 100 → always critical regardless of projection
+        let s = style(utilization: 100, timeRemainingPercent: 80)
+        #expect(s.level == .critical)
+        #expect(s.isBold)
+    }
+
+    @Test func styleRedByHighUtilization() {
+        // 78% used, 60% remaining → projected = 78 + (78/400)*600 = 78+117 = 195 → critical
         let s = style(utilization: 78, timeRemainingPercent: 60)
         #expect(s.level == .critical)
         #expect(s.isBold)
     }
 
-    @Test func styleNotBoldWhenPlentyOfTime() {
-        // 15% used, 80% time remaining (20% elapsed) — projected 75%, comfortable
+    @Test func styleNotBoldWhenLowProjection() {
+        // 15% used, 80% remaining → elapsed=200, rate=0.075%/s, projected=15+0.075*800=75 → not bold
         let s = style(utilization: 15, timeRemainingPercent: 80)
         #expect(s.level == .normal)
         #expect(!s.isBold)
@@ -89,28 +87,24 @@ struct UsageStyleTests {
         )
     }
 
-    @Test func shouldShowLowUtilizationPlentyOfTime() {
-        #expect(!shouldShow(utilization: 30, timeRemainingPercent: 70))
+    @Test func shouldShowLowProjection() {
+        // 10% used, 50% remaining → projected = 20 → no show (< 80)
+        #expect(!shouldShow(utilization: 10, timeRemainingPercent: 50))
     }
 
-    @Test func shouldShowHighUtilizationNotOutpacing() {
-        // 55% used, 40% time remaining (60% elapsed) — bold (fixed) but NOT outpacing (55 < 60)
-        #expect(!shouldShow(utilization: 55, timeRemainingPercent: 40))
+    @Test func shouldShowProjectionAtBoldThreshold() {
+        // 40% used, 50% remaining → projected = 80 → show (≥ 80)
+        #expect(shouldShow(utilization: 40, timeRemainingPercent: 50))
     }
 
-    @Test func shouldShowLowUtilizationLittleTime() {
-        // 20% used, 10% time remaining (90% elapsed) — not outpacing (20 < 90), no show
-        #expect(!shouldShow(utilization: 20, timeRemainingPercent: 10))
-    }
-
-    @Test func shouldShowHighUtilizationOutpacingTime() {
-        // 65% used, 40% time remaining (60% elapsed) — bold AND outpacing (65 > 60)
+    @Test func shouldShowHighProjection() {
+        // 65% used, 40% remaining → elapsed=600, rate=65/600, projected=65+(65/600)*400 ≈ 108 → show
         #expect(shouldShow(utilization: 65, timeRemainingPercent: 40))
     }
 
-    @Test func shouldShowExactlyAtBoundary() {
-        // 50% used, 50% time remaining (50% elapsed) — bold (fixed) but NOT outpacing (equal)
-        #expect(!shouldShow(utilization: 50, timeRemainingPercent: 50))
+    @Test func shouldShowLowUtilizationLittleTime() {
+        // 20% used, 10% remaining (90% elapsed) → elapsed=900, rate=20/900, projected=20+(20/900)*100≈22 → no show
+        #expect(!shouldShow(utilization: 20, timeRemainingPercent: 10))
     }
 
     @Test func shouldShowPastResetDate() {

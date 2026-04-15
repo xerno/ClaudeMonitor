@@ -209,9 +209,9 @@ import AppKit
     }
 
     @Test func usageTitleRegularWhenNotOutpacing() {
-        // 20% used, 80% time remaining → not bold
+        // 10% used, 80% remaining (duration=18000) → elapsed=3600, rate=10/3600, projected=10+(10/3600)*14400=50 → normal, not bold
         let usage = UsageResponse(entries: [
-            .make(key: "five_hour", utilization: 20, resetsAt: Date().addingTimeInterval(18000 * 0.8)),
+            .make(key: "five_hour", utilization: 10, resetsAt: Date().addingTimeInterval(18000 * 0.8)),
         ])
         let title = StatusBarRenderer.usageTitle(usage: usage)
         let font = title.attribute(.font, at: 0, effectiveRange: nil) as? NSFont
@@ -220,9 +220,9 @@ import AppKit
     }
 
     @Test func usageTitleCriticalUsesRedColor() {
-        // 85% utilization → critical → red
+        // 65% used, 50% remaining (duration=18000) → projected = 65+(65/9000)*9000 = 130 → critical → red
         let usage = UsageResponse(entries: [
-            .make(key: "five_hour", utilization: 85, resetsAt: Date().addingTimeInterval(3600)),
+            .make(key: "five_hour", utilization: 65, resetsAt: Date().addingTimeInterval(9000)),
         ])
         let title = StatusBarRenderer.usageTitle(usage: usage)
         let color = title.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor
@@ -230,9 +230,9 @@ import AppKit
     }
 
     @Test func usageTitleWarningUsesOrangeColor() {
-        // 72% utilization, 40% elapsed → orange (72 >= 70, but 72 < 75 so not red by time rule)
+        // 55% used, 50% remaining (duration=18000) → projected = 55+(55/9000)*9000 = 110 → warning → orange
         let usage = UsageResponse(entries: [
-            .make(key: "five_hour", utilization: 72, resetsAt: Date().addingTimeInterval(18000 * 0.6)),
+            .make(key: "five_hour", utilization: 55, resetsAt: Date().addingTimeInterval(9000)),
         ])
         let title = StatusBarRenderer.usageTitle(usage: usage)
         let color = title.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor

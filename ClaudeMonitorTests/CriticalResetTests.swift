@@ -10,13 +10,16 @@ struct CriticalResetTests {
         let now = Date()
         let duration: TimeInterval = 18000
 
+        // 65% used, 50% remaining → projected = 65 + (65/9000)*9000 = 130 → critical
+        // current resetsAt = prevReset + duration (new window after reset), difference = 18000 > 9000 ✓
+        let prevReset = now.addingTimeInterval(9000)
         let previous = UsageResponse(entries: [
             WindowEntry(key: "five_hour", duration: duration, durationLabel: "5h", modelScope: nil,
-                        window: UsageWindow(utilization: 85, resetsAt: now.addingTimeInterval(1000)))
+                        window: UsageWindow(utilization: 65, resetsAt: prevReset))
         ])
         let current = UsageResponse(entries: [
             WindowEntry(key: "five_hour", duration: duration, durationLabel: "5h", modelScope: nil,
-                        window: UsageWindow(utilization: 5, resetsAt: now.addingTimeInterval(duration)))
+                        window: UsageWindow(utilization: 5, resetsAt: prevReset.addingTimeInterval(duration)))
         ])
 
         #expect(Formatting.detectCriticalReset(previous: previous, current: current))
@@ -85,26 +88,30 @@ struct CriticalResetTests {
         let fiveHour: TimeInterval = 18000
         let sevenDay: TimeInterval = 604_800
 
+        // five_hour: 30% used, not critical.
+        // seven_day: 65% used, 50% remaining → projected=130% → critical
+        // current seven_day resetsAt = prevReset + sevenDay, difference = sevenDay > sevenDay/2 ✓
+        let sevenDayPrevReset = now.addingTimeInterval(sevenDay * 0.5)
         let previous = UsageResponse(entries: [
             WindowEntry(key: "five_hour", duration: fiveHour, durationLabel: "5h", modelScope: nil,
                         window: UsageWindow(utilization: 30, resetsAt: now.addingTimeInterval(1000))),
             WindowEntry(key: "seven_day", duration: sevenDay, durationLabel: "7d", modelScope: nil,
-                        window: UsageWindow(utilization: 85, resetsAt: now.addingTimeInterval(10000))),
+                        window: UsageWindow(utilization: 65, resetsAt: sevenDayPrevReset)),
         ])
         let current = UsageResponse(entries: [
             WindowEntry(key: "five_hour", duration: fiveHour, durationLabel: "5h", modelScope: nil,
                         window: UsageWindow(utilization: 28, resetsAt: now.addingTimeInterval(940))),
             WindowEntry(key: "seven_day", duration: sevenDay, durationLabel: "7d", modelScope: nil,
-                        window: UsageWindow(utilization: 5, resetsAt: now.addingTimeInterval(sevenDay))),
+                        window: UsageWindow(utilization: 5, resetsAt: sevenDayPrevReset.addingTimeInterval(sevenDay))),
         ])
 
         #expect(Formatting.detectCriticalReset(previous: previous, current: current))
     }
 
-    @Test func criticalByTimeRuleAlsoTriggersReset() {
+    @Test func criticalByProjectionAlsoTriggersReset() {
         let now = Date()
         let duration: TimeInterval = 18000
-        // 78% used, 60% remaining (40% elapsed) → 78 > 40+35 → critical by time rule
+        // 78% used, 60% remaining → elapsed=40%, rate=78/7200, projected=78+(78/7200)*10800=195% → critical
         let previousResets = now.addingTimeInterval(duration * 0.6)
 
         let previous = UsageResponse(entries: [
@@ -152,20 +159,23 @@ struct CriticalResetTests {
 
     @Test func hasAnyCriticalWindowWarningOnly() {
         let now = Date()
+        let duration: TimeInterval = 18000
+        // 50% used, 50% remaining → projected=100% → warning (not critical, < 120%)
         let usage = UsageResponse(entries: [
-            .make(key: "five_hour", utilization: 72, resetsAt: now.addingTimeInterval(10000)),
+            WindowEntry(key: "five_hour", duration: duration, durationLabel: "5h", modelScope: nil,
+                        window: UsageWindow(utilization: 50, resetsAt: now.addingTimeInterval(9000))),
             .make(key: "seven_day", utilization: 18, resetsAt: now.addingTimeInterval(400_000)),
         ])
         #expect(!Formatting.hasAnyCriticalWindow(usage))
     }
 
-    @Test func hasAnyCriticalByTimeRule() {
+    @Test func hasAnyCriticalByProjection() {
         let now = Date()
         let duration: TimeInterval = 18000
-        // 78% used, 60% remaining → critical by time rule
+        // 65% used, 50% remaining → projected = 65 + (65/9000)*9000 = 130% → critical
         let usage = UsageResponse(entries: [
             WindowEntry(key: "five_hour", duration: duration, durationLabel: "5h", modelScope: nil,
-                        window: UsageWindow(utilization: 78, resetsAt: now.addingTimeInterval(duration * 0.6)))
+                        window: UsageWindow(utilization: 65, resetsAt: now.addingTimeInterval(9000)))
         ])
         #expect(Formatting.hasAnyCriticalWindow(usage))
     }
