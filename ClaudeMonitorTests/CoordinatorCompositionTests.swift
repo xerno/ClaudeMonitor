@@ -171,13 +171,13 @@ import Foundation
     /// Verifies that detectAndHandleReset for one key does not clear samples for a different key.
     @Test func detectAndHandleResetDoesNotAffectOtherKeys() async {
         let history = UsageHistory()
-        // archiveWindow() writes to the archive directory; clearAll() only cleans live files.
-        // Delete the archive directory too so disk state is fully cleaned up after this test.
-        let archiveDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-            .appendingPathComponent("ClaudeMonitor/usage/archive")
+        let testOrgId = "test-reset-\(UUID().uuidString)"
+        history.switchOrganization(testOrgId)
         defer {
             history.clearAll()
-            try? FileManager.default.removeItem(at: archiveDir)
+            let orgDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+                .appendingPathComponent("ClaudeMonitor/usage/\(testOrgId)")
+            try? FileManager.default.removeItem(at: orgDir)
         }
 
         let now = Date()

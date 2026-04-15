@@ -105,11 +105,8 @@ import Foundation
     ///
     /// Setup: stable at 20% for 66 minutes via 67 record() calls spaced 60s apart.
     ///   timeSinceLastChange ≈ 66 * 60 = 3960s  (> cooldownEnd=3600s → t=1 → maxIdleInterval)
-    @Test func cooldownViaUsageHistoryRecordAndSamplesPath() async throws {
+    @Test func cooldownViaUsageHistoryRecordAndSamplesPath() throws {
         let history = UsageHistory()
-        // Cleanup first to avoid interference from any stale disk state.
-        history.clearAll()
-        try? await Task.sleep(for: .milliseconds(200))
 
         let now = Date()
         let resetsAt = now.addingTimeInterval(3600)
@@ -153,9 +150,6 @@ import Foundation
         #expect(scheduler.effectivePollingInterval > Constants.Polling.baseInterval,
                 "cooldown interval must exceed baseInterval=60s")
 
-        // Cleanup — required to avoid contaminating production data on disk.
-        history.clearAll()
-        try? await Task.sleep(for: .milliseconds(200))
     }
 
     // MARK: - Test 4: Credential swap clears windowAnalyses
