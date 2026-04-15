@@ -30,7 +30,7 @@ enum WindowKeyParser {
     private static let internalWindowMarkers = ["omelette"]
 
     static func isInternalWindow(_ key: String) -> Bool {
-        internalWindowMarkers.contains { key.localizedCaseInsensitiveContains($0) }
+        internalWindowMarkers.contains { key.contains($0) }
     }
 
     private static let numberWords: [String: Int] = [
@@ -42,10 +42,7 @@ enum WindowKeyParser {
         "fifty": 50, "sixty": 60, "seventy": 70, "eighty": 80, "ninety": 90,
     ]
 
-    private static let compoundTens: [String: Int] = [
-        "twenty": 20, "thirty": 30, "forty": 40, "fifty": 50,
-        "sixty": 60, "seventy": 70, "eighty": 80, "ninety": 90,
-    ]
+    private static let compoundTens: [String: Int] = numberWords.filter { $0.value >= 20 && $0.value % 10 == 0 }
 
     private static let timeUnits: [String: (seconds: TimeInterval, suffix: String)] = [
         "minute": (60, "m"), "hour": (3600, "h"), "day": (86_400, "d"), "week": (604_800, "w"),

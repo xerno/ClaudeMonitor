@@ -6,6 +6,7 @@ protocol SystemIdleProviding: Sendable {
 }
 
 final class SystemIdleService: SystemIdleProviding, @unchecked Sendable {
+    // Safe: hidEntry is write-once in init, read-only in idleTime
     private let hidEntry: io_registry_entry_t
 
     init() {

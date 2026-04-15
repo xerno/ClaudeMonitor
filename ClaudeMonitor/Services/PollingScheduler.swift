@@ -21,6 +21,18 @@ struct PollingScheduler {
             || usageState.consecutiveFailures >= Constants.Retry.failureThreshold {
             let statusRetry = retryInterval(for: statusState)
             let usageRetry = retryInterval(for: usageState)
+            // When both failures are non-retryable (e.g. authFailure/permanent), both retry
+            // intervals are nil AND both services are at the failure threshold. In that case,
+            // avoid polling faster than baseInterval, regardless of any aggressive
+            // effectivePollingInterval set before the failures began.
+            // Note: retryInterval(for:) also returns nil when a service is below the threshold
+            // (healthy), so we must check consecutiveFailures explicitly to avoid conflating a
+            // healthy service with a non-retryable failure.
+            let statusNonRetryable = statusState.consecutiveFailures >= Constants.Retry.failureThreshold && statusRetry == nil
+            let usageNonRetryable = usageState.consecutiveFailures >= Constants.Retry.failureThreshold && usageRetry == nil
+            if statusNonRetryable && usageNonRetryable {
+                return max(effectivePollingInterval, Constants.Polling.baseInterval)
+            }
             return min(
                 statusRetry ?? effectivePollingInterval,
                 usageRetry ?? effectivePollingInterval

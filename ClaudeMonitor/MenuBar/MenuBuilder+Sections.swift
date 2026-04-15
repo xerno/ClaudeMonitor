@@ -11,27 +11,27 @@ extension MenuBuilder {
         return item
     }
 
-    static func usageItems(state: MonitorState, target: (any MenuActions)?) -> [NSMenuItem] {
+    static func usageItems(state: MonitorState, target: (any MenuActions)?) -> ([NSMenuItem], UsageCache) {
         if !state.hasCredentials {
-            return [staticItem(String(localized: "menu.credentials.configure", bundle: .module), tag: usagePlaceholderTag)]
+            return ([staticItem(String(localized: "menu.credentials.configure", bundle: .module), tag: usagePlaceholderTag)], UsageCache())
         }
         if let error = state.usageError {
-            return [staticItem("  ⚠︎  \(error)", tag: usagePlaceholderTag)]
+            return ([staticItem("  ⚠︎  \(error)", tag: usagePlaceholderTag)], UsageCache())
         }
         guard let usage = state.currentUsage else {
-            return [staticItem(String(localized: "menu.loading", bundle: .module), tag: usagePlaceholderTag)]
+            return ([staticItem(String(localized: "menu.loading", bundle: .module), tag: usagePlaceholderTag)], UsageCache())
         }
         let labels = usageLabels(usage: usage)
         let style = usageParagraphStyle(labelColumnWidth: maxLabelWidth(labels: labels.map(\.label)))
-        cachedLabels = labels
-        cachedStyle = style
+        let prefixes = buildPrefixes(labels: labels, style: style)
+        let cache = UsageCache(labels: labels, style: style, prefixes: prefixes)
 
         var items: [NSMenuItem] = []
         for (tag, label, window) in labels {
             guard let window else { continue }
             items.append(usageItem(label: label, window: window, tag: tag, style: style, target: target))
         }
-        return items
+        return (items, cache)
     }
 
     static func serviceItems(state: MonitorState) -> [NSMenuItem] {
@@ -157,6 +157,36 @@ extension MenuBuilder {
         labels.map { label in
             NSAttributedString(string: "  \(label)  ", attributes: [.font: menuFont]).size().width
         }.max() ?? 0
+    }
+
+    // Appends the current countdown time to a cached prefix attributed string.
+    // Called by refreshTimes; lives here so boldMenuFont (private to this file) is in scope.
+    static func appendTime(to prefix: NSAttributedString, resetsAt: Date, style: NSParagraphStyle) -> NSAttributedString {
+        let text = NSMutableAttributedString(attributedString: prefix)
+        text.append(NSAttributedString(
+            string: Formatting.timeUntil(resetsAt),
+            attributes: [.font: boldMenuFont, .paragraphStyle: style]
+        ))
+        return text
+    }
+
+    // Builds prefix attributed strings (everything before the countdown time) for items that have
+    // a resetsAt date. Stored in UsageCache so refreshTimes only appends the updated time.
+    static func buildPrefixes(
+        labels: [(tag: Int, label: String, window: UsageWindow?)],
+        style: NSParagraphStyle
+    ) -> [Int: NSAttributedString] {
+        var prefixes: [Int: NSAttributedString] = [:]
+        let attrs: [NSAttributedString.Key: Any] = [.font: menuFont, .paragraphStyle: style]
+        for (tag, label, window) in labels {
+            guard let window, window.resetsAt != nil else { continue }
+            let bar = Formatting.progressBar(percent: window.utilization)
+            prefixes[tag] = NSAttributedString(
+                string: "  \(label)  \t\(bar)  \(window.utilization)%\t \(String(localized: "menu.resets.prefix", bundle: .module))",
+                attributes: attrs
+            )
+        }
+        return prefixes
     }
 
     static func usageAttributedTitle(label: String, window: UsageWindow, style: NSParagraphStyle) -> NSAttributedString {

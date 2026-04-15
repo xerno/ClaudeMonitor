@@ -58,6 +58,8 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
             saveButton.topAnchor.constraint(equalTo: resetSoundCheckbox.bottomAnchor, constant: 14),
             saveButton.bottomAnchor.constraint(lessThanOrEqualTo: contentView.bottomAnchor, constant: -16),
         ])
+
+        loadSavedValues()
     }
 
     private func loadSavedValues() {
@@ -87,7 +89,6 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate {
     }
 
     override func showWindow(_ sender: Any?) {
-        loadSavedValues()
         super.showWindow(sender)
         WindowManager.bringToFront(window)
     }

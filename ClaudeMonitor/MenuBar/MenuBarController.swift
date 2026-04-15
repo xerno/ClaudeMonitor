@@ -10,6 +10,7 @@ final class MenuBarController: NSObject, MenuActions {
     var countdownTask: Task<Void, Never>?
     var animationTask: Task<Void, Never>?
     var isMenuOpen = false
+    var usageCache = UsageCache()
 
     override init() {
         super.init()
@@ -53,17 +54,18 @@ final class MenuBarController: NSObject, MenuActions {
         let state = coordinator.monitorState
         if let button = statusItem.button {
             StatusBarRenderer.updateIcon(
-                button: button, status: coordinator.currentStatus,
+                button: button, status: state.currentStatus,
                 hasRefreshWarning: coordinator.scheduler.hasRefreshWarning
             )
             StatusBarRenderer.updateText(
-                button: button, usage: coordinator.currentUsage,
-                hasCredentials: coordinator.hasCredentials,
-                isStale: coordinator.scheduler.isUsageStale
+                button: button, usage: state.currentUsage,
+                hasCredentials: state.hasCredentials,
+                isStale: state.isUsageStale,
+                windowAnalyses: state.windowAnalyses
             )
         }
         if let menu = statusItem.menu {
-            MenuBuilder.populate(menu: menu, state: state, target: self)
+            usageCache = MenuBuilder.populate(menu: menu, state: state, target: self)
         }
         updateCountdownState()
     }
@@ -72,7 +74,7 @@ final class MenuBarController: NSObject, MenuActions {
 
     private func rebuildMenu() {
         guard let menu = statusItem.menu else { return }
-        MenuBuilder.populate(menu: menu, state: coordinator.monitorState, target: self)
+        usageCache = MenuBuilder.populate(menu: menu, state: coordinator.monitorState, target: self)
     }
 
     // MARK: - MenuActions

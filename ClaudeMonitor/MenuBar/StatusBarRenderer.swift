@@ -55,7 +55,8 @@ enum StatusBarRenderer {
         button: NSStatusBarButton,
         usage: UsageResponse?,
         hasCredentials: Bool,
-        isStale: Bool
+        isStale: Bool,
+        windowAnalyses: [WindowAnalysis] = []
     ) {
         if !hasCredentials {
             button.attributedTitle = noCredentialsTitle()
@@ -69,7 +70,7 @@ enum StatusBarRenderer {
             button.attributedTitle = blockedTitle(blockedUntil: blockedUntil)
             return
         }
-        button.attributedTitle = usageTitle(usage: usage)
+        button.attributedTitle = usageTitle(usage: usage, windowAnalyses: windowAnalyses)
     }
 
     static func noCredentialsTitle() -> NSAttributedString {
@@ -101,36 +102,48 @@ enum StatusBarRenderer {
         return result
     }
 
-    static func usageTitle(usage: UsageResponse) -> NSAttributedString {
+    static func usageTitle(usage: UsageResponse, windowAnalyses: [WindowAnalysis] = []) -> NSAttributedString {
         let parts = NSMutableAttributedString()
+        let analysisByKey = Dictionary(uniqueKeysWithValues: windowAnalyses.map { ($0.entry.storageIdentity, $0) })
 
         guard let first = usage.entries.first else { return NSAttributedString() }
 
-        appendWindow(first.window, duration: first.duration,
-                     into: parts, regularFont: regularFont, boldFont: boldFont)
+        appendWindow(first.window, duration: first.duration, key: first.storageIdentity,
+                     analysisByKey: analysisByKey,
+                     into: parts)
 
         let rest = usage.entries.dropFirst()
-        let visible = secondaryWindowKeys(from: rest)
-        for entry in rest where visible.contains(entry.key) {
-            appendWindow(entry.window, duration: entry.duration,
-                         into: parts, regularFont: regularFont, boldFont: boldFont)
+        let visible = secondaryWindowKeys(from: rest, analysisByKey: analysisByKey)
+        for entry in rest where visible.contains(entry.storageIdentity) {
+            appendWindow(entry.window, duration: entry.duration, key: entry.storageIdentity,
+                         analysisByKey: analysisByKey,
+                         into: parts)
         }
 
         return parts
     }
 
-    static func secondaryWindowKeys(from entries: some Collection<WindowEntry>) -> Set<String> {
+    static func secondaryWindowKeys(
+        from entries: some Collection<WindowEntry>,
+        analysisByKey: [String: WindowAnalysis] = [:]
+    ) -> Set<String> {
         var keys = Set<String>()
         for entry in entries {
-            guard Formatting.shouldShowInMenuBar(
-                utilization: entry.window.utilization,
-                resetsAt: entry.window.resetsAt,
-                windowDuration: entry.duration
-            ) else { continue }
-            keys.insert(entry.key)
+            let shouldShow: Bool
+            if let analysis = analysisByKey[entry.storageIdentity] {
+                shouldShow = Formatting.shouldShowInMenuBar(projectedAtReset: analysis.projectedAtReset)
+            } else {
+                shouldShow = Formatting.shouldShowInMenuBar(
+                    utilization: entry.window.utilization,
+                    resetsAt: entry.window.resetsAt,
+                    windowDuration: entry.duration
+                )
+            }
+            guard shouldShow else { continue }
+            keys.insert(entry.storageIdentity)
             if entry.modelScope != nil,
                let allModels = entries.first(where: { $0.durationLabel == entry.durationLabel && $0.modelScope == nil }) {
-                keys.insert(allModels.key)
+                keys.insert(allModels.storageIdentity)
             }
         }
         return keys
@@ -139,20 +152,25 @@ enum StatusBarRenderer {
     private static func appendWindow(
         _ window: UsageWindow,
         duration: TimeInterval,
-        into parts: NSMutableAttributedString,
-        regularFont: NSFont,
-        boldFont: NSFont
+        key: String,
+        analysisByKey: [String: WindowAnalysis],
+        into parts: NSMutableAttributedString
     ) {
         if parts.length > 0 {
             parts.append(NSAttributedString(string: " | ", attributes: [
                 .foregroundColor: NSColor.secondaryLabelColor, .font: regularFont,
             ]))
         }
-        let style = Formatting.usageStyle(
-            utilization: window.utilization,
-            resetsAt: window.resetsAt,
-            windowDuration: duration
-        )
+        let style: Formatting.UsageStyle
+        if let analysis = analysisByKey[key] {
+            style = analysis.style
+        } else {
+            style = Formatting.usageStyle(
+                utilization: window.utilization,
+                resetsAt: window.resetsAt,
+                windowDuration: duration
+            )
+        }
         parts.append(NSAttributedString(string: "\(window.utilization)%", attributes: [
             .foregroundColor: nsColor(for: style.level),
             .font: style.isBold ? boldFont : regularFont,

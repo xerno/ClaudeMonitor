@@ -77,6 +77,15 @@ enum DemoData {
         (-129600, 85)
     ]
 
+    // Scenario 3: Moderate 7d Sonnet window (52%)
+    private static let samples_s3_7d_sonnet: [(TimeInterval, Int)] = [
+        (-604800, 0), (-585000, 2), (-565200, 4), (-545400, 7), (-525600, 9), (-505800, 12),
+        (-486000, 14), (-466200, 17), (-446400, 21), (-426600, 23), (-406800, 26), (-387000, 28),
+        (-367200, 30), (-347400, 35), (-327600, 37), (-307800, 41), (-288000, 43), (-268200, 46),
+        (-248400, 47), (-228600, 50), (-208800, 51), (-189000, 53), (-169200, 54), (-149400, 57),
+        (-129600, 52)
+    ]
+
     // Scenario 4: Exhausted — hit 100% ~30min ago (5h window, 100%)
     private static let samples_s4_5h: [(TimeInterval, Int)] = [
         (-18000, 1), (-17632, 4), (-17264, 10), (-16896, 15), (-16528, 16), (-16160, 23),
@@ -180,11 +189,12 @@ enum DemoData {
         let usage = UsageResponse(entries: [
             .make(key: "five_hour", utilization: 91, resetsAt: resetsAt5h),
             .make(key: "seven_day", utilization: 85, resetsAt: resetsAt7d),
-            .make(key: "seven_day_sonnet", utilization: 0, resetsAt: nil),
+            .make(key: "seven_day_sonnet", utilization: 52, resetsAt: resetsAt7d),
         ])
         let samples = [
             "five_hour": makeSamples(samples_s3_5h, resetsAt: resetsAt5h),
             "seven_day": makeSamples(samples_s3_7d, resetsAt: resetsAt7d),
+            "seven_day_sonnet": makeSamples(samples_s3_7d_sonnet, resetsAt: resetsAt7d),
         ]
         let status = StatusSummary(
             components: allOperationalComponents,

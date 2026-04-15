@@ -65,6 +65,57 @@ struct PollIntervalTests {
         #expect(scheduler.nextPollInterval(usage: nil) == Constants.Polling.baseInterval)
     }
 
+    @Test func nextPollIntervalBothNonRetryableFailuresFlooredAtBase() {
+        var scheduler = PollingScheduler()
+        // Drive effectivePollingInterval down to minInterval (24s) via approaching-limit logic.
+        // timeToLimit: 5s → effectivePollingInterval = max(24, 5/5) = 24s (below baseInterval).
+        let entry = WindowEntry(key: "five_hour", duration: 18000, durationLabel: "5h", modelScope: nil,
+                                window: UsageWindow(utilization: 95, resetsAt: Date().addingTimeInterval(3600)))
+        let nearLimitAnalysis = WindowAnalysis(
+            entry: entry, samples: [], consumptionRate: 0, projectedAtReset: 130,
+            timeToLimit: 5, rateSource: .insufficient,
+            style: Formatting.UsageStyle(level: .critical, isBold: true),
+            segments: [], timeSinceLastChange: nil
+        )
+        scheduler.adjustPollingRate(windowAnalyses: [nearLimitAnalysis])
+        // Confirm effectivePollingInterval is below baseInterval
+        assert(scheduler.effectivePollingInterval < Constants.Polling.baseInterval)
+
+        // Now both services hit non-retryable failures (authFailure + permanent)
+        for _ in 0..<Constants.Retry.failureThreshold {
+            scheduler.recordUsageFailure(category: .authFailure)
+            scheduler.recordStatusFailure(category: .permanent)
+        }
+
+        // Must not poll faster than baseInterval, even though effectivePollingInterval is 24s
+        #expect(scheduler.nextPollInterval(usage: nil) >= Constants.Polling.baseInterval)
+    }
+
+    @Test func nextPollIntervalMixedHealthyAndAuthFailedDoesNotFloor() {
+        var scheduler = PollingScheduler()
+        // Drive effectivePollingInterval below baseInterval via approaching-limit logic.
+        let entry = WindowEntry(key: "five_hour", duration: 18000, durationLabel: "5h", modelScope: nil,
+                                window: UsageWindow(utilization: 95, resetsAt: Date().addingTimeInterval(3600)))
+        let nearLimitAnalysis = WindowAnalysis(
+            entry: entry, samples: [], consumptionRate: 0, projectedAtReset: 130,
+            timeToLimit: 5, rateSource: .insufficient,
+            style: Formatting.UsageStyle(level: .critical, isBold: true),
+            segments: [], timeSinceLastChange: nil
+        )
+        scheduler.adjustPollingRate(windowAnalyses: [nearLimitAnalysis])
+        assert(scheduler.effectivePollingInterval < Constants.Polling.baseInterval)
+
+        // Only usage hits the threshold with a non-retryable auth failure; status is healthy (0 failures).
+        for _ in 0..<Constants.Retry.failureThreshold {
+            scheduler.recordUsageFailure(category: .authFailure)
+        }
+
+        // Must NOT floor at baseInterval — only usage is non-retryable, status is healthy.
+        // retryInterval(for: usageState) == nil (non-retryable), retryInterval(for: statusState) == nil (below threshold).
+        // The fix ensures we use effectivePollingInterval (the aggressive 24s) rather than baseInterval.
+        #expect(scheduler.nextPollInterval(usage: nil) < Constants.Polling.baseInterval)
+    }
+
     @Test func nextPollIntervalPicksShorterOfTwoBackoffs() {
         var scheduler = PollingScheduler()
         // Status: 2 transient failures → backoff 40

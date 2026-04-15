@@ -1,5 +1,12 @@
 import AppKit
 
+@MainActor
+struct UsageCache {
+    var labels: [(tag: Int, label: String, window: UsageWindow?)] = []
+    var style: NSParagraphStyle = NSParagraphStyle()
+    var prefixes: [Int: NSAttributedString] = [:]
+}
+
 @MainActor @objc protocol MenuActions {
     func didSelectRefresh()
     func openIncident(_ sender: NSMenuItem)
@@ -43,39 +50,37 @@ enum MenuBuilder {
 
     // MARK: - Public API
 
+    @discardableResult
     static func build(state: MonitorState, target: any MenuActions) -> NSMenu {
         let menu = NSMenu()
         populate(menu: menu, state: state, target: target)
         return menu
     }
 
-    static func populate(menu: NSMenu, state: MonitorState, target: any MenuActions) {
-        let desired = buildDesiredItems(state: state, target: target)
+    @discardableResult
+    static func populate(menu: NSMenu, state: MonitorState, target: any MenuActions) -> UsageCache {
+        let (desired, cache) = buildDesiredItems(state: state, target: target)
         if menu.numberOfItems == 0 {
             for item in desired { menu.addItem(item) }
         } else {
             reconcile(menu: menu, desired: desired)
         }
         refreshGraph(in: menu, analyses: state.windowAnalyses)
+        return cache
     }
-
-    // MARK: - Layout cache (recomputed per data update, read by countdown loop)
-
-    static var cachedLabels: [(tag: Int, label: String, window: UsageWindow?)] = []
-    static var cachedStyle: NSParagraphStyle = NSParagraphStyle()
 
     // MARK: - Live Refresh (countdown loop)
 
-    static func refreshTimes(in menu: NSMenu, usage _: UsageResponse) {
-        let labels = cachedLabels
-        let style = cachedStyle
-        for (tag, label, window) in labels {
-            guard let window, let item = menu.item(withTag: tag) else { continue }
-            let attrTitle = usageAttributedTitle(label: label, window: window, style: style)
+    static func refreshTimes(in menu: NSMenu, cache: UsageCache) {
+        for (tag, _, window) in cache.labels {
+            guard let window, let resetsAt = window.resetsAt,
+                  let prefix = cache.prefixes[tag],
+                  let item = menu.item(withTag: tag) else { continue }
+            let text = appendTime(to: prefix, resetsAt: resetsAt, style: cache.style)
             if let rowView = item.view as? UsageRowView {
-                rowView.updateTitle(attrTitle)
+                rowView.updateTitle(text)
             } else {
-                item.attributedTitle = attrTitle
+                item.attributedTitle = text
             }
         }
     }
@@ -108,11 +113,12 @@ enum MenuBuilder {
 
     // MARK: - Desired Items
 
-    private static func buildDesiredItems(state: MonitorState, target: any MenuActions) -> [NSMenuItem] {
+    private static func buildDesiredItems(state: MonitorState, target: any MenuActions) -> ([NSMenuItem], UsageCache) {
         var items: [NSMenuItem] = []
 
         items.append(sectionHeader(String(localized: "menu.section.usage", bundle: .module), subtitle: "Claude Monitor", tag: usageSectionTag))
-        items.append(contentsOf: usageItems(state: state, target: target))
+        let (usageMenuItems, cache) = usageItems(state: state, target: target)
+        items.append(contentsOf: usageMenuItems)
         items.append(usageGraphPlaceholder())
         items.append(separator(tag: separatorAfterUsageTag))
 
@@ -130,7 +136,7 @@ enum MenuBuilder {
         items.append(separator(tag: separatorAfterServicesTag))
         items.append(contentsOf: controlItems(state: state, target: target))
 
-        return items
+        return (items, cache)
     }
 
     // MARK: - Reconcile

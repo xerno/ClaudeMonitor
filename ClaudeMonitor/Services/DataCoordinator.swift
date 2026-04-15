@@ -51,7 +51,8 @@ final class DataCoordinator {
             lastRefreshed: lastRefreshed,
             hasCredentials: hasCredentials,
             currentPollInterval: currentPollInterval,
-            windowAnalyses: windowAnalyses
+            windowAnalyses: windowAnalyses,
+            isUsageStale: scheduler.isUsageStale
         )
     }
 
@@ -115,8 +116,9 @@ final class DataCoordinator {
         if let newUsage = currentUsage {
             let now = Date()
             var anyReset = false
+            let previousByKey = Dictionary(uniqueKeysWithValues: usageBeforeRefresh?.entries.map { ($0.key, $0) } ?? [])
             for entry in newUsage.entries {
-                let previousEntry = usageBeforeRefresh?.entries.first { $0.key == entry.key }
+                let previousEntry = previousByKey[entry.key]
                 let didReset = usageHistory.detectAndHandleReset(
                     entry: entry,
                     newResetsAt: entry.window.resetsAt,

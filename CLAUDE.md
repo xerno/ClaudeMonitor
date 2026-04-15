@@ -54,8 +54,7 @@ ClaudeMonitor/
 │   ├── MenuBuilder+Sections.swift       — menu section builders + attributed titles
 │   ├── StatusBarRenderer.swift          — status bar icon + text rendering
 │   ├── Formatting.swift                 — timeUntil(), progressBar(), displayLabel()
-│   ├── Formatting+UsageAnalysis.swift   — usageStyle(), shouldShowInMenuBar(), blockingLimit(), detectCriticalReset()
-│   └── Formatting+Tooltip.swift         — buildTooltip()
+│   └── Formatting+UsageAnalysis.swift   — usageStyle(), shouldShowInMenuBar(), blockingLimit(), detectCriticalReset()
 └── Windows/
     ├── AboutWindowController.swift      — about window
     ├── SetupWindowController.swift      — first-run setup window
@@ -68,7 +67,7 @@ ClaudeMonitor/
 Key patterns:
 - **Constants enum** — all magic strings/numbers centralized in `Constants.*`
 - **MenuActions protocol** — `@objc` protocol decoupling menu actions from `MenuBarController`. MenuBuilder uses `#selector(MenuActions.*)` for type-safe target-action.
-- **MonitorState** — shared value type used by `Formatting.buildTooltip()` and `MenuBuilder.build()`, eliminating parameter duplication.
+- **MonitorState** — shared value type used by `MenuBuilder.build()` and `StatusBarRenderer`, eliminating parameter duplication.
 - **CredentialFormView** — reusable NSView encapsulating credential fields, UUID validation, and keychain save logic. Used by both Setup and Preferences windows.
 - **WindowManager** — centralized activation policy management for `.accessory` ↔ `.regular` transitions.
 - **DataCoordinator** — owns services, state, and polling lifecycle. Notifies `MenuBarController` via `onUpdate` callback. Pure data orchestration with no UI dependencies.
@@ -149,7 +148,7 @@ When delegating translation work to a Sonnet agent, the prompt MUST include:
 
 Unit tests in `ClaudeMonitorTests/`:
 - **DataCoordinatorTests** — success/failure paths, auth failure, credential handling, scheduler integration, onUpdate callback, mixed service results (uses mock services via `StatusFetching`/`UsageFetching` protocols)
-- **FormattingTests** — `timeUntil`, `progressBar`, `usageStyle` (dual-rule thresholds, edge cases), `buildTooltip` (all state permutations)
+- **FormattingTests** — `timeUntil`, `progressBar`, `usageStyle` (dual-rule thresholds, edge cases)
 - **ModelsTests** — JSON decoding (dynamic windows, unknown keys), `WindowKeyParser` (basic/compound numbers, model scopes, unknown formats), `WindowEntry` sorting, `displayLabel` (disambiguation vs no-disambiguation), `ComponentStatus` severity/`Comparable` ordering, `Equatable` conformance, fractional-seconds fallback
 - **MenuBuilderTests** — menu structure, section content, incident links, sorted components, controls
 

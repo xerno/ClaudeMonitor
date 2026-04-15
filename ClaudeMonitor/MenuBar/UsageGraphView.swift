@@ -608,7 +608,7 @@ final class UsageGraphView: NSView {
 
     // MARK: - Stats Label
 
-    private func updateStatsLabel() {
+    private func updateStatsLabel(now: Date = Date()) {
         guard selectedIndex < analyses.count else {
             statsLabel.stringValue = ""
             return
@@ -643,7 +643,7 @@ final class UsageGraphView: NSView {
 
         if analysis.projectedAtReset >= 100 {
             if let ttl = analysis.timeToLimit {
-                let beforeReset = max(0, resetsAt.timeIntervalSince(Date()) - ttl)
+                let beforeReset = max(0, resetsAt.timeIntervalSince(now) - ttl)
                 let beforeResetStr = Formatting.formatInterval(beforeReset)
                 statsLabel.stringValue = String(format: String(localized: "graph.stats.limit_soon", bundle: .module), rateStr, beforeResetStr)
             } else {

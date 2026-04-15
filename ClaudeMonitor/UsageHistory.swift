@@ -33,6 +33,10 @@ struct WindowAnalysis: Sendable, Equatable {
 }
 
 extension WindowEntry {
+    var windowStart: Date? {
+        window.resetsAt.map { $0.addingTimeInterval(-duration) }
+    }
+
     var storageIdentity: String {
         let seconds = Int(duration)
         guard let model = modelScope else { return "\(seconds)" }
@@ -44,7 +48,6 @@ extension WindowEntry {
 final class UsageHistory {
     // Key is storageIdentity (e.g. "18000", "604800_sonnet"), not raw API key
     private var storage: [String: [UtilizationSample]] = [:]
-    private var manifestCache: [String: String]? = nil
     private var organizationId: String? = nil
 
     // MARK: - Directory Helpers
@@ -68,15 +71,10 @@ final class UsageHistory {
         usageDirectory.appendingPathComponent("archive")
     }
 
-    private var manifestPath: URL {
-        usageDirectory.appendingPathComponent("manifest.json")
-    }
-
     func switchOrganization(_ orgId: String?) {
         guard orgId != organizationId else { return }
         organizationId = orgId
         storage = [:]
-        manifestCache = nil
         if orgId != nil {
             load()
         }
@@ -87,10 +85,8 @@ final class UsageHistory {
         let fm = FileManager.default
         let liveDir = base.appendingPathComponent("live")
         let archiveDir = base.appendingPathComponent("archive")
-        let manifest = base.appendingPathComponent("manifest.json")
         try? fm.removeItem(at: liveDir)
         try? fm.removeItem(at: archiveDir)
-        try? fm.removeItem(at: manifest)
     }
 
     // MARK: - Compact JSON
@@ -106,35 +102,9 @@ final class UsageHistory {
         return raw.compactMap { pair -> UtilizationSample? in
             guard pair.count == 2,
                   let epoch = pair[0] as? Double,
-                  let util = pair[1] as? Int else { return nil }
+                  let util = (pair[1] as? NSNumber)?.intValue else { return nil }
             return UtilizationSample(utilization: util, timestamp: Date(timeIntervalSince1970: epoch))
         }
-    }
-
-    // MARK: - Manifest
-
-    private func loadManifest() -> [String: String] {
-        if let cached = manifestCache { return cached }
-        let path = manifestPath
-        guard FileManager.default.fileExists(atPath: path.path),
-              let data = try? Data(contentsOf: path),
-              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let v = obj["v"] as? Int, v == 1,
-              let keys = obj["keys"] as? [String: String] else {
-            manifestCache = [:]
-            return [:]
-        }
-        manifestCache = keys
-        return keys
-    }
-
-    private func saveManifest(_ manifest: [String: String]) {
-        manifestCache = manifest
-        let obj: [String: Any] = ["v": 1, "keys": manifest]
-        guard let data = try? JSONSerialization.data(withJSONObject: obj) else { return }
-        let path = manifestPath
-        try? FileManager.default.createDirectory(at: path.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try? data.write(to: path, options: .atomic)
     }
 
     // MARK: - Persistence
@@ -189,12 +159,8 @@ final class UsageHistory {
         guard let samples = storage[identity], !samples.isEmpty else { return }
 
         let windowEnd = resetsAt
-        let windowStart: Date
-        if let first = samples.min(by: { $0.timestamp < $1.timestamp }) {
-            windowStart = first.timestamp
-        } else {
-            windowStart = resetsAt.addingTimeInterval(-windowDuration)
-        }
+        // samples are in chronological order (insertion invariant maintained by record())
+        let windowStart = samples.first?.timestamp ?? resetsAt.addingTimeInterval(-windowDuration)
 
         let formatter = UsageHistory.archiveDateFormatter
         let startStr = formatter.string(from: windowStart)
@@ -205,6 +171,9 @@ final class UsageHistory {
         let archiveURL = archiveDir.appendingPathComponent(filename)
 
         let jsonData = UsageHistory.encodeCompact(samples)
+        // Samples encoded before clearing — data persists on disk even if app crashes,
+        // but in-memory samples are cleared unconditionally.
+        storage[identity] = nil
 
         Task.detached {
             do {
@@ -212,11 +181,10 @@ final class UsageHistory {
                 let compressed = try (jsonData as NSData).compressed(using: .lzma) as Data
                 try compressed.write(to: archiveURL, options: .atomic)
             } catch {
-                // Fire-and-forget: ignore errors silently
+                // Archive write failed — samples were encoded before clearing storage,
+                // so operational data is unaffected. Historical archive may be incomplete.
             }
         }
-
-        storage[identity] = nil
     }
 
     func pruneArchives(currentEntries: [WindowEntry]) {
@@ -233,8 +201,11 @@ final class UsageHistory {
             for identityDir in identityDirs {
                 guard let files = try? FileManager.default.contentsOfDirectory(at: identityDir, includingPropertiesForKeys: nil) else { continue }
                 for file in files {
-                    // Filename: {startISO}_{endISO}.json.lzma
-                    let name = file.deletingPathExtension().deletingPathExtension().lastPathComponent
+                    // Filename: {startISO}_{endISO}.json.lzma — strip the known compound suffix explicitly
+                    let lastComponent = file.lastPathComponent
+                    let knownSuffix = ".json.lzma"
+                    guard lastComponent.hasSuffix(knownSuffix) else { continue }
+                    let name = String(lastComponent.dropLast(knownSuffix.count))
                     let parts = name.split(separator: "_", maxSplits: 1).map(String.init)
                     guard parts.count == 2, let endDate = formatter.date(from: parts[1]) else { continue }
                     if endDate < cutoff {
@@ -253,25 +224,18 @@ final class UsageHistory {
     // MARK: - Recording
 
     func record(entries: [WindowEntry], at date: Date = Date()) {
-        // Collision guard: detect if two entries share the same identity
+        // Collision guard: two entries sharing the same storageIdentity shouldn't happen.
+        #if DEBUG
         var seenIdentities: [String: String] = [:]
-        var identityMap: [String: String] = [:] // entry.key → resolved identity
-
         for entry in entries {
-            let baseIdentity = entry.storageIdentity
-            if seenIdentities[baseIdentity] != nil {
-                // Collision: two API keys map to same identity — shouldn't happen but guard anyway
-                let hash = abs(entry.key.hashValue) % 10000
-                let resolvedIdentity = "\(baseIdentity)_\(hash)"
-                identityMap[entry.key] = resolvedIdentity
-            } else {
-                seenIdentities[baseIdentity] = entry.key
-                identityMap[entry.key] = baseIdentity
-            }
+            let identity = entry.storageIdentity
+            assert(seenIdentities[identity] == nil, "storageIdentity collision: \(identity) used by \(entry.key) and \(seenIdentities[identity]!)")
+            seenIdentities[identity] = entry.key
         }
+        #endif
 
         for entry in entries {
-            let identity = identityMap[entry.key] ?? entry.storageIdentity
+            let identity = entry.storageIdentity
             var samples = storage[identity] ?? []
             if let last = samples.last,
                last.utilization == entry.window.utilization,
@@ -282,24 +246,9 @@ final class UsageHistory {
             // Use window boundary (resetsAt - duration) as cutoff, not just age from now.
             // This ensures samples from a previous window period are pruned after a reset
             // that happened while the app was closed.
-            let windowStart = entry.window.resetsAt.map { $0.addingTimeInterval(-entry.duration) }
-            let cutoff = windowStart ?? date.addingTimeInterval(-entry.duration)
+            let cutoff = entry.windowStart ?? date.addingTimeInterval(-entry.duration)
             samples = samples.filter { $0.timestamp >= cutoff }
             storage[identity] = samples
-        }
-
-        // Update manifest
-        var manifest = loadManifest()
-        var manifestChanged = false
-        for entry in entries {
-            let identity = identityMap[entry.key] ?? entry.storageIdentity
-            if manifest[entry.key] != identity {
-                manifest[entry.key] = identity
-                manifestChanged = true
-            }
-        }
-        if manifestChanged {
-            saveManifest(manifest)
         }
     }
 
@@ -309,7 +258,6 @@ final class UsageHistory {
         guard newResetsAt > previousResetsAt else { return false }
         if newResetsAt.timeIntervalSince(previousResetsAt) > entry.duration * 0.5 {
             archiveWindow(identity: entry.storageIdentity, resetsAt: previousResetsAt, windowDuration: entry.duration)
-            storage[entry.storageIdentity] = nil
             return true
         }
         return false
@@ -318,8 +266,7 @@ final class UsageHistory {
     func samples(for entry: WindowEntry) -> [UtilizationSample] {
         // Samples are maintained in chronological order by record()
         let all = storage[entry.storageIdentity] ?? []
-        if let resetsAt = entry.window.resetsAt {
-            let windowStart = resetsAt.addingTimeInterval(-entry.duration)
+        if let windowStart = entry.windowStart {
             return all.filter { $0.timestamp >= windowStart }
         }
         return all
@@ -345,22 +292,22 @@ final class UsageHistory {
     ) -> [SampleSegment] {
         guard !samples.isEmpty else { return [] }
 
-        let sorted = samples.sorted { $0.timestamp < $1.timestamp }
+        // samples are in chronological order (insertion invariant maintained by record())
         var result: [SampleSegment] = []
 
         // If first sample is significantly after window start, add an inferred segment
         // from 0% (window resets to 0) to the first real sample.
-        if sorted[0].timestamp > windowStart.addingTimeInterval(60) {
+        if samples[0].timestamp > windowStart.addingTimeInterval(60) {
             let inferredStart = UtilizationSample(utilization: 0, timestamp: windowStart)
-            result.append(SampleSegment(kind: .inferred, samples: [inferredStart, sorted[0]]))
+            result.append(SampleSegment(kind: .inferred, samples: [inferredStart, samples[0]]))
         }
 
         // Walk through samples grouping into tracked and gap segments
-        var currentTracked: [UtilizationSample] = [sorted[0]]
+        var currentTracked: [UtilizationSample] = [samples[0]]
 
-        for i in 1..<sorted.count {
-            let prev = sorted[i - 1]
-            let curr = sorted[i]
+        for i in 1..<samples.count {
+            let prev = samples[i - 1]
+            let curr = samples[i]
             let gap = curr.timestamp.timeIntervalSince(prev.timestamp)
 
             if gap > gapThreshold {
@@ -425,14 +372,14 @@ final class UsageHistory {
         now: Date = Date()
     ) -> TimeInterval? {
         guard !samples.isEmpty else { return nil }
-        let sorted = samples.sorted { $0.timestamp < $1.timestamp }
+        // samples are in chronological order (insertion invariant maintained by record())
 
         // Walk backwards to find the most recent sample with a DIFFERENT utilization
-        for i in stride(from: sorted.count - 1, through: 0, by: -1) {
-            if sorted[i].utilization != currentUtilization {
+        for i in stride(from: samples.count - 1, through: 0, by: -1) {
+            if samples[i].utilization != currentUtilization {
                 // The change happened at the next sample (which has currentUtilization)
-                if i + 1 < sorted.count {
-                    return now.timeIntervalSince(sorted[i + 1].timestamp)
+                if i + 1 < samples.count {
+                    return now.timeIntervalSince(samples[i + 1].timestamp)
                 }
                 // Edge: last sample differs but there's nothing after → change is "now"
                 return 0
@@ -440,7 +387,7 @@ final class UsageHistory {
         }
 
         // All samples have the same utilization → hasn't changed since first sample
-        return now.timeIntervalSince(sorted.first!.timestamp)
+        return now.timeIntervalSince(samples.first!.timestamp)
     }
 
     static func analyze(entry: WindowEntry, samples: [UtilizationSample], now: Date = Date()) -> WindowAnalysis {
@@ -462,7 +409,7 @@ final class UsageHistory {
             resetsAt: entry.window.resetsAt,
             timeRemaining: timeRemaining
         )
-        let windowStart = entry.window.resetsAt.map { $0.addingTimeInterval(-entry.duration) } ?? now
+        let windowStart = entry.windowStart ?? now
         let segs = segmentSamples(samples, windowStart: windowStart)
         let timeSinceLastChange = computeTimeSinceLastChange(
             currentUtilization: entry.window.utilization,

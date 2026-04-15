@@ -96,11 +96,11 @@ struct WindowKeyParserTests {
     }
 
     @Test func isInternalWindowUppercase() {
-        #expect(WindowKeyParser.isInternalWindow("OMELETTE"))
+        #expect(!WindowKeyParser.isInternalWindow("OMELETTE"))
     }
 
     @Test func isInternalWindowMixedCase() {
-        #expect(WindowKeyParser.isInternalWindow("Omelette"))
+        #expect(!WindowKeyParser.isInternalWindow("Omelette"))
     }
 
     @Test func isInternalWindowSubstring() {

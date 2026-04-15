@@ -36,14 +36,15 @@ extension Formatting {
         guard let resetsAt else {
             return usageStyleFallback(utilization: utilization)
         }
-        let timeRemaining = max(resetsAt.timeIntervalSince(now), 0)
-        if timeRemaining <= 0 {
+        guard let projection = computeProjection(
+            utilization: utilization,
+            resetsAt: resetsAt,
+            windowDuration: windowDuration,
+            now: now
+        ) else {
             return UsageStyle(level: .normal, isBold: false)
         }
-        let timeElapsed = windowDuration - timeRemaining
-        let impliedRate = timeElapsed > 0 ? Double(utilization) / timeElapsed : 0
-        let projectedAtReset = Double(utilization) + impliedRate * timeRemaining
-        return usageStyle(projectedAtReset: projectedAtReset, utilization: utilization, resetsAt: resetsAt, timeRemaining: timeRemaining)
+        return usageStyle(projectedAtReset: projection.projectedAtReset, utilization: utilization, resetsAt: resetsAt, timeRemaining: projection.timeRemaining)
     }
 
     // MARK: - usageStyle overload accepting pre-computed projection
@@ -75,6 +76,20 @@ extension Formatting {
         return UsageStyle(level: .normal, isBold: false)
     }
 
+    private static func computeProjection(
+        utilization: Int,
+        resetsAt: Date,
+        windowDuration: TimeInterval,
+        now: Date
+    ) -> (projectedAtReset: Double, timeRemaining: TimeInterval)? {
+        let timeRemaining = max(resetsAt.timeIntervalSince(now), 0)
+        guard timeRemaining > 0 else { return nil }
+        let timeElapsed = windowDuration - timeRemaining
+        let impliedRate = timeElapsed > 0 ? Double(utilization) / timeElapsed : 0
+        let projectedAtReset = Double(utilization) + impliedRate * timeRemaining
+        return (projectedAtReset, timeRemaining)
+    }
+
     private static func usageStyleFallback(utilization: Int) -> UsageStyle {
         if utilization >= Constants.Projection.fallbackCriticalThreshold {
             return UsageStyle(level: .critical, isBold: true)
@@ -97,12 +112,13 @@ extension Formatting {
         now: Date = Date()
     ) -> Bool {
         guard let resetsAt else { return false }
-        let timeRemaining = max(resetsAt.timeIntervalSince(now), 0)
-        if timeRemaining <= 0 { return false }
-        let timeElapsed = windowDuration - timeRemaining
-        let impliedRate = timeElapsed > 0 ? Double(utilization) / timeElapsed : 0
-        let projectedAtReset = Double(utilization) + impliedRate * timeRemaining
-        return shouldShowInMenuBar(projectedAtReset: projectedAtReset)
+        guard let projection = computeProjection(
+            utilization: utilization,
+            resetsAt: resetsAt,
+            windowDuration: windowDuration,
+            now: now
+        ) else { return false }
+        return shouldShowInMenuBar(projectedAtReset: projection.projectedAtReset)
     }
 
     // MARK: - shouldShowInMenuBar overload accepting pre-computed projection
@@ -121,9 +137,10 @@ extension Formatting {
             .max()
     }
 
-    static func detectCriticalReset(previous: UsageResponse, current: UsageResponse) -> Bool {
+    static func detectCriticalReset(previous: UsageResponse, current: UsageResponse, now: Date = Date()) -> Bool {
+        let previousByKey = Dictionary(uniqueKeysWithValues: previous.entries.map { ($0.key, $0) })
         for currEntry in current.entries {
-            guard let prevEntry = previous.entries.first(where: { $0.key == currEntry.key }) else { continue }
+            guard let prevEntry = previousByKey[currEntry.key] else { continue }
             let prev = prevEntry.window
             let curr = currEntry.window
             guard let prevReset = prev.resetsAt, let currReset = curr.resetsAt else { continue }
@@ -131,22 +148,13 @@ extension Formatting {
             if usageStyle(
                 utilization: prev.utilization,
                 resetsAt: prev.resetsAt,
-                windowDuration: currEntry.duration
+                windowDuration: currEntry.duration,
+                now: now
             ).isCritical {
                 return true
             }
         }
         return false
-    }
-
-    static func hasAnyCriticalWindow(_ usage: UsageResponse) -> Bool {
-        usage.entries.contains { entry in
-            usageStyle(
-                utilization: entry.window.utilization,
-                resetsAt: entry.window.resetsAt,
-                windowDuration: entry.duration
-            ).isCritical
-        }
     }
 
 }
