@@ -37,3 +37,8 @@ final class MockUsageService: UsageFetching, @unchecked Sendable {
         return try result.get()
     }
 }
+
+final class MockSystemIdleProvider: SystemIdleProviding, @unchecked Sendable {
+    var idleTimeValue: TimeInterval = 0
+    func idleTime() -> TimeInterval { idleTimeValue }
+}

@@ -27,6 +27,12 @@ struct WindowEntry: Sendable, Equatable, Hashable, Comparable {
 }
 
 enum WindowKeyParser {
+    private static let internalWindowMarkers = ["omelette"]
+
+    static func isInternalWindow(_ key: String) -> Bool {
+        internalWindowMarkers.contains { key.localizedCaseInsensitiveContains($0) }
+    }
+
     private static let numberWords: [String: Int] = [
         "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
         "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
@@ -107,7 +113,8 @@ extension UsageResponse: Decodable {
         let container = try decoder.container(keyedBy: DynamicKey.self)
         var parsed: [WindowEntry] = []
         for key in container.allKeys {
-            guard let info = WindowKeyParser.parse(key.stringValue),
+            guard !WindowKeyParser.isInternalWindow(key.stringValue),
+                  let info = WindowKeyParser.parse(key.stringValue),
                   let window = try? container.decode(UsageWindow.self, forKey: key) else { continue }
             parsed.append(WindowEntry(
                 key: key.stringValue, duration: info.duration,

@@ -5,6 +5,7 @@ import Foundation
 @MainActor struct DataCoordinatorTests {
     private let mockStatus = MockStatusService()
     private let mockUsage = MockUsageService()
+    private let mockIdleProvider = MockSystemIdleProvider()
 
     private func makeCoordinator(
         credentials: [String: String] = [
@@ -15,6 +16,7 @@ import Foundation
         DataCoordinator(
             statusService: mockStatus,
             usageService: mockUsage,
+            systemIdleProvider: mockIdleProvider,
             loadCredential: { credentials[$0] }
         )
     }

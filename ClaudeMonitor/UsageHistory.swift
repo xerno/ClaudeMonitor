@@ -29,6 +29,7 @@ struct WindowAnalysis: Sendable, Equatable {
     let rateSource: RateSource
     let style: Formatting.UsageStyle
     let segments: [SampleSegment]
+    let timeSinceLastChange: TimeInterval?
 }
 
 extension WindowEntry {
@@ -441,6 +442,30 @@ final class UsageHistory {
         return Formatting.UsageStyle(level: .normal, isBold: false)
     }
 
+    static func computeTimeSinceLastChange(
+        currentUtilization: Int,
+        samples: [UtilizationSample],
+        now: Date = Date()
+    ) -> TimeInterval? {
+        guard !samples.isEmpty else { return nil }
+        let sorted = samples.sorted { $0.timestamp < $1.timestamp }
+
+        // Walk backwards to find the most recent sample with a DIFFERENT utilization
+        for i in stride(from: sorted.count - 1, through: 0, by: -1) {
+            if sorted[i].utilization != currentUtilization {
+                // The change happened at the next sample (which has currentUtilization)
+                if i + 1 < sorted.count {
+                    return now.timeIntervalSince(sorted[i + 1].timestamp)
+                }
+                // Edge: last sample differs but there's nothing after → change is "now"
+                return 0
+            }
+        }
+
+        // All samples have the same utilization → hasn't changed since first sample
+        return now.timeIntervalSince(sorted.first!.timestamp)
+    }
+
     static func analyze(entry: WindowEntry, samples: [UtilizationSample], now: Date = Date()) -> WindowAnalysis {
         let timeRemaining = max(0, (entry.window.resetsAt ?? now).timeIntervalSince(now))
         let (rate, source) = computeRate(
@@ -462,6 +487,11 @@ final class UsageHistory {
         )
         let windowStart = entry.window.resetsAt.map { $0.addingTimeInterval(-entry.duration) } ?? now
         let segs = segmentSamples(samples, windowStart: windowStart)
+        let timeSinceLastChange = computeTimeSinceLastChange(
+            currentUtilization: entry.window.utilization,
+            samples: samples,
+            now: now
+        )
         return WindowAnalysis(
             entry: entry,
             samples: samples,
@@ -470,7 +500,8 @@ final class UsageHistory {
             timeToLimit: timeToLimit,
             rateSource: source,
             style: style,
-            segments: segs
+            segments: segs,
+            timeSinceLastChange: timeSinceLastChange
         )
     }
 }

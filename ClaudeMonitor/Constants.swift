@@ -24,8 +24,13 @@ enum Constants {
     enum Polling {
         static let baseInterval: TimeInterval = 60
         static let minInterval: TimeInterval = 24
-        static let speedupFactor: Double = 0.8
-        static let cooldownCycles: Int = 3
+        static let cooldownStart: TimeInterval = 300    // 5 min: timeSinceLastChange to start cooldown
+        static let cooldownEnd: TimeInterval = 3600     // 60 min: timeSinceLastChange for full cooldown
+        static let maxIdleInterval: TimeInterval = 300  // Idle at desk cap
+        static let maxAwayInterval: TimeInterval = 3600 // Away cap (60 min)
+        static let awayThreshold: TimeInterval = 300    // systemIdle to enter Away mode
+        static let awayRampEnd: TimeInterval = 7200     // systemIdle for max Away interval
+        static let heartbeatInterval: TimeInterval = 60 // heartbeat check interval in Away mode
     }
 
     enum Retry {

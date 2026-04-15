@@ -4,6 +4,7 @@ import Foundation
 final class DataCoordinator {
     private let statusService: any StatusFetching
     private let usageService: any UsageFetching
+    private let systemIdleProvider: any SystemIdleProviding
     private let loadCredential: @Sendable (String) -> String?
     private var pollTask: Task<Void, Never>?
     private var demoRotationIndex = 0
@@ -26,10 +27,12 @@ final class DataCoordinator {
     init(
         statusService: any StatusFetching = StatusService(),
         usageService: any UsageFetching = UsageService(),
+        systemIdleProvider: any SystemIdleProviding = SystemIdleService(),
         loadCredential: @escaping @Sendable (String) -> String? = { KeychainService.load(key: $0) }
     ) {
         self.statusService = statusService
         self.usageService = usageService
+        self.systemIdleProvider = systemIdleProvider
         self.loadCredential = loadCredential
         UsageHistory.migrateAndDeleteLegacyData()
         reloadCredentials()
@@ -59,7 +62,19 @@ final class DataCoordinator {
                 await refresh()
                 guard !Task.isCancelled else { break }
                 let delay = nextPollDate.map { $0.timeIntervalSinceNow } ?? Constants.Polling.baseInterval
-                if delay > 0 {
+                guard delay > 0 else { continue }
+
+                if scheduler.isAwayMode {
+                    let deadline = Date().addingTimeInterval(delay)
+                    while Date() < deadline && !Task.isCancelled {
+                        let sleepTime = min(Constants.Polling.heartbeatInterval, deadline.timeIntervalSinceNow)
+                        guard sleepTime > 0 else { break }
+                        try? await Task.sleep(for: .seconds(sleepTime))
+                        if systemIdleProvider.idleTime() < Constants.Polling.awayThreshold {
+                            break
+                        }
+                    }
+                } else {
                     try? await Task.sleep(for: .seconds(delay))
                 }
             }
@@ -128,7 +143,7 @@ final class DataCoordinator {
                 UsageHistory.analyze(entry: entry, samples: usageHistory.samples(for: entry), now: now)
             }
         }
-        scheduler.adjustPollingRate(windowAnalyses: windowAnalyses)
+        scheduler.adjustPollingRate(windowAnalyses: windowAnalyses, systemIdleTime: systemIdleProvider.idleTime())
         let now = Date()
         lastRefreshed = now
         let pollInterval = scheduler.nextPollInterval(usage: currentUsage)
