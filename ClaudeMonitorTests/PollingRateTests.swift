@@ -303,4 +303,126 @@ struct PollingRateTests {
         #expect(!scheduler.isAwayMode)
         #expect(scheduler.nextPollInterval(usage: nil) == Constants.Polling.baseInterval)
     }
+
+    // MARK: - cooldownSpeed exact values
+    //
+    // cooldownSpeed is private, so we verify its effect by measuring the effective
+    // polling interval at a fixed tslc=1800s where each multiplier produces a
+    // distinct, analytically-computable result.
+    //
+    // With tslc=1800, cooldownStart=300, cooldownEnd=3600, base=60, maxIdle=300:
+    //   effectiveTslc = tslc * speed
+    //   t = clamp((effectiveTslc - 300) / (3600 - 300), 0, 1)
+    //   interval = 60 + t * (300 - 60)
+
+    private func cooldownInterval(for style: Formatting.UsageStyle) -> TimeInterval {
+        var scheduler = PollingScheduler()
+        let analysis = makeAnalysis(projectedAtReset: 50, timeSinceLastChange: 1800, style: style)
+        scheduler.adjustPollingRate(windowAnalyses: [analysis])
+        return scheduler.nextPollInterval(usage: nil)
+    }
+
+    private func expectedInterval(speed: Double) -> TimeInterval {
+        let effectiveTslc = 1800.0 * speed
+        let t = min(max((effectiveTslc - Constants.Polling.cooldownStart) / (Constants.Polling.cooldownEnd - Constants.Polling.cooldownStart), 0), 1)
+        return Constants.Polling.baseInterval + t * (Constants.Polling.maxIdleInterval - Constants.Polling.baseInterval)
+    }
+
+    @Test func cooldownSpeedNormalNotBoldIsOne() {
+        let style = Formatting.UsageStyle(level: .normal, isBold: false)
+        let interval = cooldownInterval(for: style)
+        #expect(abs(interval - expectedInterval(speed: 1.0)) < 0.001)
+    }
+
+    @Test func cooldownSpeedNormalBoldIsPointSeven() {
+        let style = Formatting.UsageStyle(level: .normal, isBold: true)
+        let interval = cooldownInterval(for: style)
+        #expect(abs(interval - expectedInterval(speed: 0.7)) < 0.001)
+    }
+
+    @Test func cooldownSpeedWarningIsPointFour() {
+        let style = Formatting.UsageStyle(level: .warning, isBold: true)
+        let interval = cooldownInterval(for: style)
+        #expect(abs(interval - expectedInterval(speed: 0.4)) < 0.001)
+    }
+
+    @Test func cooldownSpeedCriticalIsPointFour() {
+        let style = Formatting.UsageStyle(level: .critical, isBold: true)
+        let interval = cooldownInterval(for: style)
+        #expect(abs(interval - expectedInterval(speed: 0.4)) < 0.001)
+    }
+
+    @Test func cooldownSpeedEmptyAnalysesDefaultsToBase() {
+        var scheduler = PollingScheduler()
+        scheduler.adjustPollingRate(windowAnalyses: [])
+        #expect(scheduler.nextPollInterval(usage: nil) == Constants.Polling.baseInterval)
+    }
+
+    @Test func cooldownSpeedWorstWins() {
+        // One critical + one normal → worst is critical → speed 0.4
+        let critical = makeAnalysis(projectedAtReset: 50, timeSinceLastChange: 1800,
+                                    style: Formatting.UsageStyle(level: .critical, isBold: true))
+        let normal = makeAnalysis(projectedAtReset: 50, timeSinceLastChange: 1800,
+                                  style: Formatting.UsageStyle(level: .normal, isBold: false))
+        var scheduler = PollingScheduler()
+        scheduler.adjustPollingRate(windowAnalyses: [critical, normal])
+        let interval = scheduler.nextPollInterval(usage: nil)
+        #expect(abs(interval - expectedInterval(speed: 0.4)) < 0.001)
+    }
+
+    // MARK: - Near-Reset Snapping in Cooldown State
+
+    @Test func nearResetSnappingTriggersEvenInCooldown() {
+        // Put the scheduler in cooldown: timeSinceLastChange = 60 min → effectivePollingInterval
+        // reaches maxIdleInterval (300s), which is > baseInterval (60s).
+        var scheduler = PollingScheduler()
+        let analysis = makeAnalysis(projectedAtReset: 50, timeSinceLastChange: 3600)
+        scheduler.adjustPollingRate(windowAnalyses: [analysis])
+
+        // Confirm cooldown is active: effective interval must be above base
+        #expect(scheduler.effectivePollingInterval > Constants.Polling.baseInterval)
+
+        // Choose a reset time that is AFTER the base interval but BEFORE the cooldown interval.
+        // e.g. resets in 120s: 60 < 120 < 300 → near-reset snapping should fire
+        let resetsIn: TimeInterval = 120
+        let entry = WindowEntry.make(
+            key: "five_hour",
+            utilization: 40,
+            resetsAt: Date().addingTimeInterval(resetsIn)
+        )
+        let usage = UsageResponse(entries: [entry])
+
+        let interval = scheduler.nextPollInterval(usage: usage)
+
+        // The scheduler should snap to resetsIn + 1 padding, NOT return the full cooldown interval
+        #expect(abs(interval - (resetsIn + 1)) < 0.5,
+                "Expected near-reset snap to ~\(resetsIn + 1)s, got \(interval)s")
+        #expect(interval < scheduler.effectivePollingInterval,
+                "Snapped interval should be less than the cooldown interval (\(scheduler.effectivePollingInterval)s)")
+    }
+
+    @Test func nearResetSnappingDoesNotTriggerWhenResetAfterCooldownInterval() {
+        // If the reset is BEYOND the effective (cooldown) interval, snapping must not fire.
+        var scheduler = PollingScheduler()
+        let analysis = makeAnalysis(projectedAtReset: 50, timeSinceLastChange: 3600)
+        scheduler.adjustPollingRate(windowAnalyses: [analysis])
+
+        let cooldownInterval = scheduler.effectivePollingInterval
+        #expect(cooldownInterval > Constants.Polling.baseInterval)
+
+        // Reset time is well beyond the cooldown interval → filter removes it
+        let resetsIn = cooldownInterval + 120   // clearly beyond window
+        let entry = WindowEntry.make(
+            key: "five_hour",
+            utilization: 40,
+            resetsAt: Date().addingTimeInterval(resetsIn)
+        )
+        let usage = UsageResponse(entries: [entry])
+
+        let interval = scheduler.nextPollInterval(usage: usage)
+
+        // Should fall through to the full cooldown interval — no snapping
+        #expect(abs(interval - cooldownInterval) < 0.5,
+                "Expected full cooldown interval ~\(cooldownInterval)s, got \(interval)s")
+    }
 }

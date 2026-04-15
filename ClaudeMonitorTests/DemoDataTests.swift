@@ -90,4 +90,39 @@ struct DemoDataTests {
             }
         }
     }
+
+    // MARK: - DemoSamples Consistency
+
+    @Test func demoSamplesKeysMatchUsageEntriesForScenariosWithFullCoverage() {
+        // Scenarios 1, 2, and 4 provide samples for every entry key.
+        // Scenario 3 intentionally omits samples for seven_day_sonnet (utilization 0,
+        // no resetsAt — nothing meaningful to graph).
+        let scenariosWithFullCoverage = [1, 2, 4]
+        for i in scenariosWithFullCoverage {
+            let (usage, _, samples) = DemoData.scenario(i)
+            for entry in usage.entries {
+                let entrySamples = samples[entry.key]
+                #expect(entrySamples != nil,
+                        "Scenario \(i): no samples for entry key '\(entry.key)'")
+                #expect(entrySamples?.isEmpty == false,
+                        "Scenario \(i): empty samples for entry key '\(entry.key)'")
+            }
+        }
+    }
+
+    @Test @MainActor func demoSamplesProduceNonTrivialAnalyses() {
+        let now = Date()
+        for i in 1...4 {
+            let (usage, _, samples) = DemoData.scenario(i)
+            for entry in usage.entries {
+                guard let entrySamples = samples[entry.key], !entrySamples.isEmpty else { continue }
+                let analysis = UsageHistory.analyze(entry: entry, samples: entrySamples, now: now)
+                #expect(!analysis.segments.isEmpty,
+                        "Scenario \(i), key '\(entry.key)': analysis has no segments")
+                // Each entry with samples must have a defined timeSinceLastChange
+                #expect(analysis.timeSinceLastChange != nil,
+                        "Scenario \(i), key '\(entry.key)': timeSinceLastChange is nil")
+            }
+        }
+    }
 }

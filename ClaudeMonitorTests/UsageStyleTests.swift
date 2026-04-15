@@ -117,4 +117,51 @@ struct UsageStyleTests {
         )
         #expect(!result)
     }
+
+    // MARK: - UsageLevel Comparable
+
+    @Test func usageLevelNormalLessThanWarning() {
+        #expect(Formatting.UsageLevel.normal < .warning)
+    }
+
+    @Test func usageLevelWarningLessThanCritical() {
+        #expect(Formatting.UsageLevel.warning < .critical)
+    }
+
+    @Test func usageLevelNormalLessThanCritical() {
+        #expect(Formatting.UsageLevel.normal < .critical)
+    }
+
+    @Test func usageLevelEquality() {
+        #expect(!(Formatting.UsageLevel.normal < .normal))
+        #expect(!(Formatting.UsageLevel.warning < .warning))
+        #expect(!(Formatting.UsageLevel.critical < .critical))
+    }
+
+    // MARK: - UsageStyle Comparable
+
+    @Test func usageStyleNotBoldLessThanBoldAtSameLevel() {
+        let notBold = Formatting.UsageStyle(level: .normal, isBold: false)
+        let bold = Formatting.UsageStyle(level: .normal, isBold: true)
+        #expect(notBold < bold)
+    }
+
+    @Test func usageStyleNormalBoldLessThanWarningNotBold() {
+        let normalBold = Formatting.UsageStyle(level: .normal, isBold: true)
+        let warningNotBold = Formatting.UsageStyle(level: .warning, isBold: false)
+        #expect(normalBold < warningNotBold)
+    }
+
+    @Test func usageStyleLevelDominatesOverBold() {
+        // warning (not bold) > normal (bold)
+        let normalBold = Formatting.UsageStyle(level: .normal, isBold: true)
+        let warningNotBold = Formatting.UsageStyle(level: .warning, isBold: false)
+        #expect(!(warningNotBold < normalBold))
+    }
+
+    @Test func usageStyleNormalNotBoldIsMinimum() {
+        let min = Formatting.UsageStyle(level: .normal, isBold: false)
+        let max = Formatting.UsageStyle(level: .critical, isBold: true)
+        #expect(min < max)
+    }
 }

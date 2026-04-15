@@ -165,4 +165,44 @@ private final class MockMenuActions: NSObject, MenuActions {
         let items = menuItems(for: state)
         #expect(items.contains { $0.title.starts(with: "Updated:") && $0.title.contains("Interval:") && $0.title.contains("Next:") })
     }
+
+    // MARK: - WindowAnalyses Integration
+
+    @Test func windowAnalysesArePassedToGraphView() {
+        let now = Date()
+        let entry = WindowEntry.make(
+            key: "five_hour",
+            utilization: 42,
+            resetsAt: now.addingTimeInterval(3600)
+        )
+        let samples = (0..<10).map { i in
+            UtilizationSample(
+                utilization: 42,
+                timestamp: now.addingTimeInterval(TimeInterval(-3600 + i * 360))
+            )
+        }
+        let analysis = UsageHistory.analyze(entry: entry, samples: samples, now: now)
+
+        let usage = UsageResponse(entries: [entry])
+        let state = MonitorState(
+            currentUsage: usage, currentStatus: nil,
+            usageError: nil, statusError: nil,
+            lastRefreshed: nil, hasCredentials: true,
+            currentPollInterval: nil,
+            windowAnalyses: [analysis]
+        )
+
+        let menu = MenuBuilder.build(state: state, target: target)
+
+        // The graph placeholder item must be present
+        let graphItem = (0..<menu.numberOfItems).compactMap { menu.item(at: $0) }
+            .first { $0.tag == MenuBuilder.usageGraphTag }
+        #expect(graphItem != nil)
+        #expect(graphItem?.view is UsageGraphView)
+
+        // The analysis must have non-empty segments (tracked data was provided)
+        #expect(!analysis.segments.isEmpty)
+        // consumptionRate should be non-zero because resetsAt is set and time has elapsed
+        #expect(analysis.consumptionRate > 0)
+    }
 }

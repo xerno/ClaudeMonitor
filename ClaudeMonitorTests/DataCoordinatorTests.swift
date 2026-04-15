@@ -160,4 +160,66 @@ import Foundation
 
         #expect(updateCount == 3)
     }
+
+    // MARK: - Scheduler Adjustment
+
+    @Test func schedulerNoRampUpAfterNormalUtilization() async {
+        let coordinator = makeCoordinator()
+        await coordinator.refresh()
+
+        // testUsage has 42% and 18% utilization — projected well below 100%, so no ramp-up.
+        // Interval must be at or above baseInterval (may be higher due to idle cooldown, never lower).
+        #expect(coordinator.scheduler.effectivePollingInterval >= Constants.Polling.baseInterval)
+        #expect(coordinator.scheduler.isAwayMode == false)
+    }
+
+    @Test func schedulerDecreasesIntervalAfterCriticalUtilization() async {
+        // 50% utilization with 1000s elapsed of a 5-hour window (17000s remaining):
+        //   rate = 50/1000 = 0.05%/s; projected = 50 + 0.05*17000 = 900% → well above 120% critical
+        //   timeToLimit = (100-50)/0.05 = 1000s → above 600s threshold, so NOT approaching-limit
+        // This guarantees the critical projection path (Priority 2) not the approaching-limit path.
+        mockUsage.result = .success(UsageResponse(entries: [
+            WindowEntry(key: "five_hour", duration: 18000, durationLabel: "5h", modelScope: nil,
+                        window: UsageWindow(utilization: 50, resetsAt: Date().addingTimeInterval(17000))),
+        ]))
+        let coordinator = makeCoordinator()
+        await coordinator.refresh()
+
+        // Critical projection (≥120%) → interval = max(minInterval, baseInterval / 2) = 30s.
+        let expected = max(Constants.Polling.minInterval, Constants.Polling.baseInterval / 2)
+        #expect(coordinator.scheduler.effectivePollingInterval == expected)
+        #expect(coordinator.scheduler.effectivePollingInterval < Constants.Polling.baseInterval)
+    }
+
+    // MARK: - WindowAnalyses
+
+    @Test func windowAnalysesPopulatedAfterRefresh() async {
+        let coordinator = makeCoordinator()
+        await coordinator.refresh()
+
+        let analyses = coordinator.monitorState.windowAnalyses
+        #expect(!analyses.isEmpty)
+        #expect(analyses.count == testUsage.entries.count)
+    }
+
+    @Test func windowAnalysisEntriesMatchUsageEntries() async {
+        let coordinator = makeCoordinator()
+        await coordinator.refresh()
+
+        let analyses = coordinator.monitorState.windowAnalyses
+        let analysisKeys = Set(analyses.map(\.entry.key))
+        let usageKeys = Set(testUsage.entries.map(\.key))
+        #expect(analysisKeys == usageKeys)
+    }
+
+    // MARK: - Away-Mode Propagation
+
+    @Test func awayModeOffWhenIdleBelowThreshold() async {
+        // Idle time below the away threshold: away mode must be off regardless.
+        mockIdleProvider.idleTimeValue = Constants.Polling.awayThreshold - 1
+        let coordinator = makeCoordinator()
+        await coordinator.refresh()
+
+        #expect(coordinator.scheduler.isAwayMode == false)
+    }
 }

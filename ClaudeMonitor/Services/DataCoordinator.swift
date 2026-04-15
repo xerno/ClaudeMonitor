@@ -117,22 +117,14 @@ final class DataCoordinator {
             var anyReset = false
             for entry in newUsage.entries {
                 let previousEntry = usageBeforeRefresh?.entries.first { $0.key == entry.key }
-                let didReset: Bool = {
-                    guard let prevRA = previousEntry?.window.resetsAt,
-                          let newRA = entry.window.resetsAt else { return false }
-                    return newRA > prevRA && newRA.timeIntervalSince(prevRA) > entry.duration * 0.5
-                }()
-                if didReset {
-                    anyReset = true
-                    if let resetsAt = previousEntry?.window.resetsAt {
-                        usageHistory.archiveWindow(identity: entry.storageIdentity, resetsAt: resetsAt, windowDuration: entry.duration)
-                    }
-                }
-                usageHistory.detectAndHandleReset(
+                let didReset = usageHistory.detectAndHandleReset(
                     entry: entry,
                     newResetsAt: entry.window.resetsAt,
                     previousResetsAt: previousEntry?.window.resetsAt
                 )
+                if didReset {
+                    anyReset = true
+                }
             }
             if anyReset {
                 usageHistory.pruneArchives(currentEntries: newUsage.entries)

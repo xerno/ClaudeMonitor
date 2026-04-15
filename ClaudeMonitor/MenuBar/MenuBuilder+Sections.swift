@@ -23,6 +23,8 @@ extension MenuBuilder {
         }
         let labels = usageLabels(usage: usage)
         let style = usageParagraphStyle(labelColumnWidth: maxLabelWidth(labels: labels.map(\.label)))
+        cachedLabels = labels
+        cachedStyle = style
 
         var items: [NSMenuItem] = []
         for (tag, label, window) in labels {

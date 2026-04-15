@@ -178,6 +178,13 @@ final class UsageHistory {
         }
     }
 
+    private nonisolated static let archiveDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd'T'HHmm'Z'"
+        formatter.timeZone = TimeZone(identifier: "UTC")
+        return formatter
+    }()
+
     func archiveWindow(identity: String, resetsAt: Date, windowDuration: TimeInterval) {
         guard let samples = storage[identity], !samples.isEmpty else { return }
 
@@ -189,9 +196,7 @@ final class UsageHistory {
             windowStart = resetsAt.addingTimeInterval(-windowDuration)
         }
 
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd'T'HHmm'Z'"
-        formatter.timeZone = TimeZone(identifier: "UTC")
+        let formatter = UsageHistory.archiveDateFormatter
         let startStr = formatter.string(from: windowStart)
         let endStr = formatter.string(from: windowEnd)
         let filename = "\(startStr)_\(endStr).json.lzma"
@@ -223,9 +228,7 @@ final class UsageHistory {
         let archiveBase = archiveDirectory
         Task.detached {
             guard let identityDirs = try? FileManager.default.contentsOfDirectory(at: archiveBase, includingPropertiesForKeys: nil) else { return }
-            let formatter = DateFormatter()
-            formatter.dateFormat = "yyyy-MM-dd'T'HHmm'Z'"
-            formatter.timeZone = TimeZone(identifier: "UTC")
+            let formatter = UsageHistory.archiveDateFormatter
 
             for identityDir in identityDirs {
                 guard let files = try? FileManager.default.contentsOfDirectory(at: identityDir, includingPropertiesForKeys: nil) else { continue }
@@ -300,21 +303,26 @@ final class UsageHistory {
         }
     }
 
-    func detectAndHandleReset(entry: WindowEntry, newResetsAt: Date?, previousResetsAt: Date?) {
-        guard let newResetsAt, let previousResetsAt else { return }
-        guard newResetsAt > previousResetsAt else { return }
+    @discardableResult
+    func detectAndHandleReset(entry: WindowEntry, newResetsAt: Date?, previousResetsAt: Date?) -> Bool {
+        guard let newResetsAt, let previousResetsAt else { return false }
+        guard newResetsAt > previousResetsAt else { return false }
         if newResetsAt.timeIntervalSince(previousResetsAt) > entry.duration * 0.5 {
+            archiveWindow(identity: entry.storageIdentity, resetsAt: previousResetsAt, windowDuration: entry.duration)
             storage[entry.storageIdentity] = nil
+            return true
         }
+        return false
     }
 
     func samples(for entry: WindowEntry) -> [UtilizationSample] {
+        // Samples are maintained in chronological order by record()
         let all = storage[entry.storageIdentity] ?? []
         if let resetsAt = entry.window.resetsAt {
             let windowStart = resetsAt.addingTimeInterval(-entry.duration)
-            return all.filter { $0.timestamp >= windowStart }.sorted { $0.timestamp < $1.timestamp }
+            return all.filter { $0.timestamp >= windowStart }
         }
-        return all.sorted { $0.timestamp < $1.timestamp }
+        return all
     }
 
     func clearAll() {
@@ -411,37 +419,6 @@ final class UsageHistory {
         return (projectedAtReset, timeToLimit)
     }
 
-    static func computeStyle(
-        projectedAtReset: Double,
-        utilization: Int,
-        resetsAt: Date?,
-        timeRemaining: TimeInterval
-    ) -> Formatting.UsageStyle {
-        if utilization >= Constants.Projection.blockedUtilization {
-            return Formatting.UsageStyle(level: .critical, isBold: true)
-        }
-        guard resetsAt != nil else {
-            let isCritical = utilization >= Constants.Projection.fallbackCriticalThreshold
-            let isWarning = utilization >= Constants.Projection.fallbackWarningThreshold
-            let isBold = utilization >= Constants.Projection.fallbackBoldThreshold
-            let level: Formatting.UsageLevel = isCritical ? .critical : isWarning ? .warning : .normal
-            return Formatting.UsageStyle(level: level, isBold: isBold || isCritical || isWarning)
-        }
-        guard timeRemaining > 0 else {
-            return Formatting.UsageStyle(level: .normal, isBold: false)
-        }
-        if projectedAtReset >= Constants.Projection.criticalThreshold {
-            return Formatting.UsageStyle(level: .critical, isBold: true)
-        }
-        if projectedAtReset >= Constants.Projection.warningThreshold {
-            return Formatting.UsageStyle(level: .warning, isBold: true)
-        }
-        if projectedAtReset >= Constants.Projection.boldThreshold {
-            return Formatting.UsageStyle(level: .normal, isBold: true)
-        }
-        return Formatting.UsageStyle(level: .normal, isBold: false)
-    }
-
     static func computeTimeSinceLastChange(
         currentUtilization: Int,
         samples: [UtilizationSample],
@@ -479,7 +456,7 @@ final class UsageHistory {
             rate: rate,
             timeRemaining: timeRemaining
         )
-        let style = computeStyle(
+        let style = Formatting.usageStyle(
             projectedAtReset: projectedAtReset,
             utilization: entry.window.utilization,
             resetsAt: entry.window.resetsAt,

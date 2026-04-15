@@ -59,11 +59,16 @@ enum MenuBuilder {
         refreshGraph(in: menu, analyses: state.windowAnalyses)
     }
 
+    // MARK: - Layout cache (recomputed per data update, read by countdown loop)
+
+    static var cachedLabels: [(tag: Int, label: String, window: UsageWindow?)] = []
+    static var cachedStyle: NSParagraphStyle = NSParagraphStyle()
+
     // MARK: - Live Refresh (countdown loop)
 
-    static func refreshTimes(in menu: NSMenu, usage: UsageResponse) {
-        let labels = usageLabels(usage: usage)
-        let style = usageParagraphStyle(labelColumnWidth: maxLabelWidth(labels: labels.map(\.label)))
+    static func refreshTimes(in menu: NSMenu, usage _: UsageResponse) {
+        let labels = cachedLabels
+        let style = cachedStyle
         for (tag, label, window) in labels {
             guard let window, let item = menu.item(withTag: tag) else { continue }
             let attrTitle = usageAttributedTitle(label: label, window: window, style: style)

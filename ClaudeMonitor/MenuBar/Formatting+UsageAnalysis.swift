@@ -1,16 +1,25 @@
 import Foundation
 
 extension Formatting {
-    enum UsageLevel: Sendable, Equatable {
-        case normal
-        case warning
-        case critical
+    enum UsageLevel: Int, Sendable, Equatable, Comparable {
+        case normal = 0
+        case warning = 1
+        case critical = 2
+
+        static func < (lhs: UsageLevel, rhs: UsageLevel) -> Bool {
+            lhs.rawValue < rhs.rawValue
+        }
     }
 
-    struct UsageStyle: Sendable, Equatable {
+    struct UsageStyle: Sendable, Equatable, Comparable {
         let level: UsageLevel
         let isBold: Bool
         var isCritical: Bool { level == .critical }
+
+        static func < (lhs: UsageStyle, rhs: UsageStyle) -> Bool {
+            if lhs.level != rhs.level { return lhs.level < rhs.level }
+            return !lhs.isBold && rhs.isBold
+        }
     }
 
     // MARK: - usageStyle (original signature, projection-based logic)

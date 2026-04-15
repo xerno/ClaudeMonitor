@@ -57,8 +57,8 @@ enum Formatting {
         let intervalSize: TimeInterval
 
         if totalHours >= 25 {
-            intervalStart = TimeInterval(totalHours) * 3600
-            intervalSize = 3600
+            intervalStart = TimeInterval(totalHours) * Constants.Time.secondsPerHour
+            intervalSize = Constants.Time.secondsPerHour
         } else if totalMinutes >= 2 {
             intervalStart = TimeInterval(totalMinutes) * 60
             intervalSize = 60
@@ -70,9 +70,9 @@ enum Formatting {
         var nextCenter = intervalStart - intervalSize / 2
 
         // Snap to just before zone transitions (match display tiers in timeUntil)
-        let daysToHoursThreshold: TimeInterval = 25 * 3600
+        let daysToHoursThreshold: TimeInterval = 25 * Constants.Time.secondsPerHour
         let minutesToSecondsThreshold: TimeInterval = 2 * 60
-        if intervalSize == 3600 && nextCenter < daysToHoursThreshold {
+        if intervalSize == Constants.Time.secondsPerHour && nextCenter < daysToHoursThreshold {
             nextCenter = daysToHoursThreshold - 30
         } else if intervalSize == 60 && nextCenter < minutesToSecondsThreshold {
             nextCenter = minutesToSecondsThreshold - 0.5
@@ -94,11 +94,11 @@ enum Formatting {
     }
 
     static func formatRate(_ consumptionRate: Double) -> String {
-        let perHour = consumptionRate * 3600
+        let perHour = consumptionRate * Constants.Time.secondsPerHour
         if perHour >= 0.5 {
             return String(format: String(localized: "rate.per_hour", bundle: .module), Int(perHour.rounded()))
         }
-        let perDay = consumptionRate * 86400
+        let perDay = consumptionRate * Constants.Time.secondsPerDay
         if perDay >= 0.5 {
             return String(format: String(localized: "rate.per_day", bundle: .module), Int(perDay.rounded()))
         }

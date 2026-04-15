@@ -85,6 +85,21 @@ struct DecodingTests {
         #expect(response.entries[0].key == "five_hour")
     }
 
+    @Test func usageResponseSkipsOmeletteKeys() throws {
+        let json = """
+        {
+            "five_hour": {"utilization": 42, "resets_at": "2026-04-01T15:00:00.000Z"},
+            "omelette": {"utilization": 99, "resets_at": "2026-04-01T15:00:00.000Z"},
+            "five_hour_omelette": {"utilization": 77, "resets_at": "2026-04-01T15:00:00.000Z"},
+            "OMELETTE_special": {"utilization": 55, "resets_at": "2026-04-01T15:00:00.000Z"}
+        }
+        """.data(using: .utf8)!
+
+        let response = try JSONDecoder.iso8601WithFractionalSeconds.decode(UsageResponse.self, from: json)
+        #expect(response.entries.count == 1)
+        #expect(response.entries[0].key == "five_hour")
+    }
+
     // MARK: - StatusSummary
 
     @Test func statusSummaryDecoding() throws {

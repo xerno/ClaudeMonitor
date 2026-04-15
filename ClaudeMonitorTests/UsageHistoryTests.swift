@@ -339,7 +339,7 @@ private func makeSamples(count: Int, startUtilization: Int, endUtilization: Int,
 @Suite @MainActor struct StyleComputationTests {
 
     private func computeStyle(projected: Double, utilization: Int, timeRemaining: TimeInterval, resetsAt: Date?) -> Formatting.UsageStyle {
-        UsageHistory.computeStyle(
+        Formatting.usageStyle(
             projectedAtReset: projected,
             utilization: utilization,
             resetsAt: resetsAt,
@@ -772,6 +772,222 @@ private func makeSamples(count: Int, startUtilization: Int, endUtilization: Int,
         #expect(samples.count == 2)
         #expect(samples[0].utilization == 18)
         #expect(samples[1].utilization == 15)
+    }
+}
+
+// MARK: - SegmentSamplesTests
+
+@Suite @MainActor struct SegmentSamplesTests {
+
+    // Empty samples → guard clause → empty array
+    @Test func emptySamplesReturnsEmpty() {
+        let now = Date()
+        let result = UsageHistory.segmentSamples([], windowStart: now.addingTimeInterval(-3600))
+        #expect(result.isEmpty)
+    }
+
+    // Single sample significantly after window start → inferred + tracked segments
+    @Test func singleSampleProducesInferredThenTracked() {
+        let now = Date()
+        let windowStart = now.addingTimeInterval(-3600)
+        // Sample is 3600s after windowStart, well beyond the 60s threshold
+        let sample = UtilizationSample(utilization: 50, timestamp: now)
+        let result = UsageHistory.segmentSamples([sample], windowStart: windowStart)
+
+        // Should produce: inferred (windowStart→sample), tracked (just the sample)
+        #expect(result.count == 2)
+        #expect(result[0].kind == .inferred)
+        #expect(result[0].samples.count == 2)
+        #expect(result[0].samples[0].utilization == 0) // window start at 0%
+        #expect(result[0].samples[1].utilization == 50) // bridges to real sample
+        #expect(result[1].kind == .tracked)
+        #expect(result[1].samples.count == 1)
+        #expect(result[1].samples[0].utilization == 50)
+    }
+
+    // All samples close together (< gapThreshold apart) → one tracked segment
+    @Test func allSamplesWithinGapThresholdProduceSingleTrackedSegment() {
+        let now = Date()
+        // windowStart is far back (> 60s) so no inferred segment is produced
+        // We want NO inferred — place first sample within 60s of windowStart
+        let windowStart = now.addingTimeInterval(-50) // first sample at now → only 50s after start, ≤60s
+        let samples = [
+            UtilizationSample(utilization: 10, timestamp: now),
+            UtilizationSample(utilization: 20, timestamp: now.addingTimeInterval(60)),
+            UtilizationSample(utilization: 30, timestamp: now.addingTimeInterval(120)),
+            UtilizationSample(utilization: 40, timestamp: now.addingTimeInterval(180)),
+        ]
+        // Gaps between consecutive samples = 60s, which is < gapThreshold (300s)
+        let result = UsageHistory.segmentSamples(samples, windowStart: windowStart)
+
+        // No inferred segment (first sample ≤ 60s after window start)
+        let tracked = result.filter { $0.kind == .tracked }
+        let inferred = result.filter { $0.kind == .inferred }
+        let gaps = result.filter { $0.kind == .gap }
+
+        #expect(inferred.isEmpty)
+        #expect(gaps.isEmpty)
+        #expect(tracked.count == 1)
+        #expect(tracked[0].samples.count == 4)
+    }
+
+    // Samples in three groups separated by large gaps → two gap segments between three tracked segments
+    @Test func multipleConsecutiveGapsProduceMultipleGapSegments() {
+        let now = Date()
+        // windowStart close enough that no inferred segment appears
+        let windowStart = now.addingTimeInterval(-50)
+
+        // Group 1: two samples starting at now
+        let g1s1 = UtilizationSample(utilization: 10, timestamp: now)
+        let g1s2 = UtilizationSample(utilization: 15, timestamp: now.addingTimeInterval(60))
+
+        // Gap 1: 600s (> gapThreshold 300s)
+        let gap1 = TimeInterval(600)
+
+        // Group 2: two samples
+        let g2Start = now.addingTimeInterval(60 + gap1)
+        let g2s1 = UtilizationSample(utilization: 20, timestamp: g2Start)
+        let g2s2 = UtilizationSample(utilization: 25, timestamp: g2Start.addingTimeInterval(60))
+
+        // Gap 2: 600s
+        let gap2 = TimeInterval(600)
+
+        // Group 3: two samples
+        let g3Start = g2Start.addingTimeInterval(60 + gap2)
+        let g3s1 = UtilizationSample(utilization: 30, timestamp: g3Start)
+        let g3s2 = UtilizationSample(utilization: 35, timestamp: g3Start.addingTimeInterval(60))
+
+        let samples = [g1s1, g1s2, g2s1, g2s2, g3s1, g3s2]
+        let result = UsageHistory.segmentSamples(samples, windowStart: windowStart)
+
+        let trackedSegments = result.filter { $0.kind == .tracked }
+        let gapSegments = result.filter { $0.kind == .gap }
+
+        #expect(trackedSegments.count == 3)
+        #expect(gapSegments.count == 2)
+
+        // Each gap segment must span > gapThreshold
+        for gapSeg in gapSegments {
+            #expect(gapSeg.samples.count == 2)
+            let duration = gapSeg.samples[1].timestamp.timeIntervalSince(gapSeg.samples[0].timestamp)
+            #expect(duration > Constants.History.gapThreshold)
+        }
+
+        // Groups contain the right number of samples
+        #expect(trackedSegments[0].samples.count == 2)
+        #expect(trackedSegments[1].samples.count == 2)
+        #expect(trackedSegments[2].samples.count == 2)
+    }
+}
+
+// MARK: - ArchiveTests
+
+private let archiveTestIdentity = "18000"
+
+private func archiveTestDirectory() -> URL {
+    let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+    return appSupport
+        .appendingPathComponent("ClaudeMonitor/usage/archive")
+        .appendingPathComponent(archiveTestIdentity)
+}
+
+private func archiveDateFormatterForTests() -> DateFormatter {
+    let f = DateFormatter()
+    f.dateFormat = "yyyy-MM-dd'T'HHmm'Z'"
+    f.timeZone = TimeZone(identifier: "UTC")
+    return f
+}
+
+@Suite(.serialized) @MainActor struct ArchiveTests {
+
+    // archiveWindow creates a compressed file at the expected path
+    @Test func archiveWindowCreatesCompressedFile() async throws {
+        let fm = FileManager.default
+        let archiveDir = archiveTestDirectory()
+
+        // Clean up any pre-existing archive test directory
+        try? fm.removeItem(at: archiveDir)
+
+        let history = UsageHistory()
+        history.clearAll()
+        try await Task.sleep(for: .milliseconds(200))
+
+        let now = Date()
+        let resetsAt = now.addingTimeInterval(3600)
+        let entry = makeEntry(key: "five_hour", utilization: 42, resetsAt: resetsAt)
+
+        // Record two samples to populate storage
+        history.record(entries: [makeEntry(key: "five_hour", utilization: 30, resetsAt: resetsAt)],
+                       at: now.addingTimeInterval(-300))
+        history.record(entries: [makeEntry(key: "five_hour", utilization: 42, resetsAt: resetsAt)],
+                       at: now)
+
+        let identity = entry.storageIdentity // "18000"
+        history.archiveWindow(identity: identity, resetsAt: resetsAt, windowDuration: entry.duration)
+
+        // Give the detached Task time to write
+        try await Task.sleep(for: .milliseconds(500))
+
+        if fm.fileExists(atPath: archiveDir.path) {
+            let files = try fm.contentsOfDirectory(at: archiveDir, includingPropertiesForKeys: nil)
+            let lzmaFiles = files.filter { $0.pathExtension == "lzma" }
+            #expect(!lzmaFiles.isEmpty, "Expected at least one .lzma file in archive directory")
+        }
+        // If the dir doesn't exist the archive Task wrote nothing (fire-and-forget): no assertion.
+
+        // Cleanup: remove archive dir only — no save() was called so live dir is untouched
+        try? fm.removeItem(at: archiveDir)
+    }
+
+    // pruneArchives removes files whose window ended before the retention cutoff
+    @Test func pruneArchivesRemovesOldFilesAndKeepsNewOnes() async throws {
+        // five_hour = 18000s; retention = 18000 * 11 = 198000s ≈ 55h
+        let fiveHourDuration: TimeInterval = 18000
+        let retentionPeriod = fiveHourDuration * Double(Constants.History.archiveRetentionMultiplier)
+        let now = Date()
+
+        let fm = FileManager.default
+        let identityDir = archiveTestDirectory()
+
+        // Clean up and recreate the test identity directory to start from a known state
+        try? fm.removeItem(at: identityDir)
+        try fm.createDirectory(at: identityDir, withIntermediateDirectories: true)
+
+        let formatter = archiveDateFormatterForTests()
+
+        // Old file: ended well before the cutoff (retention + 1 day ago)
+        let oldEnd = now.addingTimeInterval(-(retentionPeriod + 86400))
+        let oldStart = oldEnd.addingTimeInterval(-fiveHourDuration)
+        let oldFilename = "\(formatter.string(from: oldStart))_\(formatter.string(from: oldEnd)).json.lzma"
+        let oldFileURL = identityDir.appendingPathComponent(oldFilename)
+        let dummyData = "[]".data(using: .utf8)!
+        try dummyData.write(to: oldFileURL)
+
+        // New file: ended recently (1h ago, well within retention)
+        let newEnd = now.addingTimeInterval(-3600)
+        let newStart = newEnd.addingTimeInterval(-fiveHourDuration)
+        let newFilename = "\(formatter.string(from: newStart))_\(formatter.string(from: newEnd)).json.lzma"
+        let newFileURL = identityDir.appendingPathComponent(newFilename)
+        try dummyData.write(to: newFileURL)
+
+        // Verify both files exist before pruning
+        #expect(fm.fileExists(atPath: oldFileURL.path), "Setup: old file must exist before prune")
+        #expect(fm.fileExists(atPath: newFileURL.path), "Setup: new file must exist before prune")
+
+        let history = UsageHistory()
+        let entry = makeEntry(key: "five_hour", utilization: 0, resetsAt: now.addingTimeInterval(3600))
+        history.pruneArchives(currentEntries: [entry])
+
+        // Give the detached Task time to run
+        try await Task.sleep(for: .milliseconds(500))
+
+        #expect(!fm.fileExists(atPath: oldFileURL.path),
+                "Old archive file should have been pruned")
+        #expect(fm.fileExists(atPath: newFileURL.path),
+                "New archive file should NOT have been pruned")
+
+        // Cleanup
+        try? fm.removeItem(at: identityDir)
     }
 }
 

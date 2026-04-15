@@ -355,21 +355,21 @@ final class UsageGraphView: NSView {
 
     private func drawTrackedSegment(_ samples: [UtilizationSample], in rect: NSRect, timeRange: ClosedRange<Date>) {
         guard samples.count >= 2 else { return }
-        let sorted = samples.sorted { $0.timestamp < $1.timestamp }
+        // samples are pre-sorted by segmentSamples
 
         // Filled area
         let fillPath = NSBezierPath()
-        let first = sorted[0]
+        let first = samples[0]
         let firstX = xPosition(for: first.timestamp, in: rect, timeRange: timeRange)
         let firstY = yPosition(for: Double(first.utilization), in: rect)
         fillPath.move(to: NSPoint(x: firstX, y: rect.maxY))
         fillPath.line(to: NSPoint(x: firstX, y: firstY))
-        for sample in sorted.dropFirst() {
+        for sample in samples.dropFirst() {
             let x = xPosition(for: sample.timestamp, in: rect, timeRange: timeRange)
             let y = yPosition(for: Double(sample.utilization), in: rect)
             fillPath.line(to: NSPoint(x: x, y: y))
         }
-        let lastX = xPosition(for: sorted.last!.timestamp, in: rect, timeRange: timeRange)
+        let lastX = xPosition(for: samples.last!.timestamp, in: rect, timeRange: timeRange)
         fillPath.line(to: NSPoint(x: lastX, y: rect.maxY))
         fillPath.close()
         NSColor.systemBlue.withAlphaComponent(0.15).setFill()
@@ -379,7 +379,7 @@ final class UsageGraphView: NSView {
         let strokePath = NSBezierPath()
         strokePath.lineWidth = 1.5
         strokePath.move(to: NSPoint(x: firstX, y: firstY))
-        for sample in sorted.dropFirst() {
+        for sample in samples.dropFirst() {
             let x = xPosition(for: sample.timestamp, in: rect, timeRange: timeRange)
             let y = yPosition(for: Double(sample.utilization), in: rect)
             strokePath.line(to: NSPoint(x: x, y: y))
@@ -653,16 +653,5 @@ final class UsageGraphView: NSView {
             let proj = Int(analysis.projectedAtReset.rounded())
             statsLabel.stringValue = String(format: String(localized: "graph.stats.projected", bundle: .module), rateStr, proj)
         }
-    }
-}
-
-// MARK: - WindowEntry extension for graph label
-
-private extension WindowEntry {
-    func displayLabel(disambiguate: Bool) -> String {
-        if let scope = modelScope {
-            return "\(durationLabel) \(scope)"
-        }
-        return disambiguate ? "\(durationLabel) all" : durationLabel
     }
 }

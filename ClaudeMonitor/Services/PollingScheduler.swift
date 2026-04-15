@@ -129,34 +129,12 @@ struct PollingScheduler {
     // MARK: - Private
 
     private static func cooldownSpeed(for windowAnalyses: [WindowAnalysis]) -> Double {
-        // Find the worst severity across all windows
-        // UsageStyle has: level (.normal/.warning/.critical) and isBold (Bool)
-        // Ordering: .critical > .warning > .normal; within same level, isBold=true > isBold=false
-        var worstLevel: Formatting.UsageLevel = .normal
-        var worstIsBold = false
-        for analysis in windowAnalyses {
-            let style = analysis.style
-            if severityRank(style.level) > severityRank(worstLevel) ||
-               (style.level == worstLevel && style.isBold && !worstIsBold) {
-                worstLevel = style.level
-                worstIsBold = style.isBold
-            }
-        }
-        switch worstLevel {
-        case .critical:
+        guard let worst = windowAnalyses.map(\.style).max() else { return 1.0 }
+        switch worst.level {
+        case .critical, .warning:
             return 0.4  // shouldn't normally reach here (ramp-up catches), but safe fallback
-        case .warning:
-            return 0.4
         case .normal:
-            return worstIsBold ? 0.7 : 1.0
-        }
-    }
-
-    private static func severityRank(_ level: Formatting.UsageLevel) -> Int {
-        switch level {
-        case .normal: return 0
-        case .warning: return 1
-        case .critical: return 2
+            return worst.isBold ? 0.7 : 1.0
         }
     }
 
