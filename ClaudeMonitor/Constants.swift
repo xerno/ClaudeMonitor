@@ -57,6 +57,12 @@ enum Constants {
         static let criticalReset = "Tink"
     }
 
+    enum GitHub {
+        static let profile = URL(string: "https://github.com/xerno")!
+        static let repository = URL(string: "https://github.com/xerno/ClaudeMonitor")!
+        static let issues = URL(string: "https://github.com/xerno/ClaudeMonitor/issues")!
+    }
+
     enum Demo {
         static let isActive: Bool = ProcessInfo.processInfo.arguments.contains("--demo")
         static let rotationOrder: [Int] = [3, 2, 1, 4]

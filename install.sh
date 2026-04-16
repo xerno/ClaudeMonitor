@@ -20,7 +20,8 @@ done
 if [ "${SKIP_TESTS}" = false ]; then
     echo ""
     echo "Running tests..."
-    swift "${PROJECT_DIR}/scripts/generate-xcstrings.swift" "${PROJECT_DIR}/${APP_NAME}"
+    bash "${PROJECT_DIR}/scripts/generate-build-info.sh"
+    swift "${PROJECT_DIR}/scripts/generate-xcstrings.swift" "${PROJECT_DIR}/${APP_NAME}/Generated/Translations"
     cd "${PROJECT_DIR}"
     swift run ClaudeMonitorTestRunner
     echo ""

@@ -44,7 +44,7 @@ let package = Package(
                 "Assets.xcassets",
             ],
             resources: [
-                .process("Localizable.xcstrings"),
+                .process("Generated/Translations/Localizable.xcstrings"),
             ],
             swiftSettings: commonSwiftSettings + [
                 // Enable @testable import for the TestRunner executable target.

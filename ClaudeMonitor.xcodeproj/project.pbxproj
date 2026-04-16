@@ -201,10 +201,10 @@
 			buildActionMask = 2147483647;
 			files = (
 			);
-			name = "Generate Localizable.xcstrings";
+			name = "Generate Build Files";
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/bash;
-			shellScript = "swift \"${SRCROOT}/scripts/generate-xcstrings.swift\"\n";
+			shellScript = "swift \"${SRCROOT}/scripts/generate-xcstrings.swift\"\nbash \"${SRCROOT}/scripts/generate-build-info.sh\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 

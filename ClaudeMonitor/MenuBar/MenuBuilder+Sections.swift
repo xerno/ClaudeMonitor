@@ -223,6 +223,6 @@ extension MenuBuilder {
         let nextDate = lastRefreshed.addingTimeInterval(interval)
         let nextLabel = String(format: String(localized: "menu.next", bundle: .module),
                                nextDate.formatted(.dateTime.hour().minute().second()))
-        return "\(updated)      \(intervalLabel)      \(nextLabel)"
+        return "\(updated)        \(intervalLabel)        \(nextLabel)"
     }
 }

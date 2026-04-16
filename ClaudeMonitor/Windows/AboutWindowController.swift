@@ -3,13 +3,13 @@ import AppKit
 @MainActor
 final class AboutWindowController: NSWindowController, NSWindowDelegate {
     init() {
-        let windowWidth: CGFloat = 700
+        let windowWidth: CGFloat = 900
         let columnWidth = windowWidth / 2
         let leftContent = Self.leftColumnContent()
         let rightContent = Self.rightColumnContent()
         let leftHeight = Self.columnHeight(leftContent, columnWidth: columnWidth)
         let rightHeight = Self.columnHeight(rightContent, columnWidth: columnWidth)
-        let signatureHeight: CGFloat = 32
+        let signatureHeight: CGFloat = 48
         let windowHeight = max(leftHeight, rightHeight) + signatureHeight
 
         let window = NSWindow(
@@ -43,24 +43,22 @@ final class AboutWindowController: NSWindowController, NSWindowDelegate {
         stack.addArrangedSubview(makeColumn(leftContent))
         stack.addArrangedSubview(makeColumn(rightContent))
 
-        let signature = NSTextField(labelWithString: "Zdeněk Kopš · 2026")
-        signature.font = NSFont.systemFont(ofSize: 11)
-        signature.textColor = NSColor.tertiaryLabelColor
-        signature.alignment = .center
-        signature.translatesAutoresizingMaskIntoConstraints = false
+        let footer = Self.makeFooter()
+        footer.translatesAutoresizingMaskIntoConstraints = false
 
         contentView.addSubview(stack)
-        contentView.addSubview(signature)
+        contentView.addSubview(footer)
 
         NSLayoutConstraint.activate([
             stack.topAnchor.constraint(equalTo: contentView.topAnchor),
             stack.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
             stack.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
-            stack.bottomAnchor.constraint(equalTo: signature.topAnchor, constant: -8),
+            stack.bottomAnchor.constraint(equalTo: footer.topAnchor, constant: -24),
 
-            signature.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
-            signature.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
-            signature.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -12),
+            footer.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+            footer.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+            footer.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -12),
+            footer.heightAnchor.constraint(equalToConstant: 30),
         ])
     }
 
@@ -110,6 +108,35 @@ final class AboutWindowController: NSWindowController, NSWindowDelegate {
         storage.addLayoutManager(layout)
         layout.glyphRange(for: container)
         return layout.usedRect(for: container).height + inset * 2
+    }
+
+    // MARK: - Footer
+
+    private static func makeFooter() -> NSView {
+        let text = NSMutableAttributedString()
+        let font = NSFont.systemFont(ofSize: 11)
+        let color = NSColor.labelColor
+        let centered = NSMutableParagraphStyle()
+        centered.alignment = .center
+        centered.lineSpacing = 4
+
+        text.append(NSAttributedString(string: "Zdeněk Kopš", attributes: [
+            .font: font, .link: Constants.GitHub.profile, .paragraphStyle: centered,
+        ]))
+        text.append(NSAttributedString(string: " · Built \(BuildInfo.date)\n", attributes: [
+            .font: font, .foregroundColor: color, .paragraphStyle: centered,
+        ]))
+        text.append(NSAttributedString(string: "GitHub", attributes: [
+            .font: font, .link: Constants.GitHub.repository, .paragraphStyle: centered,
+        ]))
+        text.append(NSAttributedString(string: " · ", attributes: [
+            .font: font, .foregroundColor: color, .paragraphStyle: centered,
+        ]))
+        text.append(NSAttributedString(string: "Report an Issue", attributes: [
+            .font: font, .link: Constants.GitHub.issues, .paragraphStyle: centered,
+        ]))
+
+        return CredentialGuide.makeView(text, height: 36)
     }
 
     // MARK: - Content helpers
@@ -174,6 +201,9 @@ final class AboutWindowController: NSWindowController, NSWindowDelegate {
         s.append(line(""))
         s.append(secondary(String(localized: "about.secondary.outpacing", bundle: .module)))
 
+        heading(String(localized: "about.heading.usage_graph", bundle: .module), into: s)
+        s.append(secondary(String(localized: "about.secondary.usage_graph_explain", bundle: .module)))
+
         return s
     }
 
@@ -193,6 +223,11 @@ final class AboutWindowController: NSWindowController, NSWindowDelegate {
 
         heading(String(localized: "about.heading.100_percent", bundle: .module), into: s)
         s.append(secondary(String(localized: "about.secondary.100_percent_explain", bundle: .module)))
+
+        heading(String(localized: "about.heading.shortcuts", bundle: .module), into: s)
+        s.append(line("  ⌘R  " + String(localized: "menu.refresh", bundle: .module)))
+        s.append(line("  ⌘,  " + String(localized: "menu.preferences", bundle: .module)))
+        s.append(line("  ⌘Q  " + String(localized: "menu.quit", bundle: .module)))
 
         return s
     }

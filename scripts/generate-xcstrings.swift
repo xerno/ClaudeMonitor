@@ -5,7 +5,7 @@ let fm = FileManager.default
 let scriptURL = URL(fileURLWithPath: CommandLine.arguments[0])
 let projectDir = scriptURL.deletingLastPathComponent().deletingLastPathComponent()
 let translationsDir = projectDir.appendingPathComponent("Translations")
-let outputPath = projectDir.appendingPathComponent("ClaudeMonitor/Localizable.xcstrings")
+let outputPath = projectDir.appendingPathComponent("ClaudeMonitor/Generated/Translations/Localizable.xcstrings")
 let lprojDir = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : nil
 
 func loadJSON(_ url: URL) -> [String: String] {
@@ -56,6 +56,7 @@ do {
         options: [.prettyPrinted, .sortedKeys]
     )
     data.append(contentsOf: "\n".utf8)
+    try fm.createDirectory(at: outputPath.deletingLastPathComponent(), withIntermediateDirectories: true)
     try data.write(to: outputPath)
     print("Generated xcstrings: \(allKeys.count) keys × \(languages.count) languages")
 
