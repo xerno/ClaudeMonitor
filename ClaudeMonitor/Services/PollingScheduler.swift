@@ -47,8 +47,7 @@ struct PollingScheduler {
                 .filter { $0 > 0 && $0 < effectivePollingInterval }
                 .min()
             if let nearestReset = nearest {
-                let resetPadding: TimeInterval = 1
-                return nearestReset + resetPadding
+                return nearestReset + Constants.Polling.resetPadding
             }
         }
 
@@ -62,55 +61,26 @@ struct PollingScheduler {
             return
         }
 
-        // Priority 1: Approaching limit (any window < 10 min to limit)
-        let timesToLimit = windowAnalyses.compactMap(\.timeToLimit)
-        if let nearest = timesToLimit.filter({ $0 < 600 }).min() {
-            effectivePollingInterval = max(Constants.Polling.minInterval, nearest / 5)
-            isAwayMode = false
-            return
-        }
+        let tslc = windowAnalyses.compactMap(\.timeSinceLastChange).min()
+        let factor = Self.activityFactor(timeSinceLastChange: tslc)
+        let maxRate = windowAnalyses.compactMap(\.recentRate).max() ?? 0
+        let effectiveRate = maxRate * factor
+        let desired: TimeInterval = effectiveRate > 0
+            ? Constants.Polling.resolutionPerPoll / effectiveRate
+            : .infinity
 
-        // Priority 2: Significantly outpacing (projected >= 120%)
-        if windowAnalyses.contains(where: { $0.projectedAtReset >= Constants.Projection.criticalThreshold }) {
-            effectivePollingInterval = max(Constants.Polling.minInterval, Constants.Polling.baseInterval / 2)
-            isAwayMode = false
-            return
-        }
+        let baseCooldown = Self.cooldownInterval(timeSinceLastChange: tslc)
+        isAwayMode = baseCooldown >= Constants.Polling.maxIdleInterval
+            && systemIdleTime > Constants.Polling.awayThreshold
 
-        // Priority 3: Mildly outpacing (projected 100-120%)
-        if windowAnalyses.contains(where: { $0.projectedAtReset >= Constants.Projection.warningThreshold }) {
-            effectivePollingInterval = Constants.Polling.baseInterval
-            isAwayMode = false
-            return
-        }
+        let upperBound = Self.upperBound(
+            baseCooldown: baseCooldown,
+            awayMode: isAwayMode,
+            systemIdleTime: systemIdleTime,
+            windowAnalyses: windowAnalyses
+        )
 
-        // From here: no ramp-up condition. Determine cooldown.
-        let minTimeSinceChange = windowAnalyses.compactMap(\.timeSinceLastChange).min()
-
-        // Recent activity → baseline
-        guard let tslc = minTimeSinceChange, tslc >= Constants.Polling.cooldownStart else {
-            effectivePollingInterval = Constants.Polling.baseInterval
-            isAwayMode = false
-            return
-        }
-
-        // Severity dampener: worst style across windows slows cooldown
-        let cooldownSpeed = Self.cooldownSpeed(for: windowAnalyses)
-        let effectiveTslc = tslc * cooldownSpeed
-
-        // Idle at desk interpolation: 60s → 300s over effectiveTslc 5min → 60min
-        let t = min(max((effectiveTslc - Constants.Polling.cooldownStart) / (Constants.Polling.cooldownEnd - Constants.Polling.cooldownStart), 0), 1)
-        let idleInterval = Constants.Polling.baseInterval + t * (Constants.Polling.maxIdleInterval - Constants.Polling.baseInterval)
-
-        // Away detection: only when idle interval reached cap AND system is idle
-        if idleInterval >= Constants.Polling.maxIdleInterval && systemIdleTime > Constants.Polling.awayThreshold {
-            isAwayMode = true
-            let awayT = min(max((systemIdleTime - Constants.Polling.awayThreshold) / (Constants.Polling.awayRampEnd - Constants.Polling.awayThreshold), 0), 1)
-            effectivePollingInterval = Constants.Polling.maxIdleInterval + awayT * (Constants.Polling.maxAwayInterval - Constants.Polling.maxIdleInterval)
-        } else {
-            isAwayMode = false
-            effectivePollingInterval = idleInterval
-        }
+        effectivePollingInterval = max(Constants.Polling.minInterval, min(desired, upperBound))
     }
 
     // MARK: - Error Recording
@@ -140,14 +110,45 @@ struct PollingScheduler {
 
     // MARK: - Private
 
-    private static func cooldownSpeed(for windowAnalyses: [WindowAnalysis]) -> Double {
-        guard let worst = windowAnalyses.map(\.style).max() else { return 1.0 }
-        switch worst.level {
-        case .critical, .warning:
-            return 0.4  // shouldn't normally reach here (ramp-up catches), but safe fallback
-        case .normal:
-            return worst.isBold ? 0.7 : 1.0
+    private static func activityFactor(timeSinceLastChange tslc: TimeInterval?) -> Double {
+        guard let tslc else { return 1.0 }
+        if tslc <= Constants.Polling.activityGrace { return 1.0 }
+        let afterGrace = tslc - Constants.Polling.activityGrace
+        if afterGrace >= Constants.Polling.activityDecay { return 0.0 }
+        return 1.0 - (afterGrace / Constants.Polling.activityDecay)
+    }
+
+    private static func cooldownInterval(timeSinceLastChange tslc: TimeInterval?) -> TimeInterval {
+        guard let tslc, tslc >= Constants.Polling.cooldownStart else {
+            return Constants.Polling.baseInterval
         }
+        let t = min(max((tslc - Constants.Polling.cooldownStart) / Constants.Polling.cooldownRamp, 0), 1)
+        let spread = Constants.Polling.maxIdleInterval - Constants.Polling.baseInterval
+        return Constants.Polling.baseInterval + t * spread
+    }
+
+    private static func awayInterval(systemIdleTime: TimeInterval) -> TimeInterval {
+        let span = Constants.Polling.awayRampEnd - Constants.Polling.awayThreshold
+        let t = min(max((systemIdleTime - Constants.Polling.awayThreshold) / span, 0), 1)
+        let spread = Constants.Polling.maxAwayInterval - Constants.Polling.maxIdleInterval
+        return Constants.Polling.maxIdleInterval + t * spread
+    }
+
+    private static func upperBound(
+        baseCooldown: TimeInterval,
+        awayMode: Bool,
+        systemIdleTime: TimeInterval,
+        windowAnalyses: [WindowAnalysis]
+    ) -> TimeInterval {
+        if awayMode {
+            return awayInterval(systemIdleTime: systemIdleTime)
+        }
+        let nearLimit = windowAnalyses.contains {
+            Double($0.entry.window.utilization) >= Constants.Projection.boldThreshold
+        }
+        return nearLimit
+            ? min(baseCooldown, Constants.Polling.nearLimitCooldownCap)
+            : baseCooldown
     }
 
     private func retryInterval(for state: ServiceState) -> TimeInterval? {

@@ -7,93 +7,7 @@ import Foundation
 /// Focuses on paths not covered by PollIntervalTests or CompositionTests.
 @MainActor struct PollingCompositionTests {
 
-    // MARK: - Test 1: Approaching limit (Priority 1) — proportional interval
-
-    /// Full chain: real WindowEntry + resetsAt → analyze() → timeToLimit < 600s →
-    /// adjustPollingRate Priority 1 → effectivePollingInterval = timeToLimit / 5.
-    ///
-    /// Setup: 5h window (18000s), 98% utilization, resetsAt 400s away.
-    ///   elapsed = 18000 - 400 = 17600s
-    ///   rate    = 98 / 17600 ≈ 0.005568/s
-    ///   ttl     = (100 - 98) / rate = 2 * 17600 / 98 ≈ 359s   (< 400s remaining ✓, < 600s ✓)
-    ///   interval = max(minInterval=24, 359/5) ≈ 71.8s   (> baseInterval=60, proportional to ttl)
-    @Test func realApproachingLimitYieldsProportionalInterval() throws {
-        let now = Date()
-        let resetsAt = now.addingTimeInterval(400)
-        let entry = WindowEntry(
-            key: "five_hour", duration: 18000, durationLabel: "5h", modelScope: nil,
-            window: UsageWindow(utilization: 98, resetsAt: resetsAt)
-        )
-
-        // No samples needed — analyze() computes rate from utilization + resetsAt alone.
-        let analysis = UsageHistory.analyze(entry: entry, samples: [], now: now)
-
-        // Verify intermediate values before feeding to scheduler.
-        // elapsed=17600, rate=98/17600, ttl=(2/rate)=~359s — inside the 600s Priority 1 window.
-        #expect(analysis.timeToLimit != nil, "timeToLimit must be non-nil for 98% util on 400s horizon")
-        let ttl = try #require(analysis.timeToLimit)
-        #expect(ttl > 0 && ttl < 600, "timeToLimit \(ttl) must be in Priority 1 range (0, 600)")
-
-        var scheduler = PollingScheduler()
-        scheduler.adjustPollingRate(windowAnalyses: [analysis])
-
-        // Priority 1 formula: max(minInterval, ttl / 5).
-        let expected = max(Constants.Polling.minInterval, ttl / 5)
-        #expect(scheduler.effectivePollingInterval == expected,
-                "interval \(scheduler.effectivePollingInterval) should equal max(24, ttl/5)=\(expected)")
-
-        // The interval is PROPORTIONAL to timeToLimit (varies with ttl, not a fixed constant).
-        // With ttl ≈ 359s the result is ~71.8s, which is above baseInterval (60s).
-        #expect(scheduler.effectivePollingInterval > Constants.Polling.baseInterval,
-                "approaching-limit interval should be > baseInterval when ttl is moderate")
-        #expect(scheduler.effectivePollingInterval < Constants.Polling.maxIdleInterval,
-                "approaching-limit interval must not reach idle cap")
-    }
-
-    // MARK: - Test 2: Significantly outpacing (Priority 2) — half base interval
-
-    /// Full chain: real WindowEntry with rapid utilization (50% at 20% elapsed) →
-    /// analyze() → projectedAtReset ≈ 250% → Priority 2 → interval = max(24, 60/2) = 30s.
-    ///
-    /// Setup: 5h window (18000s), 50% utilization, resetsAt 14400s away (80% remaining).
-    ///   elapsed    = 18000 - 14400 = 3600s   (20% of window elapsed)
-    ///   rate       = 50 / 3600 ≈ 0.01389/s
-    ///   projected  = 50 + 0.01389 * 14400 = 50 + 200 = 250%   (≥ criticalThreshold=120 ✓)
-    ///   timeToLimit = (100-50)/rate = 3600s   (< 14400s remaining, so non-nil, but ≥ 600s)
-    ///   → Priority 1 does NOT fire (ttl=3600 ≥ 600)
-    ///   → Priority 2 fires: interval = max(24, 60/2) = 30s
-    @Test func realSignificantlyOutpacingYieldsHalfBaseInterval() {
-        let now = Date()
-        let resetsAt = now.addingTimeInterval(14400)  // 80% remaining on 18000s window
-        let entry = WindowEntry(
-            key: "five_hour", duration: 18000, durationLabel: "5h", modelScope: nil,
-            window: UsageWindow(utilization: 50, resetsAt: resetsAt)
-        )
-
-        let analysis = UsageHistory.analyze(entry: entry, samples: [], now: now)
-
-        // Verify projection before feeding to scheduler.
-        #expect(analysis.projectedAtReset >= Constants.Projection.criticalThreshold,
-                "projected \(analysis.projectedAtReset) should be ≥ criticalThreshold=120")
-
-        // timeToLimit should be non-nil (rate > 0, util < 100), but ≥ 600s (Priority 1 must NOT fire).
-        let ttl = analysis.timeToLimit
-        if let ttl {
-            #expect(ttl >= 600,
-                    "timeToLimit \(ttl) must be ≥ 600s so Priority 1 does not pre-empt Priority 2")
-        }
-
-        var scheduler = PollingScheduler()
-        scheduler.adjustPollingRate(windowAnalyses: [analysis])
-
-        let expected = max(Constants.Polling.minInterval, Constants.Polling.baseInterval / 2)
-        #expect(scheduler.effectivePollingInterval == expected,
-                "Priority 2 should set interval to max(24, 30)=\(expected)")
-        #expect(scheduler.effectivePollingInterval < Constants.Polling.baseInterval,
-                "Priority 2 interval must be below baseInterval")
-    }
-
-    // MARK: - Test 3: Cooldown via real UsageHistory.record() → samples() → analyze()
+    // MARK: - Test 1: Cooldown via real UsageHistory.record() → samples() → analyze()
 
     /// Tests the full persistence path through UsageHistory:
     ///   record() accumulates samples → samples(for:) retrieves them → analyze() computes
@@ -103,8 +17,8 @@ import Foundation
     /// builds samples manually and calls analyze() directly) by exercising record()
     /// and samples(for:) as the data source — the path the coordinator actually uses.
     ///
-    /// Setup: stable at 20% for 66 minutes via 67 record() calls spaced 60s apart.
-    ///   timeSinceLastChange ≈ 66 * 60 = 3960s  (> cooldownEnd=3600s → t=1 → maxIdleInterval)
+    /// Setup: stable at 20% for 96 minutes via 96 record() calls spaced 60s apart.
+    ///   timeSinceLastChange ≈ 95 * 60 = 5700s  (= cooldownEnd=5700s → t=1 → maxIdleInterval)
     @Test func cooldownViaUsageHistoryRecordAndSamplesPath() throws {
         let history = UsageHistory()
 
@@ -115,14 +29,14 @@ import Foundation
             window: UsageWindow(utilization: 20, resetsAt: resetsAt)
         )
 
-        // Record 67 samples spaced 60s apart, ending at `now`.
-        // Earliest sample is 66 * 60 = 3960s before now.
-        // All at 20% → timeSinceLastChange = time since first sample ≈ 3960s.
-        let sampleCount = 67
+        // Record 96 samples spaced 60s apart, ending at `now`.
+        // Earliest sample is 95 * 60 = 5700s before now, which equals cooldownEnd.
+        // All at 20% → timeSinceLastChange = time since first sample ≈ 5700s.
+        // record() deduplicates samples within deduplicationInterval (30s) with same utilization;
+        // spacing 60s apart (> 30s) ensures every sample is stored.
+        let sampleCount = 96
         for i in 0..<sampleCount {
             let sampleTime = now.addingTimeInterval(TimeInterval(i - (sampleCount - 1)) * 60)
-            // record() deduplicates samples within deduplicationInterval (30s) with same utilization.
-            // Spacing them 60s apart (> 30s) ensures every sample is stored.
             history.record(entries: [
                 WindowEntry(
                     key: "five_hour", duration: 18000, durationLabel: "5h", modelScope: nil,
@@ -136,11 +50,11 @@ import Foundation
 
         let analysis = UsageHistory.analyze(entry: entry, samples: samples, now: now)
 
-        // All samples are at 20% → timeSinceLastChange = time since first sample ≈ 3960s.
+        // All samples are at 20% → timeSinceLastChange = time since first sample ≈ 5700s.
         #expect(analysis.timeSinceLastChange != nil, "timeSinceLastChange must be non-nil")
         let tslc = try #require(analysis.timeSinceLastChange)
         #expect(tslc >= Constants.Polling.cooldownEnd,
-                "tslc \(tslc) must reach cooldownEnd=3600s for full idle cap")
+                "tslc \(tslc) must reach cooldownEnd=\(Constants.Polling.cooldownEnd)s for full idle cap")
 
         var scheduler = PollingScheduler()
         scheduler.adjustPollingRate(windowAnalyses: [analysis])

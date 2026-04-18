@@ -67,15 +67,15 @@ struct PollIntervalTests {
 
     @Test func nextPollIntervalBothNonRetryableFailuresFlooredAtBase() {
         var scheduler = PollingScheduler()
-        // Drive effectivePollingInterval down to minInterval (24s) via approaching-limit logic.
-        // timeToLimit: 5s → effectivePollingInterval = max(24, 5/5) = 24s (below baseInterval).
+        // Drive effectivePollingInterval below baseInterval via high recentRate within grace period.
+        // recentRate=0.1 %/s → desired=10s → clamped to minInterval=24s (below baseInterval=60s).
         let entry = WindowEntry(key: "five_hour", duration: 18000, durationLabel: "5h", modelScope: nil,
                                 window: UsageWindow(utilization: 95, resetsAt: Date().addingTimeInterval(3600)))
         let nearLimitAnalysis = WindowAnalysis(
             entry: entry, samples: [], consumptionRate: 0, projectedAtReset: 130,
-            timeToLimit: 5, rateSource: .insufficient,
+            timeToLimit: nil, rateSource: .insufficient,
             style: Formatting.UsageStyle(level: .critical, isBold: true),
-            segments: [], timeSinceLastChange: nil
+            segments: [], timeSinceLastChange: 60, recentRate: 0.1
         )
         scheduler.adjustPollingRate(windowAnalyses: [nearLimitAnalysis])
         // Confirm effectivePollingInterval is below baseInterval
@@ -93,14 +93,14 @@ struct PollIntervalTests {
 
     @Test func nextPollIntervalMixedHealthyAndAuthFailedDoesNotFloor() {
         var scheduler = PollingScheduler()
-        // Drive effectivePollingInterval below baseInterval via approaching-limit logic.
+        // Drive effectivePollingInterval below baseInterval via high recentRate within grace period.
         let entry = WindowEntry(key: "five_hour", duration: 18000, durationLabel: "5h", modelScope: nil,
                                 window: UsageWindow(utilization: 95, resetsAt: Date().addingTimeInterval(3600)))
         let nearLimitAnalysis = WindowAnalysis(
             entry: entry, samples: [], consumptionRate: 0, projectedAtReset: 130,
-            timeToLimit: 5, rateSource: .insufficient,
+            timeToLimit: nil, rateSource: .insufficient,
             style: Formatting.UsageStyle(level: .critical, isBold: true),
-            segments: [], timeSinceLastChange: nil
+            segments: [], timeSinceLastChange: 60, recentRate: 0.1
         )
         scheduler.adjustPollingRate(windowAnalyses: [nearLimitAnalysis])
         assert(scheduler.effectivePollingInterval < Constants.Polling.baseInterval)

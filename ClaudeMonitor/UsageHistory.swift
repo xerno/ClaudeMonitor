@@ -30,6 +30,31 @@ struct WindowAnalysis: Sendable, Equatable {
     let style: Formatting.UsageStyle
     let segments: [SampleSegment]
     let timeSinceLastChange: TimeInterval?
+    let recentRate: Double?
+
+    init(
+        entry: WindowEntry,
+        samples: [UtilizationSample],
+        consumptionRate: Double,
+        projectedAtReset: Double,
+        timeToLimit: TimeInterval?,
+        rateSource: RateSource,
+        style: Formatting.UsageStyle,
+        segments: [SampleSegment],
+        timeSinceLastChange: TimeInterval?,
+        recentRate: Double? = nil
+    ) {
+        self.entry = entry
+        self.samples = samples
+        self.consumptionRate = consumptionRate
+        self.projectedAtReset = projectedAtReset
+        self.timeToLimit = timeToLimit
+        self.rateSource = rateSource
+        self.style = style
+        self.segments = segments
+        self.timeSinceLastChange = timeSinceLastChange
+        self.recentRate = recentRate
+    }
 }
 
 extension WindowEntry {
@@ -390,6 +415,41 @@ final class UsageHistory {
         return now.timeIntervalSince(samples.first!.timestamp)
     }
 
+    static func computeRecentRate(samples: [UtilizationSample], tau: TimeInterval = Constants.Polling.rateEmaTau) -> Double? {
+        guard samples.count >= 2 else { return nil }
+
+        var ema: Double? = nil
+        var previous = samples[0]
+
+        for current in samples.dropFirst() {
+            let deltaTime = current.timestamp.timeIntervalSince(previous.timestamp)
+            guard deltaTime > 0 else {
+                previous = current
+                continue
+            }
+            let deltaUtil = Double(current.utilization - previous.utilization)
+
+            if deltaUtil < 0 {
+                ema = 0
+                previous = current
+                continue
+            }
+
+            let instantaneous = deltaUtil / deltaTime
+            let alpha = 1.0 - exp(-deltaTime / tau)
+
+            if let prev = ema {
+                ema = alpha * instantaneous + (1 - alpha) * prev
+            } else {
+                ema = instantaneous
+            }
+
+            previous = current
+        }
+
+        return ema
+    }
+
     static func analyze(entry: WindowEntry, samples: [UtilizationSample], now: Date = Date()) -> WindowAnalysis {
         let timeRemaining = max(0, (entry.window.resetsAt ?? now).timeIntervalSince(now))
         let (rate, source) = computeRate(
@@ -416,6 +476,7 @@ final class UsageHistory {
             samples: samples,
             now: now
         )
+        let recentRate = computeRecentRate(samples: samples)
         return WindowAnalysis(
             entry: entry,
             samples: samples,
@@ -425,7 +486,8 @@ final class UsageHistory {
             rateSource: source,
             style: style,
             segments: segs,
-            timeSinceLastChange: timeSinceLastChange
+            timeSinceLastChange: timeSinceLastChange,
+            recentRate: recentRate
         )
     }
 }

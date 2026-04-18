@@ -24,13 +24,36 @@ enum Constants {
     enum Polling {
         static let baseInterval: TimeInterval = 60
         static let minInterval: TimeInterval = 24
-        static let cooldownStart: TimeInterval = 300    // 5 min: timeSinceLastChange to start cooldown
-        static let cooldownEnd: TimeInterval = 3600     // 60 min: timeSinceLastChange for full cooldown
-        static let maxIdleInterval: TimeInterval = 300  // Idle at desk cap
-        static let maxAwayInterval: TimeInterval = 3600 // Away cap (60 min)
-        static let awayThreshold: TimeInterval = 300    // systemIdle to enter Away mode
-        static let awayRampEnd: TimeInterval = 7200     // systemIdle for max Away interval
-        static let heartbeatInterval: TimeInterval = 60 // heartbeat check interval in Away mode
+
+        static let rateEmaTau: TimeInterval = 60
+
+        // Target utilization delta per poll (percentage points). Anthropic reports
+        // utilization in whole percents, so 1.0 matches the finest signal granularity.
+        static let resolutionPerPoll: Double = 1.0
+
+        // Four-phase activity model: during `grace` the rate drives polling at full
+        // strength; over `decay` the rate's influence fades linearly to zero; across
+        // `baseline` polling stays at baseInterval with no rate influence; after
+        // that, cooldown interpolation begins.
+        static let activityGrace: TimeInterval = 300
+        static let activityDecay: TimeInterval = 1200
+        static let activityBaseline: TimeInterval = 600
+
+        static let cooldownStart: TimeInterval = activityGrace + activityDecay + activityBaseline
+        static let cooldownRamp: TimeInterval = 3600
+        static let cooldownEnd: TimeInterval = cooldownStart + cooldownRamp
+
+        static let nearLimitCooldownCap: TimeInterval = 120
+
+        static let maxIdleInterval: TimeInterval = 300
+        static let maxAwayInterval: TimeInterval = 3600
+        static let awayThreshold: TimeInterval = 300
+        static let awayRampEnd: TimeInterval = 7200
+        static let heartbeatInterval: TimeInterval = 60
+
+        // Delay added after a detected reset so the first post-reset poll sees the
+        // reset state (utilization=0) rather than racing it.
+        static let resetPadding: TimeInterval = 1
     }
 
     enum Retry {

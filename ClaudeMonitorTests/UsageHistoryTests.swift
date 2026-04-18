@@ -910,6 +910,105 @@ private func makeSamples(count: Int, startUtilization: Int, endUtilization: Int,
     }
 }
 
+// MARK: - RecentRateTests
+
+@Suite @MainActor struct RecentRateTests {
+
+    @Test func computeRecentRateReturnsNilForInsufficientSamples() {
+        let now = Date()
+        #expect(UsageHistory.computeRecentRate(samples: []) == nil)
+        let single = [UtilizationSample(utilization: 50, timestamp: now)]
+        #expect(UsageHistory.computeRecentRate(samples: single) == nil)
+    }
+
+    @Test func computeRecentRateConstantUtilizationIsZero() {
+        let now = Date()
+        let samples = (0..<10).map { i in
+            UtilizationSample(utilization: 50, timestamp: now.addingTimeInterval(Double(i) * 60))
+        }
+        let rate = UsageHistory.computeRecentRate(samples: samples)
+        #expect(rate != nil)
+        #expect(abs(rate! - 0.0) < 0.0001)
+    }
+
+    @Test func computeRecentRateLinearGrowthMatchesExpected() {
+        // 25 samples, 1% per 60s apart → instantaneous rate = 1/60 ≈ 0.01667 %/s each step
+        // With enough samples the EMA should converge to ≈ 0.01667 %/s
+        let now = Date()
+        let samples = (0..<25).map { i in
+            UtilizationSample(utilization: i, timestamp: now.addingTimeInterval(Double(i) * 60))
+        }
+        let rate = UsageHistory.computeRecentRate(samples: samples)
+        #expect(rate != nil)
+        let expected = 1.0 / 60.0
+        #expect(abs(rate! - expected) < 0.001)
+    }
+
+    @Test func computeRecentRateShortBurstBarelyMovesEma() {
+        // Many idle samples at 0%, then one jump of +1% just 2s after the last idle sample.
+        // α for Δt=2s, τ=60s: α = 1 - exp(-2/60) ≈ 0.0328.
+        // instantaneous = 1%/2s = 0.5 %/s. ema = α × 0.5 + (1-α) × 0 ≈ 0.0164 %/s.
+        let now = Date()
+        var samples: [UtilizationSample] = (0..<20).map { i in
+            UtilizationSample(utilization: 0, timestamp: now.addingTimeInterval(Double(i) * 60))
+        }
+        samples.append(UtilizationSample(utilization: 1, timestamp: now.addingTimeInterval(Double(19) * 60 + 2)))
+        let rate = UsageHistory.computeRecentRate(samples: samples)
+        #expect(rate != nil)
+        #expect(rate! > 0.01 && rate! < 0.025,
+                "ema after short 2s burst should be ~0.016, got \(rate!)")
+    }
+
+    @Test func computeRecentRateResetsOnNegativeDelta() {
+        // Samples 90%, 95%, 0%, 1%, 2% each 60s apart
+        // After 95→0 drop, ema resets to 0, then picks up again from subsequent 1%/60s rate
+        let now = Date()
+        let utils = [90, 95, 0, 1, 2]
+        let samples = utils.enumerated().map { (i, u) in
+            UtilizationSample(utilization: u, timestamp: now.addingTimeInterval(Double(i) * 60))
+        }
+        let rate = UsageHistory.computeRecentRate(samples: samples)
+        #expect(rate != nil)
+        // After reset, EMA starts from 0 and grows from the 0→1 and 1→2 transitions
+        // The result should be non-negative (reset ensures no negative carryover)
+        #expect(rate! >= 0)
+        // Should be much less than the pre-reset rate (95-90)/60 ≈ 0.083
+        #expect(rate! < 0.083)
+    }
+
+    @Test func computeRecentRateSkipsZeroDeltaTime() {
+        let now = Date()
+        // Two samples at identical timestamps → deltaTime=0, skipped
+        let s1 = UtilizationSample(utilization: 50, timestamp: now)
+        let s2 = UtilizationSample(utilization: 60, timestamp: now)
+        let s3 = UtilizationSample(utilization: 61, timestamp: now.addingTimeInterval(60))
+        let rate = UsageHistory.computeRecentRate(samples: [s1, s2, s3])
+        // s1→s2 skipped (deltaTime=0), s2→s3 processed: rate=1/60
+        #expect(rate != nil)
+        #expect(abs(rate! - 1.0/60.0) < 0.001)
+    }
+
+    @Test func computeRecentRateCustomTau() {
+        // Smaller τ → higher α → faster response to the most recent instantaneous rate
+        // Use two intervals with very different rates and verify small-τ tracks the recent rate more closely
+        let now = Date()
+        // First 10 samples: 1%/60s; last pair: 5%/1s (big burst)
+        var samples: [UtilizationSample] = (0..<10).map { i in
+            UtilizationSample(utilization: i, timestamp: now.addingTimeInterval(Double(i) * 60))
+        }
+        // Big jump: +5% in 1s
+        samples.append(UtilizationSample(utilization: 15, timestamp: now.addingTimeInterval(9 * 60 + 1)))
+
+        let rateFastTau = UsageHistory.computeRecentRate(samples: samples, tau: 1)   // τ=1s, very fast
+        let rateSlowTau = UsageHistory.computeRecentRate(samples: samples, tau: 600) // τ=600s, very slow
+
+        #expect(rateFastTau != nil)
+        #expect(rateSlowTau != nil)
+        // Fast τ reacts strongly to the last burst; slow τ still weighted toward history
+        #expect(rateFastTau! > rateSlowTau!)
+    }
+}
+
 // MARK: - ArchiveTests
 
 private let archiveTestIdentity = "18000"

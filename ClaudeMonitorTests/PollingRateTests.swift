@@ -6,270 +6,407 @@ struct PollingRateTests {
 
     // MARK: - Helpers
 
-    private func makeEntry(resetsIn: TimeInterval = 3600) -> WindowEntry {
+    private func makeEntry(utilization: Int = 50, resetsIn: TimeInterval = 3600) -> WindowEntry {
         WindowEntry(
             key: "five_hour",
             duration: 18000,
             durationLabel: "5h",
             modelScope: nil,
-            window: UsageWindow(utilization: 50, resetsAt: Date().addingTimeInterval(resetsIn))
+            window: UsageWindow(utilization: utilization, resetsAt: Date().addingTimeInterval(resetsIn))
         )
     }
 
     private func makeAnalysis(
-        projectedAtReset: Double = 50,
-        consumptionRate: Double = 0,
-        timeToLimit: TimeInterval? = nil,
+        utilization: Int = 50,
         resetsIn: TimeInterval = 3600,
         timeSinceLastChange: TimeInterval? = nil,
-        style: Formatting.UsageStyle = Formatting.UsageStyle(level: .normal, isBold: false)
+        recentRate: Double? = nil
     ) -> WindowAnalysis {
         WindowAnalysis(
-            entry: makeEntry(resetsIn: resetsIn),
+            entry: makeEntry(utilization: utilization, resetsIn: resetsIn),
             samples: [],
-            consumptionRate: consumptionRate,
-            projectedAtReset: projectedAtReset,
-            timeToLimit: timeToLimit,
+            consumptionRate: 0,
+            projectedAtReset: 50,
+            timeToLimit: nil,
             rateSource: .insufficient,
-            style: style,
+            style: Formatting.UsageStyle(level: .normal, isBold: false),
             segments: [],
-            timeSinceLastChange: timeSinceLastChange
+            timeSinceLastChange: timeSinceLastChange,
+            recentRate: recentRate
         )
     }
 
-    // MARK: - Priority 1: Approaching Limit
-
-    @Test func approachingLimitShortensInterval() {
-        var scheduler = PollingScheduler()
-        let analysis = makeAnalysis(timeToLimit: 300) // 300s < 600s threshold
-        scheduler.adjustPollingRate(windowAnalyses: [analysis])
-        // max(minInterval=24, 300/5=60) = 60
-        #expect(scheduler.nextPollInterval(usage: nil) == max(Constants.Polling.minInterval, 300.0 / 5))
-    }
-
-    @Test func approachingLimitRespectsMinInterval() {
-        var scheduler = PollingScheduler()
-        let analysis = makeAnalysis(timeToLimit: 10) // 10/5=2, below minInterval
-        scheduler.adjustPollingRate(windowAnalyses: [analysis])
-        #expect(scheduler.nextPollInterval(usage: nil) == Constants.Polling.minInterval)
-    }
-
-    // MARK: - Priority 2: Significantly Outpacing
-
-    @Test func significantlyOutpacingUsesHalfBase() {
-        var scheduler = PollingScheduler()
-        let analysis = makeAnalysis(projectedAtReset: 130, consumptionRate: 0.01)
-        scheduler.adjustPollingRate(windowAnalyses: [analysis])
-        // max(minInterval=24, baseInterval/2=30) = 30
-        let expected = max(Constants.Polling.minInterval, Constants.Polling.baseInterval / 2)
-        #expect(scheduler.nextPollInterval(usage: nil) == expected)
-    }
-
-    // MARK: - Priority 3: Mildly Outpacing
-
-    @Test func mildlyOutpacingUsesBase() {
-        var scheduler = PollingScheduler()
-        let analysis = makeAnalysis(projectedAtReset: 110, consumptionRate: 0.005)
-        scheduler.adjustPollingRate(windowAnalyses: [analysis])
-        #expect(scheduler.nextPollInterval(usage: nil) == Constants.Polling.baseInterval)
-    }
-
-    // MARK: - Near Reset
-
-    @Test func nearResetSchedulesAfterReset() {
-        let scheduler = PollingScheduler()
-        let resetsIn: TimeInterval = 5 // resets in 5 seconds
-        let entry = makeEntry(resetsIn: resetsIn)
-        let usage = UsageResponse(entries: [entry])
-
-        // effectivePollingInterval is base (60), so resetsIn < effectivePollingInterval
-        let interval = scheduler.nextPollInterval(usage: usage)
-        // Should be resetsIn + 1 padding ≈ 6 (allow small floating point tolerance)
-        #expect(abs(interval - (resetsIn + 1)) < 0.01)
-    }
-
-    // MARK: - Failure Backoff
-
-    @Test func failureBackoffUsesExponentialBackoff() {
-        var scheduler = PollingScheduler()
-
-        // Record enough failures to trigger backoff (each doubles: 10→20→40)
-        let threshold = Constants.Retry.failureThreshold
-        for _ in 0..<threshold {
-            scheduler.recordUsageFailure(category: .transient)
-        }
-
-        let interval = scheduler.nextPollInterval(usage: nil)
-        // initialBackoff=10, doubled threshold=2 times: 10*2=20, 20*2=40
-        let expectedBackoff = Constants.Retry.initialBackoff * pow(2.0, Double(threshold))
-        #expect(interval == min(expectedBackoff, Constants.Retry.maxBackoff))
-    }
-
-    @Test func failureBackoffStaysUnderMaxBackoff() {
-        var scheduler = PollingScheduler()
-
-        // Record many failures to saturate backoff
-        for _ in 0..<20 {
-            scheduler.recordUsageFailure(category: .transient)
-        }
-
-        let interval = scheduler.nextPollInterval(usage: nil)
-        // nextPollInterval returns min(statusRetry=effectiveInterval, usageRetry=maxBackoff)
-        #expect(interval <= Constants.Retry.maxBackoff)
-    }
-
-    // MARK: - Empty WindowAnalyses Resets to Base
+    // MARK: - Empty / nil
 
     @Test func emptyWindowAnalysesResetsToBase() {
         var scheduler = PollingScheduler()
-        // No window analyses → reset to base
         scheduler.adjustPollingRate(windowAnalyses: [])
         #expect(scheduler.nextPollInterval(usage: nil) == Constants.Polling.baseInterval)
     }
 
-    // MARK: - Recent Activity
-
-    @Test func recentActivityStaysAtBaseline() {
+    @Test func nilRecentRateStaysAtBaseline() {
         var scheduler = PollingScheduler()
-        let analysis = makeAnalysis(projectedAtReset: 50, timeSinceLastChange: 120)  // 2 min
+        let analysis = makeAnalysis(timeSinceLastChange: nil, recentRate: nil)
         scheduler.adjustPollingRate(windowAnalyses: [analysis])
         #expect(scheduler.nextPollInterval(usage: nil) == Constants.Polling.baseInterval)
         #expect(!scheduler.isAwayMode)
     }
 
-    @Test func nilTimeSinceLastChangeStaysAtBaseline() {
+    @Test func zeroRecentRateStaysAtBaseline() {
         var scheduler = PollingScheduler()
-        let analysis = makeAnalysis(projectedAtReset: 50, timeSinceLastChange: nil)
+        let analysis = makeAnalysis(timeSinceLastChange: nil, recentRate: 0)
         scheduler.adjustPollingRate(windowAnalyses: [analysis])
         #expect(scheduler.nextPollInterval(usage: nil) == Constants.Polling.baseInterval)
-        #expect(!scheduler.isAwayMode)
     }
 
-    // MARK: - Idle at Desk Cooldown
+    // MARK: - Rate-driven ramp-up (activityFactor = 1.0, tslc ≤ grace)
 
-    @Test func idleAtDeskInterpolatesInterval() {
+    @Test func lowRateStaysAtBase() {
+        // recentRate=0.01 %/s → desired=1/0.01=100s → clamped to base 60s
         var scheduler = PollingScheduler()
-        // 30 min since last change, normal severity → midpoint of cooldown ramp
-        let analysis = makeAnalysis(projectedAtReset: 50, timeSinceLastChange: 1800)
+        let analysis = makeAnalysis(timeSinceLastChange: 60, recentRate: 0.01)
         scheduler.adjustPollingRate(windowAnalyses: [analysis])
-        let interval = scheduler.nextPollInterval(usage: nil)
-        // Should be between baseline (60) and maxIdleInterval (300)
-        #expect(interval > Constants.Polling.baseInterval)
-        #expect(interval < Constants.Polling.maxIdleInterval)
-        #expect(!scheduler.isAwayMode)
+        #expect(scheduler.nextPollInterval(usage: nil) == Constants.Polling.baseInterval)
     }
 
-    @Test func idleAtDeskReachesCap() {
+    @Test func moderateRateGivesExactInterval() {
+        // recentRate=0.02 %/s → desired=1/0.02=50s (50 > minInterval=24, < base=60) → 50s
         var scheduler = PollingScheduler()
-        // 60 min (3600s) since last change → fully cooled down
-        let analysis = makeAnalysis(projectedAtReset: 50, timeSinceLastChange: 3600)
+        let analysis = makeAnalysis(timeSinceLastChange: 60, recentRate: 0.02)
         scheduler.adjustPollingRate(windowAnalyses: [analysis])
-        let interval = scheduler.nextPollInterval(usage: nil)
-        #expect(interval == Constants.Polling.maxIdleInterval)
-        #expect(!scheduler.isAwayMode)
+        #expect(abs(scheduler.nextPollInterval(usage: nil) - 50.0) < 0.01)
     }
 
-    @Test func idleAtDeskBoundaryAtCooldownStart() {
+    @Test func highRateHitsMinFloor() {
+        // recentRate=0.1 %/s → desired=1/0.1=10s → clamped to minInterval=24s
         var scheduler = PollingScheduler()
-        // Exactly 5 min (300s) → just at cooldown start → should be baseline
-        let analysis = makeAnalysis(projectedAtReset: 50, timeSinceLastChange: 300)
+        let analysis = makeAnalysis(timeSinceLastChange: 60, recentRate: 0.1)
         scheduler.adjustPollingRate(windowAnalyses: [analysis])
-        let interval = scheduler.nextPollInterval(usage: nil)
-        #expect(interval == Constants.Polling.baseInterval)
+        #expect(scheduler.nextPollInterval(usage: nil) == Constants.Polling.minInterval)
     }
 
-    // MARK: - Severity Dampener
-
-    @Test func severityDampenerBoldSlowsCooldown() {
+    @Test func maxRateAcrossWindowsWins() {
+        // Two windows: 0.005 and 0.02. Max=0.02 → desired=50s
         var scheduler = PollingScheduler()
-        let boldStyle = Formatting.UsageStyle(level: .normal, isBold: true)
-        // 30 min since last change, bold severity (cooldownSpeed = 0.7)
-        let analysis = makeAnalysis(projectedAtReset: 50, timeSinceLastChange: 1800, style: boldStyle)
+        let a1 = makeAnalysis(timeSinceLastChange: 60, recentRate: 0.005)
+        let a2 = makeAnalysis(timeSinceLastChange: 60, recentRate: 0.02)
+        scheduler.adjustPollingRate(windowAnalyses: [a1, a2])
+        #expect(abs(scheduler.nextPollInterval(usage: nil) - 50.0) < 0.01)
+    }
+
+    // MARK: - activityFactor decay
+
+    @Test func graceFullFactor() {
+        // tslc=200s (< grace=300s) → factor=1.0, recentRate=0.02 → desired=50s → 50s
+        var scheduler = PollingScheduler()
+        let analysis = makeAnalysis(timeSinceLastChange: 200, recentRate: 0.02)
         scheduler.adjustPollingRate(windowAnalyses: [analysis])
-        let boldInterval = scheduler.nextPollInterval(usage: nil)
-
-        var scheduler2 = PollingScheduler()
-        let normalAnalysis = makeAnalysis(projectedAtReset: 50, timeSinceLastChange: 1800)
-        scheduler2.adjustPollingRate(windowAnalyses: [normalAnalysis])
-        let normalInterval = scheduler2.nextPollInterval(usage: nil)
-
-        // Bold severity should result in shorter interval (slower cooldown)
-        #expect(boldInterval < normalInterval)
+        #expect(abs(scheduler.nextPollInterval(usage: nil) - 50.0) < 0.01)
     }
 
-    @Test func severityDampenerWarningSlowsCooldownMore() {
+    @Test func midDecayHalfFactor() {
+        // tslc=900s: afterGrace=600, decay=1200 → factor=0.5
+        // effectiveRate=0.02*0.5=0.01 → desired=100s → clamped to base 60s
         var scheduler = PollingScheduler()
-        let warningStyle = Formatting.UsageStyle(level: .warning, isBold: true)
-        let analysis = makeAnalysis(projectedAtReset: 50, timeSinceLastChange: 1800, style: warningStyle)
+        let analysis = makeAnalysis(timeSinceLastChange: 900, recentRate: 0.02)
         scheduler.adjustPollingRate(windowAnalyses: [analysis])
-        let warningInterval = scheduler.nextPollInterval(usage: nil)
-
-        var scheduler2 = PollingScheduler()
-        let boldStyle = Formatting.UsageStyle(level: .normal, isBold: true)
-        let boldAnalysis = makeAnalysis(projectedAtReset: 50, timeSinceLastChange: 1800, style: boldStyle)
-        scheduler2.adjustPollingRate(windowAnalyses: [boldAnalysis])
-        let boldInterval = scheduler2.nextPollInterval(usage: nil)
-
-        // Warning should cool down even slower than bold
-        #expect(warningInterval < boldInterval)
+        #expect(scheduler.nextPollInterval(usage: nil) == Constants.Polling.baseInterval)
     }
 
-    // MARK: - Away Mode
-
-    @Test func awayModeActivatesWhenIdleAndSystemIdle() {
+    @Test func postDecayZeroFactor() {
+        // tslc=1800s > grace+decay(1500s) → factor=0 → desired=∞
+        // cooldownInterval(1800): 1800 < cooldownStart(2100) → base=60s → 60s
         var scheduler = PollingScheduler()
-        // 60 min tslc → at idle cap, systemIdle > 300 → should be Away
-        let analysis = makeAnalysis(projectedAtReset: 50, timeSinceLastChange: 3600)
+        let analysis = makeAnalysis(timeSinceLastChange: 1800, recentRate: 0.02)
+        scheduler.adjustPollingRate(windowAnalyses: [analysis])
+        #expect(scheduler.nextPollInterval(usage: nil) == Constants.Polling.baseInterval)
+    }
+
+    @Test func graceBoundaryIncludesEndpoint() {
+        // tslc = exactly activityGrace (300s) → factor=1.0 (inclusive upper bound of grace).
+        var scheduler = PollingScheduler()
+        let analysis = makeAnalysis(timeSinceLastChange: Constants.Polling.activityGrace, recentRate: 0.02)
+        scheduler.adjustPollingRate(windowAnalyses: [analysis])
+        #expect(abs(scheduler.nextPollInterval(usage: nil) - 50.0) < 0.01)
+    }
+
+    @Test func decayEndBoundaryReachesZeroFactor() {
+        // tslc = exactly activityGrace + activityDecay (1500s) → factor=0 (inclusive upper bound of decay).
+        // effectiveRate=0 → desired=∞, upperBound=baseInterval (tslc < cooldownStart).
+        var scheduler = PollingScheduler()
+        let tslc = Constants.Polling.activityGrace + Constants.Polling.activityDecay
+        let analysis = makeAnalysis(timeSinceLastChange: tslc, recentRate: 0.02)
+        scheduler.adjustPollingRate(windowAnalyses: [analysis])
+        #expect(scheduler.nextPollInterval(usage: nil) == Constants.Polling.baseInterval)
+    }
+
+    // MARK: - Cooldown (tslc ≥ cooldownStart)
+
+    @Test func cooldownStartBoundary() {
+        // tslc=2100 → exactly at cooldownStart → t=0 → baseInterval=60s
+        var scheduler = PollingScheduler()
+        let analysis = makeAnalysis(timeSinceLastChange: Constants.Polling.cooldownStart, recentRate: nil)
+        scheduler.adjustPollingRate(windowAnalyses: [analysis])
+        #expect(scheduler.nextPollInterval(usage: nil) == Constants.Polling.baseInterval)
+    }
+
+    @Test func cooldownMidpoint() {
+        // tslc=3900: midpoint of cooldownStart(2100)..cooldownEnd(5700) → t=0.5 → 60+0.5*240=180s
+        var scheduler = PollingScheduler()
+        let midpoint = (Constants.Polling.cooldownStart + Constants.Polling.cooldownEnd) / 2
+        let analysis = makeAnalysis(timeSinceLastChange: midpoint, recentRate: nil)
+        scheduler.adjustPollingRate(windowAnalyses: [analysis])
+        let expected = Constants.Polling.baseInterval + 0.5 * (Constants.Polling.maxIdleInterval - Constants.Polling.baseInterval)
+        #expect(abs(scheduler.nextPollInterval(usage: nil) - expected) < 0.01)
+    }
+
+    @Test func cooldownEndReachesMaxIdle() {
+        // tslc=5700 (cooldownEnd) → t=1 → maxIdleInterval=300s
+        var scheduler = PollingScheduler()
+        let analysis = makeAnalysis(timeSinceLastChange: Constants.Polling.cooldownEnd, recentRate: nil)
+        scheduler.adjustPollingRate(windowAnalyses: [analysis])
+        #expect(scheduler.nextPollInterval(usage: nil) == Constants.Polling.maxIdleInterval)
+    }
+
+    // MARK: - Safety cap (near limit, not Away)
+
+    @Test func nearLimitCapsAt120sInCooldown() {
+        // tslc=5700 (cooldown max=300s), util=85% (≥bold=80), systemIdle=100 (not away)
+        // upperBound = min(300, nearLimitCooldownCap=120) = 120s
+        var scheduler = PollingScheduler()
+        let analysis = makeAnalysis(utilization: 85, timeSinceLastChange: Constants.Polling.cooldownEnd, recentRate: nil)
+        scheduler.adjustPollingRate(windowAnalyses: [analysis], systemIdleTime: 100)
+        #expect(scheduler.nextPollInterval(usage: nil) == Constants.Polling.nearLimitCooldownCap)
+    }
+
+    @Test func nearLimitDoesNotAffectBaseCooldownBelowCap() {
+        // tslc=2700: cooldown t=(2700-2100)/3600=1/6 → 60+(1/6)*240=100s < cap=120 → 100s unchanged
+        var scheduler = PollingScheduler()
+        let tslc: TimeInterval = 2700
+        let t = (tslc - Constants.Polling.cooldownStart) / (Constants.Polling.cooldownEnd - Constants.Polling.cooldownStart)
+        let expected = Constants.Polling.baseInterval + t * (Constants.Polling.maxIdleInterval - Constants.Polling.baseInterval)
+        let analysis = makeAnalysis(utilization: 85, timeSinceLastChange: tslc, recentRate: nil)
+        scheduler.adjustPollingRate(windowAnalyses: [analysis], systemIdleTime: 100)
+        #expect(abs(scheduler.nextPollInterval(usage: nil) - expected) < 0.01)
+    }
+
+    @Test func belowBoldThresholdNoCap() {
+        // tslc=5700, util=70% (< bold=80) → no cap → 300s
+        var scheduler = PollingScheduler()
+        let analysis = makeAnalysis(utilization: 70, timeSinceLastChange: Constants.Polling.cooldownEnd, recentRate: nil)
+        scheduler.adjustPollingRate(windowAnalyses: [analysis], systemIdleTime: 100)
+        #expect(scheduler.nextPollInterval(usage: nil) == Constants.Polling.maxIdleInterval)
+    }
+
+    @Test func safetyCapAtExactBoldThreshold() {
+        // tslc=5700, util=80 (exactly at bold=80) → cap applies → 120s
+        var scheduler = PollingScheduler()
+        let analysis = makeAnalysis(utilization: 80, timeSinceLastChange: Constants.Polling.cooldownEnd, recentRate: nil)
+        scheduler.adjustPollingRate(windowAnalyses: [analysis], systemIdleTime: 100)
+        #expect(scheduler.nextPollInterval(usage: nil) == Constants.Polling.nearLimitCooldownCap)
+    }
+
+    @Test func highRampUpOverridesSafetyCap() {
+        // tslc=200 (< grace=300), recentRate=0.1, util=85%
+        // desired=10s, baseCooldown=60 (below cooldownStart), nearLimitCap=min(60,120)=60
+        // combined=min(10,60)=10, clamped to minInterval=24s
+        var scheduler = PollingScheduler()
+        let analysis = makeAnalysis(utilization: 85, timeSinceLastChange: 200, recentRate: 0.1)
+        scheduler.adjustPollingRate(windowAnalyses: [analysis], systemIdleTime: 100)
+        #expect(scheduler.nextPollInterval(usage: nil) == Constants.Polling.minInterval)
+    }
+
+    // MARK: - Away mode
+
+    @Test func awayModeActivatesAtCooldownCapAndSystemIdle() {
+        // tslc=5700 → baseCooldown=300=maxIdleInterval → atCooldownCap=true
+        // systemIdle=600 > awayThreshold=300 → awayMode=true, interval > maxIdle
+        var scheduler = PollingScheduler()
+        let analysis = makeAnalysis(timeSinceLastChange: Constants.Polling.cooldownEnd)
         scheduler.adjustPollingRate(windowAnalyses: [analysis], systemIdleTime: 600)
         #expect(scheduler.isAwayMode)
-        let interval = scheduler.nextPollInterval(usage: nil)
-        #expect(interval > Constants.Polling.maxIdleInterval)
+        #expect(scheduler.nextPollInterval(usage: nil) > Constants.Polling.maxIdleInterval)
+    }
+
+    @Test func awayModeRampsToMax() {
+        // tslc=5700, systemIdle=7200 (= awayRampEnd) → awayT=1 → maxAwayInterval=3600s
+        var scheduler = PollingScheduler()
+        let analysis = makeAnalysis(timeSinceLastChange: Constants.Polling.cooldownEnd)
+        scheduler.adjustPollingRate(windowAnalyses: [analysis], systemIdleTime: Constants.Polling.awayRampEnd)
+        #expect(scheduler.isAwayMode)
+        #expect(scheduler.nextPollInterval(usage: nil) == Constants.Polling.maxAwayInterval)
+    }
+
+    @Test func awayModeDoesNotActivateBelowCooldownCap() {
+        // tslc=3000: cooldown t=(3000-2100)/3600=0.25 → 60+0.25*240=120s < 300 → atCooldownCap=false
+        var scheduler = PollingScheduler()
+        let analysis = makeAnalysis(timeSinceLastChange: 3000)
+        scheduler.adjustPollingRate(windowAnalyses: [analysis], systemIdleTime: 600)
+        #expect(!scheduler.isAwayMode)
     }
 
     @Test func awayModeDoesNotActivateWhenSystemActive() {
+        // tslc=5700 → atCooldownCap=true, but systemIdle=100 < awayThreshold=300 → NOT away
         var scheduler = PollingScheduler()
-        // 60 min tslc → at idle cap, but systemIdle = 100 < 300 → NOT Away
-        let analysis = makeAnalysis(projectedAtReset: 50, timeSinceLastChange: 3600)
+        let analysis = makeAnalysis(timeSinceLastChange: Constants.Polling.cooldownEnd)
         scheduler.adjustPollingRate(windowAnalyses: [analysis], systemIdleTime: 100)
         #expect(!scheduler.isAwayMode)
-        let interval = scheduler.nextPollInterval(usage: nil)
-        #expect(interval == Constants.Polling.maxIdleInterval)
+        #expect(scheduler.nextPollInterval(usage: nil) == Constants.Polling.maxIdleInterval)
     }
 
-    @Test func awayModeDoesNotActivateBeforeIdleCap() {
+    @Test func awayModeIgnoresNearLimitCap() {
+        // tslc=5700, systemIdle=600, util=85% → Away mode → interval from away ramp (not capped at 120s)
         var scheduler = PollingScheduler()
-        // 15 min tslc → NOT at idle cap yet, even though systemIdle is high
-        let analysis = makeAnalysis(projectedAtReset: 50, timeSinceLastChange: 900)
-        scheduler.adjustPollingRate(windowAnalyses: [analysis], systemIdleTime: 600)
-        #expect(!scheduler.isAwayMode)
-    }
-
-    @Test func awayModeReachesCap() {
-        var scheduler = PollingScheduler()
-        // 60 min tslc, systemIdle = 7200s (2h) → max Away
-        let analysis = makeAnalysis(projectedAtReset: 50, timeSinceLastChange: 3600)
-        scheduler.adjustPollingRate(windowAnalyses: [analysis], systemIdleTime: 7200)
-        #expect(scheduler.isAwayMode)
-        let interval = scheduler.nextPollInterval(usage: nil)
-        #expect(interval == Constants.Polling.maxAwayInterval)
-    }
-
-    @Test func awayModeExitsWhenSystemIdleDrops() {
-        var scheduler = PollingScheduler()
-        let analysis = makeAnalysis(projectedAtReset: 50, timeSinceLastChange: 3600)
-        // Enter Away
+        let analysis = makeAnalysis(utilization: 85, timeSinceLastChange: Constants.Polling.cooldownEnd, recentRate: nil)
         scheduler.adjustPollingRate(windowAnalyses: [analysis], systemIdleTime: 600)
         #expect(scheduler.isAwayMode)
-        // System idle drops → exit Away
-        scheduler.adjustPollingRate(windowAnalyses: [analysis], systemIdleTime: 100)
+        // Away mode: awayT=(600-300)/6900≈0.0435 → upperBound≈300+0.0435*3300≈443s > nearLimitCap(120s)
+        #expect(scheduler.nextPollInterval(usage: nil) > Constants.Polling.nearLimitCooldownCap)
+    }
+
+    // MARK: - Near-reset snap
+
+    @Test func nearResetSchedulesAfterReset() {
+        let scheduler = PollingScheduler()
+        let resetsIn: TimeInterval = 5
+        let entry = makeEntry(resetsIn: resetsIn)
+        let usage = UsageResponse(entries: [entry])
+        let interval = scheduler.nextPollInterval(usage: usage)
+        #expect(abs(interval - (resetsIn + 1)) < 0.01)
+    }
+
+    @Test func nearResetSnappingInCooldown() {
+        // Put scheduler into cooldown state (tslc=cooldownEnd → effectiveInterval=300s)
+        var scheduler = PollingScheduler()
+        let analysis = makeAnalysis(timeSinceLastChange: Constants.Polling.cooldownEnd)
+        scheduler.adjustPollingRate(windowAnalyses: [analysis])
+        #expect(scheduler.effectivePollingInterval > Constants.Polling.baseInterval)
+
+        // Reset in 120s: 60 < 120 < 300 → near-reset snap fires
+        let resetsIn: TimeInterval = 120
+        let entry = WindowEntry.make(
+            key: "five_hour",
+            utilization: 40,
+            resetsAt: Date().addingTimeInterval(resetsIn)
+        )
+        let usage = UsageResponse(entries: [entry])
+        let interval = scheduler.nextPollInterval(usage: usage)
+        #expect(abs(interval - (resetsIn + 1)) < 0.5)
+        #expect(interval < scheduler.effectivePollingInterval)
+    }
+
+    // MARK: - Failure backoff
+
+    @Test func failureBackoffUsesExponential() {
+        var scheduler = PollingScheduler()
+        let threshold = Constants.Retry.failureThreshold
+        for _ in 0..<threshold {
+            scheduler.recordUsageFailure(category: .transient)
+        }
+        // initialBackoff=10, doubled threshold times: 10*2^threshold=40
+        let expectedBackoff = Constants.Retry.initialBackoff * pow(2.0, Double(threshold))
+        #expect(scheduler.nextPollInterval(usage: nil) == min(expectedBackoff, Constants.Retry.maxBackoff))
+    }
+
+    @Test func failureBackoffStaysUnderMax() {
+        var scheduler = PollingScheduler()
+        for _ in 0..<20 {
+            scheduler.recordUsageFailure(category: .transient)
+        }
+        #expect(scheduler.nextPollInterval(usage: nil) <= Constants.Retry.maxBackoff)
+    }
+
+    @Test func authFailureFallsBackToEffective() {
+        var scheduler = PollingScheduler()
+        for _ in 0..<Constants.Retry.failureThreshold {
+            scheduler.recordUsageFailure(category: .authFailure)
+        }
+        #expect(scheduler.nextPollInterval(usage: nil) == Constants.Polling.baseInterval)
+    }
+
+    @Test func bothNonRetryableFlooredAtBase() {
+        var scheduler = PollingScheduler()
+        // Drive effectivePollingInterval below baseInterval using high recentRate within grace
+        let analysis = makeAnalysis(timeSinceLastChange: 60, recentRate: 0.1) // desired=10s → minInterval=24s
+        scheduler.adjustPollingRate(windowAnalyses: [analysis])
+        #expect(scheduler.effectivePollingInterval < Constants.Polling.baseInterval,
+                "precondition: ramp-up must drive interval below base")
+
+        for _ in 0..<Constants.Retry.failureThreshold {
+            scheduler.recordUsageFailure(category: .authFailure)
+            scheduler.recordStatusFailure(category: .permanent)
+        }
+        #expect(scheduler.nextPollInterval(usage: nil) >= Constants.Polling.baseInterval)
+    }
+
+    @Test func mixedHealthyAndAuthFailedDoesNotFloor() {
+        var scheduler = PollingScheduler()
+        // Drive effectivePollingInterval below baseInterval using high recentRate within grace
+        let analysis = makeAnalysis(timeSinceLastChange: 60, recentRate: 0.1) // desired=10s → minInterval=24s
+        scheduler.adjustPollingRate(windowAnalyses: [analysis])
+        #expect(scheduler.effectivePollingInterval < Constants.Polling.baseInterval,
+                "precondition: ramp-up must drive interval below base")
+
+        // Only usage hits the threshold with non-retryable auth failure; status is healthy
+        for _ in 0..<Constants.Retry.failureThreshold {
+            scheduler.recordUsageFailure(category: .authFailure)
+        }
+        // retryInterval(for: usageState)==nil (authFailure non-retryable),
+        // retryInterval(for: statusState)==nil (below threshold → healthy)
+        // → picks effectivePollingInterval < baseInterval
+        #expect(scheduler.nextPollInterval(usage: nil) < Constants.Polling.baseInterval)
+    }
+
+    @Test func picksShorterOfTwoBackoffs() {
+        var scheduler = PollingScheduler()
+        scheduler.recordStatusFailure(category: .transient)
+        scheduler.recordStatusFailure(category: .transient)
+        scheduler.recordUsageFailure(category: .transient)
+        scheduler.recordUsageFailure(category: .transient)
+        let thresholdBackoff = Constants.Retry.initialBackoff * pow(2.0, Double(Constants.Retry.failureThreshold))
+        #expect(scheduler.nextPollInterval(usage: nil) == thresholdBackoff)
+
+        scheduler.recordStatusFailure(category: .transient)
+        #expect(scheduler.nextPollInterval(usage: nil) == thresholdBackoff,
+                "status backoff doubles but usage stays at threshold → min picks usage")
+    }
+
+    @Test func mixedErrorCategories() {
+        var scheduler = PollingScheduler()
+        // Status: auth failure (no backoff / nil retryInterval)
+        for _ in 0..<Constants.Retry.failureThreshold {
+            scheduler.recordStatusFailure(category: .authFailure)
+        }
+        // Usage: transient (exponential backoff)
+        for _ in 0..<Constants.Retry.failureThreshold {
+            scheduler.recordUsageFailure(category: .transient)
+        }
+        let usageBackoff = Constants.Retry.initialBackoff * pow(2.0, Double(Constants.Retry.failureThreshold))
+        #expect(scheduler.nextPollInterval(usage: nil) == min(Constants.Polling.baseInterval, usageBackoff))
+    }
+
+    // MARK: - Reset
+
+    @Test func resetClearsState() {
+        var scheduler = PollingScheduler()
+        for _ in 0..<Constants.Retry.failureThreshold {
+            scheduler.recordUsageFailure(category: .transient)
+        }
+        let highRateAnalysis = makeAnalysis(timeSinceLastChange: Constants.Polling.cooldownEnd)
+        scheduler.adjustPollingRate(windowAnalyses: [highRateAnalysis], systemIdleTime: 600)
+        #expect(scheduler.isAwayMode)
+
+        scheduler.reset()
+
         #expect(!scheduler.isAwayMode)
+        #expect(scheduler.nextPollInterval(usage: nil) == Constants.Polling.baseInterval)
+        #expect(scheduler.statusState.consecutiveFailures == 0)
+        #expect(scheduler.usageState.consecutiveFailures == 0)
     }
 
     // MARK: - Integration: Steady State Triggers Cooldown
 
     @Test @MainActor func steadyUtilizationWithSamplesEntersCooldown() {
-        // This is the test that would have caught the original bug:
-        // constant utilization across multiple polls must eventually increase the interval
         let now = Date()
         let entry = WindowEntry(
             key: "five_hour",
@@ -278,151 +415,17 @@ struct PollingRateTests {
             modelScope: nil,
             window: UsageWindow(utilization: 45, resetsAt: now.addingTimeInterval(3600))
         )
-        // Simulate samples: utilization has been 45% for 30 minutes
-        let samples = (0..<30).map { i in
-            UtilizationSample(utilization: 45, timestamp: now.addingTimeInterval(TimeInterval(-1800 + i * 60)))
+        // Constant utilization for >cooldownStart seconds
+        let samples = (0..<40).map { i in
+            UtilizationSample(utilization: 45, timestamp: now.addingTimeInterval(TimeInterval(-2400 + i * 60)))
         }
         let analysis = UsageHistory.analyze(entry: entry, samples: samples, now: now)
 
         var scheduler = PollingScheduler()
         scheduler.adjustPollingRate(windowAnalyses: [analysis])
 
-        // timeSinceLastChange should be ~30 min (all samples at 45%)
-        // This should trigger cooldown → interval > baseline
         #expect(analysis.timeSinceLastChange != nil)
         #expect(analysis.timeSinceLastChange! > Constants.Polling.cooldownStart)
         #expect(scheduler.nextPollInterval(usage: nil) > Constants.Polling.baseInterval)
-    }
-
-    @Test func resetClearsAwayMode() {
-        var scheduler = PollingScheduler()
-        let analysis = makeAnalysis(projectedAtReset: 50, timeSinceLastChange: 3600)
-        scheduler.adjustPollingRate(windowAnalyses: [analysis], systemIdleTime: 600)
-        #expect(scheduler.isAwayMode)
-        scheduler.reset()
-        #expect(!scheduler.isAwayMode)
-        #expect(scheduler.nextPollInterval(usage: nil) == Constants.Polling.baseInterval)
-    }
-
-    // MARK: - cooldownSpeed exact values
-    //
-    // cooldownSpeed is private, so we verify its effect by measuring the effective
-    // polling interval at a fixed tslc=1800s where each multiplier produces a
-    // distinct, analytically-computable result.
-    //
-    // With tslc=1800, cooldownStart=300, cooldownEnd=3600, base=60, maxIdle=300:
-    //   effectiveTslc = tslc * speed
-    //   t = clamp((effectiveTslc - 300) / (3600 - 300), 0, 1)
-    //   interval = 60 + t * (300 - 60)
-
-    private func cooldownInterval(for style: Formatting.UsageStyle) -> TimeInterval {
-        var scheduler = PollingScheduler()
-        let analysis = makeAnalysis(projectedAtReset: 50, timeSinceLastChange: 1800, style: style)
-        scheduler.adjustPollingRate(windowAnalyses: [analysis])
-        return scheduler.nextPollInterval(usage: nil)
-    }
-
-    private func expectedInterval(speed: Double) -> TimeInterval {
-        let effectiveTslc = 1800.0 * speed
-        let t = min(max((effectiveTslc - Constants.Polling.cooldownStart) / (Constants.Polling.cooldownEnd - Constants.Polling.cooldownStart), 0), 1)
-        return Constants.Polling.baseInterval + t * (Constants.Polling.maxIdleInterval - Constants.Polling.baseInterval)
-    }
-
-    @Test func cooldownSpeedNormalNotBoldIsOne() {
-        let style = Formatting.UsageStyle(level: .normal, isBold: false)
-        let interval = cooldownInterval(for: style)
-        #expect(abs(interval - expectedInterval(speed: 1.0)) < 0.001)
-    }
-
-    @Test func cooldownSpeedNormalBoldIsPointSeven() {
-        let style = Formatting.UsageStyle(level: .normal, isBold: true)
-        let interval = cooldownInterval(for: style)
-        #expect(abs(interval - expectedInterval(speed: 0.7)) < 0.001)
-    }
-
-    @Test func cooldownSpeedWarningIsPointFour() {
-        let style = Formatting.UsageStyle(level: .warning, isBold: true)
-        let interval = cooldownInterval(for: style)
-        #expect(abs(interval - expectedInterval(speed: 0.4)) < 0.001)
-    }
-
-    @Test func cooldownSpeedCriticalIsPointFour() {
-        let style = Formatting.UsageStyle(level: .critical, isBold: true)
-        let interval = cooldownInterval(for: style)
-        #expect(abs(interval - expectedInterval(speed: 0.4)) < 0.001)
-    }
-
-    @Test func cooldownSpeedEmptyAnalysesDefaultsToBase() {
-        var scheduler = PollingScheduler()
-        scheduler.adjustPollingRate(windowAnalyses: [])
-        #expect(scheduler.nextPollInterval(usage: nil) == Constants.Polling.baseInterval)
-    }
-
-    @Test func cooldownSpeedWorstWins() {
-        // One critical + one normal → worst is critical → speed 0.4
-        let critical = makeAnalysis(projectedAtReset: 50, timeSinceLastChange: 1800,
-                                    style: Formatting.UsageStyle(level: .critical, isBold: true))
-        let normal = makeAnalysis(projectedAtReset: 50, timeSinceLastChange: 1800,
-                                  style: Formatting.UsageStyle(level: .normal, isBold: false))
-        var scheduler = PollingScheduler()
-        scheduler.adjustPollingRate(windowAnalyses: [critical, normal])
-        let interval = scheduler.nextPollInterval(usage: nil)
-        #expect(abs(interval - expectedInterval(speed: 0.4)) < 0.001)
-    }
-
-    // MARK: - Near-Reset Snapping in Cooldown State
-
-    @Test func nearResetSnappingTriggersEvenInCooldown() {
-        // Put the scheduler in cooldown: timeSinceLastChange = 60 min → effectivePollingInterval
-        // reaches maxIdleInterval (300s), which is > baseInterval (60s).
-        var scheduler = PollingScheduler()
-        let analysis = makeAnalysis(projectedAtReset: 50, timeSinceLastChange: 3600)
-        scheduler.adjustPollingRate(windowAnalyses: [analysis])
-
-        // Confirm cooldown is active: effective interval must be above base
-        #expect(scheduler.effectivePollingInterval > Constants.Polling.baseInterval)
-
-        // Choose a reset time that is AFTER the base interval but BEFORE the cooldown interval.
-        // e.g. resets in 120s: 60 < 120 < 300 → near-reset snapping should fire
-        let resetsIn: TimeInterval = 120
-        let entry = WindowEntry.make(
-            key: "five_hour",
-            utilization: 40,
-            resetsAt: Date().addingTimeInterval(resetsIn)
-        )
-        let usage = UsageResponse(entries: [entry])
-
-        let interval = scheduler.nextPollInterval(usage: usage)
-
-        // The scheduler should snap to resetsIn + 1 padding, NOT return the full cooldown interval
-        #expect(abs(interval - (resetsIn + 1)) < 0.5,
-                "Expected near-reset snap to ~\(resetsIn + 1)s, got \(interval)s")
-        #expect(interval < scheduler.effectivePollingInterval,
-                "Snapped interval should be less than the cooldown interval (\(scheduler.effectivePollingInterval)s)")
-    }
-
-    @Test func nearResetSnappingDoesNotTriggerWhenResetAfterCooldownInterval() {
-        // If the reset is BEYOND the effective (cooldown) interval, snapping must not fire.
-        var scheduler = PollingScheduler()
-        let analysis = makeAnalysis(projectedAtReset: 50, timeSinceLastChange: 3600)
-        scheduler.adjustPollingRate(windowAnalyses: [analysis])
-
-        let cooldownInterval = scheduler.effectivePollingInterval
-        #expect(cooldownInterval > Constants.Polling.baseInterval)
-
-        // Reset time is well beyond the cooldown interval → filter removes it
-        let resetsIn = cooldownInterval + 120   // clearly beyond window
-        let entry = WindowEntry.make(
-            key: "five_hour",
-            utilization: 40,
-            resetsAt: Date().addingTimeInterval(resetsIn)
-        )
-        let usage = UsageResponse(entries: [entry])
-
-        let interval = scheduler.nextPollInterval(usage: usage)
-
-        // Should fall through to the full cooldown interval — no snapping
-        #expect(abs(interval - cooldownInterval) < 0.5,
-                "Expected full cooldown interval ~\(cooldownInterval)s, got \(interval)s")
     }
 }

@@ -192,23 +192,37 @@ import Foundation
         #expect(coordinator.scheduler.isAwayMode == false)
     }
 
-    @Test func schedulerDecreasesIntervalAfterCriticalUtilization() async {
-        // 50% utilization with 1000s elapsed of a 5-hour window (17000s remaining):
-        //   rate = 50/1000 = 0.05%/s; projected = 50 + 0.05*17000 = 900% → well above 120% critical
-        //   timeToLimit = (100-50)/0.05 = 1000s → above 600s threshold, so NOT approaching-limit
-        // This guarantees the critical projection path (Priority 2) not the approaching-limit path.
-        mockUsage.result = .success(UsageResponse(entries: [
-            WindowEntry(key: "five_hour", duration: 18000, durationLabel: "5h", modelScope: nil,
-                        window: UsageWindow(utilization: 50, resetsAt: Date().addingTimeInterval(17000))),
-        ]))
-        let (coordinator, orgId) = makeCoordinator()
-        defer { cleanupTestOrg(orgId) }
-        await coordinator.refresh()
+    @Test func schedulerUsesRateDrivenIntervalWhenRecentRateIsHigh() {
+        // Rate-driven interval: pollInterval = resolutionPerPoll / (recentRate * activityFactor).
+        // With activityFactor=1 (tslc=nil → no decay), a recentRate > 1/60 %/s drives the
+        // interval below baseInterval=60s. With recentRate=0.05 %/s: desired = 1.0/0.05 = 20s,
+        // clamped to max(minInterval=24, 20) = 24s.
+        //
+        // Samples: two samples 60s apart, utilization rises from 10% to 13%
+        //   instantaneous = (13-10)/60 = 0.05%/s → EMA = 0.05 (first step, no prior EMA)
+        let now = Date()
+        let t0 = now.addingTimeInterval(-60)
+        let samples = [
+            UtilizationSample(utilization: 10, timestamp: t0),
+            UtilizationSample(utilization: 13, timestamp: now),
+        ]
+        let entry = WindowEntry(
+            key: "five_hour", duration: 18000, durationLabel: "5h", modelScope: nil,
+            window: UsageWindow(utilization: 13, resetsAt: now.addingTimeInterval(9000))
+        )
 
-        // Critical projection (≥120%) → interval = max(minInterval, baseInterval / 2) = 30s.
-        let expected = max(Constants.Polling.minInterval, Constants.Polling.baseInterval / 2)
-        #expect(coordinator.scheduler.effectivePollingInterval == expected)
-        #expect(coordinator.scheduler.effectivePollingInterval < Constants.Polling.baseInterval)
+        let analysis = UsageHistory.analyze(entry: entry, samples: samples, now: now)
+        #expect(analysis.recentRate != nil, "two samples with a 60s gap must produce a recentRate")
+
+        var scheduler = PollingScheduler()
+        scheduler.adjustPollingRate(windowAnalyses: [analysis])
+
+        // rate-driven desired = 1.0 / recentRate; clamped to [minInterval, baseInterval].
+        // With recentRate ≈ 0.05: desired ≈ 20s → clamped to minInterval=24s.
+        #expect(scheduler.effectivePollingInterval < Constants.Polling.baseInterval,
+                "high recentRate must drive interval below baseInterval")
+        #expect(scheduler.effectivePollingInterval >= Constants.Polling.minInterval,
+                "interval must never drop below minInterval")
     }
 
     // MARK: - WindowAnalyses
