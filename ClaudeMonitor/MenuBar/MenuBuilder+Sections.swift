@@ -219,7 +219,7 @@ extension MenuBuilder {
                              lastRefreshed.formatted(.dateTime.hour().minute().second()))
         guard let interval else { return updated }
         let intervalLabel = String(format: String(localized: "menu.interval", bundle: .module),
-                                   Formatting.formatInterval(interval))
+                                   Formatting.timeUntil(interval))
         let nextDate = lastRefreshed.addingTimeInterval(interval)
         let nextLabel = String(format: String(localized: "menu.next", bundle: .module),
                                nextDate.formatted(.dateTime.hour().minute().second()))

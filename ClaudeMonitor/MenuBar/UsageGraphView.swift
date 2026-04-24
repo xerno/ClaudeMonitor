@@ -644,7 +644,7 @@ final class UsageGraphView: NSView {
         if analysis.projectedAtReset >= 100 {
             if let ttl = analysis.timeToLimit {
                 let beforeReset = max(0, resetsAt.timeIntervalSince(now) - ttl)
-                let beforeResetStr = Formatting.formatInterval(beforeReset)
+                let beforeResetStr = Formatting.timeUntil(beforeReset)
                 statsLabel.stringValue = String(format: String(localized: "graph.stats.limit_soon", bundle: .module), rateStr, beforeResetStr)
             } else {
                 statsLabel.stringValue = String(format: String(localized: "graph.stats.limit_unknown", bundle: .module), rateStr)

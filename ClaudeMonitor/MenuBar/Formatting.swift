@@ -2,41 +2,22 @@ import Foundation
 
 enum Formatting {
     static func timeUntil(_ date: Date, now: Date = Date()) -> String {
-        let diff = max(date.timeIntervalSince(now), 0)
-        let totalSeconds = Int(diff)
-
-        if totalSeconds < 60 {
-            return "\(totalSeconds)s"
-        }
-        let totalMinutes = totalSeconds / 60
-        let seconds = totalSeconds % 60
-        if totalMinutes < 2 {
-            return "\(totalMinutes)m \(seconds)s"
-        }
-        if totalMinutes < 60 {
-            return "\(totalMinutes)m"
-        }
-        let hours = totalMinutes / 60
-        let minutes = totalMinutes % 60
-        if hours < 25 {
-            return "\(hours)h \(minutes)m"
-        }
-        let days = hours / 24
-        let remainingHours = hours % 24
-        return "\(days)d \(remainingHours)h"
+        timeUntil(date.timeIntervalSince(now))
     }
 
-    static func formatInterval(_ interval: TimeInterval) -> String {
+    static func timeUntil(_ interval: TimeInterval) -> String {
         let totalSeconds = Int(max(interval, 0))
         if totalSeconds < 60 { return "\(totalSeconds)s" }
         let totalMinutes = totalSeconds / 60
         let seconds = totalSeconds % 60
-        if totalMinutes < 60 {
-            return seconds == 0 ? "\(totalMinutes)m" : "\(totalMinutes)m \(seconds)s"
-        }
+        if totalMinutes < 2 { return "\(totalMinutes)m \(seconds)s" }
+        if totalMinutes < 60 { return "\(totalMinutes)m" }
         let hours = totalMinutes / 60
         let minutes = totalMinutes % 60
-        return minutes == 0 ? "\(hours)h" : "\(hours)h \(minutes)m"
+        if hours < 25 { return "\(hours)h \(minutes)m" }
+        let days = hours / 24
+        let remainingHours = hours % 24
+        return "\(days)d \(remainingHours)h"
     }
 
     static func nextTickTarget(resetTimes: [Date], now: Date) -> Date? {

@@ -133,6 +133,7 @@ enum StatusBarRenderer {
             if let analysis = analysisByKey[entry.storageIdentity] {
                 shouldShow = Formatting.shouldShowInMenuBar(projectedAtReset: analysis.projectedAtReset)
             } else {
+                // Fallback for usageTitle's default windowAnalyses: [] (tests, previews). Production callers always provide populated analyses.
                 shouldShow = Formatting.shouldShowInMenuBar(
                     utilization: entry.window.utilization,
                     resetsAt: entry.window.resetsAt,
@@ -165,6 +166,7 @@ enum StatusBarRenderer {
         if let analysis = analysisByKey[key] {
             style = analysis.style
         } else {
+            // Fallback for usageTitle's default windowAnalyses: [] (tests, previews). Production callers always provide populated analyses.
             style = Formatting.usageStyle(
                 utilization: window.utilization,
                 resetsAt: window.resetsAt,
