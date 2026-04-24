@@ -27,10 +27,11 @@ struct WindowEntry: Sendable, Equatable, Hashable, Comparable {
 }
 
 enum WindowKeyParser {
-    private static let internalWindowMarkers = ["omelette"]
+    private static let alwaysVisibleKeys: Set<String> = ["five_hour", "seven_day"]
 
-    static func isInternalWindow(_ key: String) -> Bool {
-        internalWindowMarkers.contains { key.contains($0) }
+    static func isInvisible(_ key: String, window: UsageWindow) -> Bool {
+        guard !alwaysVisibleKeys.contains(key) else { return false }
+        return window.utilization == 0 && window.resetsAt == nil
     }
 
     private static let numberWords: [String: Int] = [
@@ -110,9 +111,9 @@ extension UsageResponse: Decodable {
         let container = try decoder.container(keyedBy: DynamicKey.self)
         var parsed: [WindowEntry] = []
         for key in container.allKeys {
-            guard !WindowKeyParser.isInternalWindow(key.stringValue),
-                  let info = WindowKeyParser.parse(key.stringValue),
-                  let window = try? container.decode(UsageWindow.self, forKey: key) else { continue }
+            guard let info = WindowKeyParser.parse(key.stringValue),
+                  let window = try? container.decode(UsageWindow.self, forKey: key),
+                  !WindowKeyParser.isInvisible(key.stringValue, window: window) else { continue }
             parsed.append(WindowEntry(
                 key: key.stringValue, duration: info.duration,
                 durationLabel: info.durationLabel, modelScope: info.modelScope,
