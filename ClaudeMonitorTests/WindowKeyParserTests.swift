@@ -89,29 +89,30 @@ struct WindowKeyParserTests {
         #expect(WindowKeyParser.parse("blah_hour") == nil)
     }
 
-    // MARK: - isInternalWindow
+    // MARK: - isInvisible
 
-    @Test func isInternalWindowLowercase() {
-        #expect(WindowKeyParser.isInternalWindow("omelette"))
+    @Test func isInvisibleZeroUtilizationNilResetsAt() {
+        let window = UsageWindow(utilization: 0, resetsAt: nil)
+        #expect(WindowKeyParser.isInvisible("seven_day_sonnet", window: window))
     }
 
-    @Test func isInternalWindowUppercase() {
-        #expect(!WindowKeyParser.isInternalWindow("OMELETTE"))
+    @Test func isInvisibleZeroUtilizationWithResetsAt() {
+        let window = UsageWindow(utilization: 0, resetsAt: Date())
+        #expect(!WindowKeyParser.isInvisible("seven_day_sonnet", window: window))
     }
 
-    @Test func isInternalWindowMixedCase() {
-        #expect(!WindowKeyParser.isInternalWindow("Omelette"))
+    @Test func isInvisibleNonZeroUtilizationNilResetsAt() {
+        let window = UsageWindow(utilization: 50, resetsAt: nil)
+        #expect(!WindowKeyParser.isInvisible("seven_day_sonnet", window: window))
     }
 
-    @Test func isInternalWindowSubstring() {
-        #expect(WindowKeyParser.isInternalWindow("five_hour_omelette"))
+    @Test func isInvisibleFiveHourAlwaysVisible() {
+        let window = UsageWindow(utilization: 0, resetsAt: nil)
+        #expect(!WindowKeyParser.isInvisible("five_hour", window: window))
     }
 
-    @Test func isInternalWindowNormalKey() {
-        #expect(!WindowKeyParser.isInternalWindow("five_hour"))
-    }
-
-    @Test func isInternalWindowSevenDay() {
-        #expect(!WindowKeyParser.isInternalWindow("seven_day"))
+    @Test func isInvisibleSevenDayAlwaysVisible() {
+        let window = UsageWindow(utilization: 0, resetsAt: nil)
+        #expect(!WindowKeyParser.isInvisible("seven_day", window: window))
     }
 }
