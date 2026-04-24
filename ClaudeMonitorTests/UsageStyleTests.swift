@@ -75,6 +75,61 @@ struct UsageStyleTests {
         #expect(!s.isBold)
     }
 
+    // MARK: - Fallback path (resetsAt: nil)
+
+    private func fallbackStyle(utilization: Int) -> Formatting.UsageStyle {
+        Formatting.usageStyle(utilization: utilization, resetsAt: nil, windowDuration: 1000)
+    }
+
+    @Test func fallbackBelowBoldThreshold() {
+        // 79 < 80 → normal, not bold
+        let s = fallbackStyle(utilization: 79)
+        #expect(s.level == .normal)
+        #expect(!s.isBold)
+    }
+
+    @Test func fallbackAtBoldThreshold() {
+        // 80 ≥ 80 → bold but not orange
+        let s = fallbackStyle(utilization: 80)
+        #expect(s.level == .normal)
+        #expect(s.isBold)
+    }
+
+    @Test func fallbackBelowWarningThreshold() {
+        // 89 ≥ 80, < 90 → bold but not orange
+        let s = fallbackStyle(utilization: 89)
+        #expect(s.level == .normal)
+        #expect(s.isBold)
+    }
+
+    @Test func fallbackAtWarningThreshold() {
+        // 90 ≥ 90 → warning (orange), not red
+        let s = fallbackStyle(utilization: 90)
+        #expect(s.level == .warning)
+        #expect(s.isBold)
+    }
+
+    @Test func fallbackBelowCriticalThreshold() {
+        // 94 ≥ 90, < 95 → warning (orange), not red
+        let s = fallbackStyle(utilization: 94)
+        #expect(s.level == .warning)
+        #expect(s.isBold)
+    }
+
+    @Test func fallbackAtCriticalThreshold() {
+        // 95 ≥ 95 → critical (red)
+        let s = fallbackStyle(utilization: 95)
+        #expect(s.level == .critical)
+        #expect(s.isBold)
+    }
+
+    @Test func fallbackBlocked() {
+        // 100 ≥ 100 → critical (blocked)
+        let s = fallbackStyle(utilization: 100)
+        #expect(s.level == .critical)
+        #expect(s.isBold)
+    }
+
     private func shouldShow(utilization: Int, timeRemainingPercent: Double) -> Bool {
         let now = Date()
         let windowDuration: TimeInterval = 1000

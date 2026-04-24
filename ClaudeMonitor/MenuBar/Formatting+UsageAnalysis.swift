@@ -36,7 +36,7 @@ extension Formatting {
         guard let resetsAt else {
             return usageStyleFallback(utilization: utilization)
         }
-        guard let projection = computeProjection(
+        guard let projection = computeImpliedRateProjection(
             utilization: utilization,
             resetsAt: resetsAt,
             windowDuration: windowDuration,
@@ -76,7 +76,8 @@ extension Formatting {
         return UsageStyle(level: .normal, isBold: false)
     }
 
-    private static func computeProjection(
+        // Fallback projection using implied rate (utilization/timeElapsed). UsageHistory.project uses EMA rate when samples are available; this path runs when WindowAnalysis is not provided (e.g. tests, previews, or entries missing from analysisByKey).
+    private static func computeImpliedRateProjection(
         utilization: Int,
         resetsAt: Date,
         windowDuration: TimeInterval,
@@ -112,7 +113,7 @@ extension Formatting {
         now: Date = Date()
     ) -> Bool {
         guard let resetsAt else { return false }
-        guard let projection = computeProjection(
+        guard let projection = computeImpliedRateProjection(
             utilization: utilization,
             resetsAt: resetsAt,
             windowDuration: windowDuration,
