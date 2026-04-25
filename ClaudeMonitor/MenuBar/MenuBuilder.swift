@@ -41,12 +41,17 @@ enum MenuBuilder {
     // Graph view
     static let usageGraphTag = 700
 
+    // Connectivity banner
+    static let connectivityBannerTag = 50
+    static let lastFailedRowTag = 51
+
     // Separators
     static let separatorAfterUsageTag = 501
     static let separatorAfterServicesTag = 502
     static let separatorIncidentsTag = 503
     static let separatorControlsTag = 504
     static let separatorQuitTag = 505
+    static let separatorAfterConnectivityTag = 506
 
     // MARK: - Public API
 
@@ -116,9 +121,26 @@ enum MenuBuilder {
     private static func buildDesiredItems(state: MonitorState, target: any MenuActions) -> ([NSMenuItem], UsageCache) {
         var items: [NSMenuItem] = []
 
+        if state.isStale {
+            let bannerText = state.isOnline
+                ? String(localized: "connectivity.connectionError", bundle: .module)
+                : String(localized: "connectivity.offline", bundle: .module)
+            items.append(staticItem(bannerText, tag: connectivityBannerTag))
+            items.append(separator(tag: separatorAfterConnectivityTag))
+        }
+
         items.append(sectionHeader(String(localized: "menu.section.usage", bundle: .module), subtitle: "Claude Monitor", tag: usageSectionTag))
         let (usageMenuItems, cache) = usageItems(state: state, target: target)
         items.append(contentsOf: usageMenuItems)
+
+        // !isStale guard is defensive: scheduler.hasRecentFailure already excludes stale, but
+        // MonitorState can be constructed directly (demo, tests) without that invariant.
+        if state.hasRecentFailure, !state.isStale, let failedAt = state.lastFailedAt {
+            let timeStr = failedAt.formatted(.dateTime.hour().minute().second())
+            let text = String(format: String(localized: "connectivity.lastUpdateFailed", bundle: .module), timeStr)
+            items.append(staticItem(text, tag: lastFailedRowTag))
+        }
+
         items.append(usageGraphPlaceholder())
         items.append(separator(tag: separatorAfterUsageTag))
 

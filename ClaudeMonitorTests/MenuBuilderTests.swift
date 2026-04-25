@@ -32,7 +32,7 @@ private final class MockMenuActions: NSObject, MenuActions {
         #expect(items.contains { $0.title.contains("Configure credentials") })
     }
 
-    @Test func usageErrorShowsWarning() {
+    @Test func usageErrorWithNoDataShowsLoading() {
         let state = MonitorState(
             currentUsage: nil, currentStatus: nil,
             usageError: "Session expired", statusError: nil,
@@ -40,7 +40,7 @@ private final class MockMenuActions: NSObject, MenuActions {
             currentPollInterval: nil
         )
         let items = menuItems(for: state)
-        #expect(items.contains { $0.title.contains("Session expired") })
+        #expect(items.contains { $0.title.contains("Loading") })
     }
 
     @Test func usageDataShowsProgressBars() {
@@ -204,5 +204,115 @@ private final class MockMenuActions: NSObject, MenuActions {
         #expect(!analysis.segments.isEmpty)
         // consumptionRate should be non-zero because resetsAt is set and time has elapsed
         #expect(analysis.consumptionRate > 0)
+    }
+
+    // MARK: - Connectivity Banner
+
+    @Test func staleOfflineShowsOfflineBannerAtTop() {
+        let state = MonitorState(
+            currentUsage: nil, currentStatus: nil,
+            usageError: nil, statusError: nil,
+            lastRefreshed: nil, hasCredentials: true,
+            currentPollInterval: nil,
+            isOnline: false,
+            isStale: true
+        )
+        let items = menuItems(for: state)
+        let bannerIndex = items.firstIndex { $0.tag == MenuBuilder.connectivityBannerTag }
+        #expect(bannerIndex != nil)
+        #expect(items[bannerIndex!].title.contains("Offline"))
+        let separatorIndex = items.firstIndex { $0.tag == MenuBuilder.separatorAfterConnectivityTag }
+        #expect(separatorIndex == bannerIndex.map { $0 + 1 })
+    }
+
+    @Test func staleOnlineShowsConnectionErrorBanner() {
+        let state = MonitorState(
+            currentUsage: nil, currentStatus: nil,
+            usageError: nil, statusError: nil,
+            lastRefreshed: nil, hasCredentials: true,
+            currentPollInterval: nil,
+            isOnline: true,
+            isStale: true
+        )
+        let items = menuItems(for: state)
+        let bannerItem = items.first { $0.tag == MenuBuilder.connectivityBannerTag }
+        #expect(bannerItem?.title.contains("Connection error") == true)
+    }
+
+    @Test func notStaleHasNoBanner() {
+        let state = MonitorState(
+            currentUsage: nil, currentStatus: nil,
+            usageError: nil, statusError: nil,
+            lastRefreshed: nil, hasCredentials: true,
+            currentPollInterval: nil,
+            isStale: false
+        )
+        let items = menuItems(for: state)
+        #expect(!items.contains { $0.tag == MenuBuilder.connectivityBannerTag })
+    }
+
+    @Test func warnThresholdShowsLastFailedRow() {
+        let failedAt = Date()
+        let state = MonitorState(
+            currentUsage: nil, currentStatus: nil,
+            usageError: nil, statusError: nil,
+            lastRefreshed: nil, hasCredentials: true,
+            currentPollInterval: nil,
+            hasRecentFailure: true,
+            lastFailedAt: failedAt,
+            isStale: false
+        )
+        let items = menuItems(for: state)
+        let failedItem = items.first { $0.tag == MenuBuilder.lastFailedRowTag }
+        #expect(failedItem != nil)
+        let expectedTime = failedAt.formatted(.dateTime.hour().minute().second())
+        #expect(failedItem?.title.contains(expectedTime) == true)
+    }
+
+    @Test func staleHidesLastFailedRow() {
+        let state = MonitorState(
+            currentUsage: nil, currentStatus: nil,
+            usageError: nil, statusError: nil,
+            lastRefreshed: nil, hasCredentials: true,
+            currentPollInterval: nil,
+            hasRecentFailure: true,
+            lastFailedAt: Date(),
+            isStale: true
+        )
+        let items = menuItems(for: state)
+        #expect(!items.contains { $0.tag == MenuBuilder.lastFailedRowTag })
+    }
+
+    @Test func noFailureNoLastFailedRow() {
+        let state = MonitorState(
+            currentUsage: nil, currentStatus: nil,
+            usageError: nil, statusError: nil,
+            lastRefreshed: nil, hasCredentials: true,
+            currentPollInterval: nil,
+            hasRecentFailure: false
+        )
+        let items = menuItems(for: state)
+        #expect(!items.contains { $0.tag == MenuBuilder.lastFailedRowTag })
+    }
+
+    @Test func usageRowsRemainVisibleWhenStale() {
+        let now = Date()
+        let usage = UsageResponse(entries: [
+            .make(key: "five_hour", utilization: 55, resetsAt: now.addingTimeInterval(3600)),
+        ])
+        let state = MonitorState(
+            currentUsage: usage, currentStatus: nil,
+            usageError: nil, statusError: nil,
+            lastRefreshed: nil, hasCredentials: true,
+            currentPollInterval: nil,
+            isStale: true
+        )
+        let items = menuItems(for: state)
+        func rowText(_ item: NSMenuItem) -> String {
+            if let row = item.view as? UsageRowView { return row.textContent }
+            return item.attributedTitle?.string ?? item.title
+        }
+        #expect(items.contains { rowText($0).contains("5h") && rowText($0).contains("55%") })
+        #expect(!items.contains { $0.tag == MenuBuilder.usagePlaceholderTag })
     }
 }

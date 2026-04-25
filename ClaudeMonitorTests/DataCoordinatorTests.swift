@@ -6,6 +6,7 @@ import Foundation
     private let mockStatus = MockStatusService()
     private let mockUsage = MockUsageService()
     private let mockIdleProvider = MockSystemIdleProvider()
+    private let mockPath = MockPathMonitor()
 
     private func makeCoordinator(
         testOrgId: String = UUID().uuidString,
@@ -19,6 +20,7 @@ import Foundation
             statusService: mockStatus,
             usageService: mockUsage,
             systemIdleProvider: mockIdleProvider,
+            pathMonitor: mockPath,
             loadCredential: { resolvedCredentials[$0] }
         )
         return (coordinator, testOrgId)
@@ -258,5 +260,65 @@ import Foundation
         await coordinator.refresh()
 
         #expect(coordinator.scheduler.isAwayMode == false)
+    }
+
+    // MARK: - Offline / Connectivity
+
+    @Test func offlinePollSkipsNetwork() async {
+        mockPath.simulate(satisfied: false)
+        let (coordinator, _) = makeCoordinator()
+        await coordinator.refresh()
+
+        #expect(mockStatus.fetchCount == 0)
+        #expect(mockUsage.fetchCount == 0)
+        #expect(coordinator.scheduler.statusState.consecutiveFailures == 1)
+        #expect(coordinator.scheduler.usageState.consecutiveFailures == 1)
+    }
+
+    @Test func returningOnlineResetsRetryState() {
+        var scheduler = PollingScheduler()
+        for _ in 0..<(Constants.Retry.failureThreshold + 1) {
+            scheduler.recordStatusFailure(category: .transient)
+            scheduler.recordUsageFailure(category: .transient)
+        }
+        #expect(scheduler.statusState.consecutiveFailures > 0)
+
+        scheduler.resetRetryState()
+        #expect(scheduler.statusState.consecutiveFailures == 0)
+        #expect(scheduler.usageState.consecutiveFailures == 0)
+    }
+
+    @Test func warnThresholdDoesNotTriggerStale() async {
+        mockUsage.result = .failure(ServiceError.unexpectedStatus(500))
+        let (coordinator, _) = makeCoordinator()
+        for _ in 0..<Constants.Retry.warnThreshold {
+            await coordinator.refresh()
+        }
+
+        #expect(coordinator.monitorState.hasRecentFailure == true)
+        #expect(coordinator.monitorState.isStale == false)
+    }
+
+    @Test func failureThresholdTriggersStale() async {
+        mockUsage.result = .failure(ServiceError.unexpectedStatus(500))
+        let (coordinator, _) = makeCoordinator()
+        for _ in 0..<Constants.Retry.failureThreshold {
+            await coordinator.refresh()
+        }
+
+        #expect(coordinator.monitorState.isStale == true)
+    }
+
+    @Test func lastFailedAtTracking() async {
+        mockUsage.result = .failure(ServiceError.unexpectedStatus(500))
+        let (coordinator, orgId) = makeCoordinator()
+        await coordinator.refresh()
+        #expect(coordinator.monitorState.lastFailedAt != nil)
+
+        mockUsage.result = .success(testUsage)
+        mockStatus.result = .success(testStatus)
+        defer { cleanupTestOrg(orgId) }
+        await coordinator.refresh()
+        #expect(coordinator.monitorState.lastFailedAt == nil)
     }
 }

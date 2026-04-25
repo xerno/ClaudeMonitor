@@ -248,4 +248,69 @@ import AppKit
         let color = title.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor
         #expect(color == .labelColor)
     }
+
+    // MARK: - usageTitle stale
+
+    @Test func usageTitleWithStaleHasBoldExclamationPrefix() {
+        let usage = UsageResponse(entries: [
+            .make(key: "five_hour", utilization: 42, resetsAt: Date().addingTimeInterval(3600)),
+        ])
+        let title = StatusBarRenderer.usageTitle(usage: usage, isStale: true)
+        #expect(title.string.hasPrefix("! "))
+        let font = title.attribute(.font, at: 0, effectiveRange: nil) as? NSFont
+        #expect(font == StatusBarRenderer.boldFont)
+        let color = title.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor
+        #expect(color == NSColor.labelColor.desaturatedForStale())
+    }
+
+    @Test func usageTitleWithStaleDimsPercentageColor() {
+        // 65% used, 50% remaining → critical → red, but desaturated when stale
+        let usage = UsageResponse(entries: [
+            .make(key: "five_hour", utilization: 65, resetsAt: Date().addingTimeInterval(9000)),
+        ])
+        let title = StatusBarRenderer.usageTitle(usage: usage, isStale: true)
+        // "! 65%" — percentage starts at index 2
+        let percentIdx = 2
+        let color = title.attribute(.foregroundColor, at: percentIdx, effectiveRange: nil) as? NSColor
+        #expect(color == NSColor.systemRed.desaturatedForStale())
+    }
+
+    @Test func usageTitleWithoutStaleHasNoPrefix() {
+        let usage = UsageResponse(entries: [
+            .make(key: "five_hour", utilization: 42, resetsAt: Date().addingTimeInterval(3600)),
+        ])
+        let title = StatusBarRenderer.usageTitle(usage: usage, isStale: false)
+        #expect(title.string.hasPrefix("42%"))
+    }
+
+    @Test func staleDoesNotAffectBoldness() {
+        // 65% used, 50% remaining → critical → bold stays bold when stale
+        let usage = UsageResponse(entries: [
+            .make(key: "five_hour", utilization: 65, resetsAt: Date().addingTimeInterval(9000)),
+        ])
+        let title = StatusBarRenderer.usageTitle(usage: usage, isStale: true)
+        // "! 65%" — percentage starts at index 2
+        let percentIdx = 2
+        let font = title.attribute(.font, at: percentIdx, effectiveRange: nil) as? NSFont
+        #expect(font == StatusBarRenderer.boldFont)
+    }
+
+    @Test func blockedTakesPriorityOverStale() {
+        // 100% utilization → blocked; even with isStale = true, updateText must produce blockedTitle
+        let blockedUntil = Date().addingTimeInterval(3600)
+        let usage = UsageResponse(entries: [
+            .make(key: "five_hour", utilization: 100, resetsAt: blockedUntil),
+        ])
+        let button = NSStatusBarButton()
+        StatusBarRenderer.updateText(
+            button: button,
+            usage: usage,
+            hasCredentials: true,
+            isStale: true
+        )
+        let title = button.attributedTitle
+        #expect(!title.string.hasPrefix("! "))
+        let countdown = Formatting.timeUntil(blockedUntil, now: Date())
+        #expect(title.string.contains(countdown))
+    }
 }

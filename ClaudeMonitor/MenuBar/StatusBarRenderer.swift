@@ -62,7 +62,7 @@ enum StatusBarRenderer {
             button.attributedTitle = noCredentialsTitle()
             return
         }
-        guard let usage, !isStale else {
+        guard let usage else {
             button.attributedTitle = loadingTitle()
             return
         }
@@ -70,7 +70,7 @@ enum StatusBarRenderer {
             button.attributedTitle = blockedTitle(blockedUntil: blockedUntil)
             return
         }
-        button.attributedTitle = usageTitle(usage: usage, windowAnalyses: windowAnalyses)
+        button.attributedTitle = usageTitle(usage: usage, windowAnalyses: windowAnalyses, isStale: isStale)
     }
 
     static func noCredentialsTitle() -> NSAttributedString {
@@ -102,21 +102,39 @@ enum StatusBarRenderer {
         return result
     }
 
-    static func usageTitle(usage: UsageResponse, windowAnalyses: [WindowAnalysis] = []) -> NSAttributedString {
+    static func usageTitle(usage: UsageResponse, windowAnalyses: [WindowAnalysis] = [], isStale: Bool = false) -> NSAttributedString {
         let parts = NSMutableAttributedString()
         let analysisByKey = Dictionary(uniqueKeysWithValues: windowAnalyses.map { ($0.entry.storageIdentity, $0) })
+
+        // Pre-compute desaturated variants once when stale to avoid repeated HSL conversion per window.
+        let labelColor = isStale ? NSColor.labelColor.desaturatedForStale() : NSColor.labelColor
+        let orangeColor = isStale ? NSColor.systemOrange.desaturatedForStale() : NSColor.systemOrange
+        let redColor = isStale ? NSColor.systemRed.desaturatedForStale() : NSColor.systemRed
+        let separatorColor = isStale ? NSColor.secondaryLabelColor.desaturatedForStale() : NSColor.secondaryLabelColor
+
+        if isStale {
+            parts.append(NSAttributedString(string: "! ", attributes: [
+                .foregroundColor: labelColor,
+                .font: boldFont,
+            ]))
+        }
 
         guard let first = usage.entries.first else { return NSAttributedString() }
 
         appendWindow(first.window, duration: first.duration, key: first.storageIdentity,
                      analysisByKey: analysisByKey,
+                     labelColor: labelColor, orangeColor: orangeColor, redColor: redColor,
                      into: parts)
 
         let rest = usage.entries.dropFirst()
         let visible = secondaryWindowKeys(from: rest, analysisByKey: analysisByKey)
         for entry in rest where visible.contains(entry.storageIdentity) {
+            parts.append(NSAttributedString(string: " | ", attributes: [
+                .foregroundColor: separatorColor, .font: regularFont,
+            ]))
             appendWindow(entry.window, duration: entry.duration, key: entry.storageIdentity,
                          analysisByKey: analysisByKey,
+                         labelColor: labelColor, orangeColor: orangeColor, redColor: redColor,
                          into: parts)
         }
 
@@ -155,13 +173,11 @@ enum StatusBarRenderer {
         duration: TimeInterval,
         key: String,
         analysisByKey: [String: WindowAnalysis],
+        labelColor: NSColor,
+        orangeColor: NSColor,
+        redColor: NSColor,
         into parts: NSMutableAttributedString
     ) {
-        if parts.length > 0 {
-            parts.append(NSAttributedString(string: " | ", attributes: [
-                .foregroundColor: NSColor.secondaryLabelColor, .font: regularFont,
-            ]))
-        }
         let style: Formatting.UsageStyle
         if let analysis = analysisByKey[key] {
             style = analysis.style
@@ -173,8 +189,14 @@ enum StatusBarRenderer {
                 windowDuration: duration
             )
         }
+        let color: NSColor
+        switch style.level {
+        case .normal: color = labelColor
+        case .warning: color = orangeColor
+        case .critical: color = redColor
+        }
         parts.append(NSAttributedString(string: "\(window.utilization)%", attributes: [
-            .foregroundColor: nsColor(for: style.level),
+            .foregroundColor: color,
             .font: style.isBold ? boldFont : regularFont,
         ]))
     }

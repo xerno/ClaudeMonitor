@@ -17,10 +17,11 @@ extension MenuBarController {
         animationTask = Task {
             try? await Task.sleep(for: .seconds(2))
             guard !Task.isCancelled else { return }
+            let state = coordinator.monitorState
             StatusBarRenderer.updateIcon(
                 button: button,
-                status: coordinator.currentStatus,
-                hasRefreshWarning: coordinator.scheduler.hasRefreshWarning
+                status: state.currentStatus,
+                hasRefreshWarning: state.isStale
             )
         }
     }
@@ -67,20 +68,22 @@ extension MenuBarController {
     }
 
     private func updateCountdownDisplays() {
+        let state = coordinator.monitorState
         if let button = statusItem.button {
             StatusBarRenderer.updateText(
-                button: button, usage: coordinator.currentUsage,
-                hasCredentials: coordinator.hasCredentials,
-                isStale: coordinator.scheduler.isUsageStale
+                button: button, usage: state.currentUsage,
+                hasCredentials: state.hasCredentials,
+                isStale: state.isStale || state.isUsageStale,
+                windowAnalyses: state.windowAnalyses
             )
         }
         if isMenuOpen, let menu = statusItem.menu {
             MenuBuilder.refreshTimes(in: menu, cache: usageCache)
-            MenuBuilder.refreshGraph(in: menu, analyses: coordinator.monitorState.windowAnalyses)
+            MenuBuilder.refreshGraph(in: menu, analyses: state.windowAnalyses)
             MenuBuilder.refreshControlTimes(
                 in: menu,
-                lastRefreshed: coordinator.lastRefreshed,
-                interval: coordinator.currentPollInterval
+                lastRefreshed: state.lastRefreshed,
+                interval: state.currentPollInterval
             )
         }
     }

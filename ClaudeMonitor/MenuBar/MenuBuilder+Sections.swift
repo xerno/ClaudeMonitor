@@ -15,9 +15,6 @@ extension MenuBuilder {
         if !state.hasCredentials {
             return ([staticItem(String(localized: "menu.credentials.configure", bundle: .module), tag: usagePlaceholderTag)], UsageCache())
         }
-        if let error = state.usageError {
-            return ([staticItem("  ⚠︎  \(error)", tag: usagePlaceholderTag)], UsageCache())
-        }
         guard let usage = state.currentUsage else {
             return ([staticItem(String(localized: "menu.loading", bundle: .module), tag: usagePlaceholderTag)], UsageCache())
         }
@@ -36,9 +33,6 @@ extension MenuBuilder {
 
     static func serviceItems(state: MonitorState) -> [NSMenuItem] {
         guard let components = state.currentStatus?.components else {
-            if let error = state.statusError {
-                return [staticItem("  ⚠︎  \(error)", tag: servicesPlaceholderTag)]
-            }
             return [staticItem(String(localized: "menu.loading", bundle: .module), tag: servicesPlaceholderTag)]
         }
         return components.sorted(by: { $0.name < $1.name }).enumerated().map { index, component in
