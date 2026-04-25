@@ -6,9 +6,16 @@ struct PollingScheduler {
     private(set) var effectivePollingInterval: TimeInterval = Constants.Polling.baseInterval
     private(set) var isAwayMode: Bool = false
 
-    var hasRefreshWarning: Bool {
+    var isStale: Bool {
         statusState.consecutiveFailures >= Constants.Retry.failureThreshold
             || usageState.consecutiveFailures >= Constants.Retry.failureThreshold
+    }
+
+    var hasRecentFailure: Bool {
+        (statusState.consecutiveFailures >= Constants.Retry.warnThreshold
+            && statusState.consecutiveFailures < Constants.Retry.failureThreshold)
+        || (usageState.consecutiveFailures >= Constants.Retry.warnThreshold
+            && usageState.consecutiveFailures < Constants.Retry.failureThreshold)
     }
 
     var isUsageStale: Bool {
@@ -106,6 +113,11 @@ struct PollingScheduler {
         usageState = ServiceState()
         effectivePollingInterval = Constants.Polling.baseInterval
         isAwayMode = false
+    }
+
+    mutating func resetRetryState() {
+        statusState = ServiceState()
+        usageState = ServiceState()
     }
 
     // MARK: - Private

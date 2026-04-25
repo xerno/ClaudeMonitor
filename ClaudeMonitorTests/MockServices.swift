@@ -42,3 +42,25 @@ final class MockSystemIdleProvider: SystemIdleProviding, @unchecked Sendable {
     var idleTimeValue: TimeInterval = 0
     func idleTime() -> TimeInterval { idleTimeValue }
 }
+
+final class MockPathMonitor: PathMonitoring {
+    @MainActor private(set) var isSatisfied: Bool
+    @MainActor private var onPathChange: (@MainActor (Bool) -> Void)?
+
+    init(initialSatisfied: Bool = true) {
+        isSatisfied = initialSatisfied
+    }
+
+    @MainActor func setOnPathChange(_ handler: @escaping @MainActor (Bool) -> Void) {
+        onPathChange = handler
+    }
+
+    nonisolated func start() {}
+    nonisolated func cancel() {}
+
+    @MainActor func simulate(satisfied: Bool) {
+        guard satisfied != isSatisfied else { return }
+        isSatisfied = satisfied
+        onPathChange?(satisfied)
+    }
+}

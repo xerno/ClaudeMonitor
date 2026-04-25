@@ -51,9 +51,10 @@ struct PollIntervalTests {
         var scheduler = PollingScheduler()
         for _ in 0..<Constants.Retry.failureThreshold {
             scheduler.recordStatusFailure(category: .transient)
+            scheduler.recordUsageFailure(category: .transient)
         }
-        // After 2 transient failures: backoff = 10→20→40
-        #expect(scheduler.nextPollInterval(usage: nil) == 40)
+        // After 3 transient failures: backoff = 10→20→40→80; both services at threshold → backoff wins
+        #expect(scheduler.nextPollInterval(usage: nil) == 80)
     }
 
     @Test func nextPollIntervalAuthErrorFallsBackToEffective() {
@@ -118,17 +119,19 @@ struct PollIntervalTests {
 
     @Test func nextPollIntervalPicksShorterOfTwoBackoffs() {
         var scheduler = PollingScheduler()
-        // Status: 2 transient failures → backoff 40
+        // Status: 3 transient failures → backoff 80
         scheduler.recordStatusFailure(category: .transient)
         scheduler.recordStatusFailure(category: .transient)
-        // Usage: 2 transient failures → backoff 40 (same)
+        scheduler.recordStatusFailure(category: .transient)
+        // Usage: 3 transient failures → backoff 80 (same)
         scheduler.recordUsageFailure(category: .transient)
         scheduler.recordUsageFailure(category: .transient)
-        #expect(scheduler.nextPollInterval(usage: nil) == 40)
+        scheduler.recordUsageFailure(category: .transient)
+        #expect(scheduler.nextPollInterval(usage: nil) == 80)
 
-        // One more status failure → backoff 80; usage still 40
+        // One more status failure → backoff 160; usage still 80
         scheduler.recordStatusFailure(category: .transient)
-        #expect(scheduler.nextPollInterval(usage: nil) == 40) // picks shorter
+        #expect(scheduler.nextPollInterval(usage: nil) == 80) // picks shorter
     }
 
     @Test func nextPollIntervalMixedErrorCategories() {
@@ -137,36 +140,36 @@ struct PollIntervalTests {
         for _ in 0..<Constants.Retry.failureThreshold {
             scheduler.recordStatusFailure(category: .authFailure)
         }
-        // Usage: transient (has backoff 40)
+        // Usage: transient (has backoff 80)
         for _ in 0..<Constants.Retry.failureThreshold {
             scheduler.recordUsageFailure(category: .transient)
         }
-        // min(effective=60, 40) = 40
-        #expect(scheduler.nextPollInterval(usage: nil) == 40)
+        // min(effective=60, 80) = 60
+        #expect(scheduler.nextPollInterval(usage: nil) == 60)
     }
 
     // MARK: - Refresh Warning
 
-    @Test func hasRefreshWarningBelowThreshold() {
+    @Test func isStaleBelowThreshold() {
         var scheduler = PollingScheduler()
         scheduler.recordStatusFailure(category: .transient)
-        #expect(!scheduler.hasRefreshWarning)
+        #expect(!scheduler.isStale)
     }
 
-    @Test func hasRefreshWarningAtThreshold() {
+    @Test func isStaleAtThreshold() {
         var scheduler = PollingScheduler()
         for _ in 0..<Constants.Retry.failureThreshold {
             scheduler.recordStatusFailure(category: .transient)
         }
-        #expect(scheduler.hasRefreshWarning)
+        #expect(scheduler.isStale)
     }
 
-    @Test func hasRefreshWarningFromUsageOnly() {
+    @Test func isStaleFromUsageOnly() {
         var scheduler = PollingScheduler()
         for _ in 0..<Constants.Retry.failureThreshold {
             scheduler.recordUsageFailure(category: .rateLimited)
         }
-        #expect(scheduler.hasRefreshWarning)
+        #expect(scheduler.isStale)
     }
 
     // MARK: - Staleness
@@ -196,6 +199,6 @@ struct PollIntervalTests {
         #expect(scheduler.statusState.consecutiveFailures == 0)
         #expect(scheduler.usageState.consecutiveFailures == 0)
         #expect(scheduler.nextPollInterval(usage: nil) == Constants.Polling.baseInterval)
-        #expect(!scheduler.hasRefreshWarning)
+        #expect(!scheduler.isStale)
     }
 }

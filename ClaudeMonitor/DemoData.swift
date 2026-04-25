@@ -1,6 +1,16 @@
 import Foundation
 
 enum DemoData {
+    struct DemoFrame {
+        let usage: UsageResponse
+        let status: StatusSummary
+        let samples: [String: [UtilizationSample]]
+        let isOnline: Bool
+        let isStale: Bool
+        let hasRecentFailure: Bool
+        let lastFailedAt: Date?
+    }
+
     private static let allOperationalComponents = [
         StatusComponent(id: "1", name: "API", status: .operational),
         StatusComponent(id: "2", name: "Claude.ai Web", status: .operational),
@@ -8,12 +18,15 @@ enum DemoData {
         StatusComponent(id: "4", name: "API Cloudflare Worker", status: .operational),
     ]
 
-    static func scenario(_ number: Int) -> (UsageResponse, StatusSummary, [String: [UtilizationSample]]) {
+    static func scenario(_ number: Int) -> DemoFrame {
         switch number {
         case 1: return scenario1()
         case 2: return scenario2()
         case 3: return scenario3()
         case 4: return scenario4()
+        case 5: return scenario5()
+        case 6: return scenario6()
+        case 7: return scenario7()
         default: return scenario1()
         }
     }
@@ -112,7 +125,7 @@ enum DemoData {
         (-318316, 19), (-302400, 22)
     ]
 
-    private static func scenario1() -> (UsageResponse, StatusSummary, [String: [UtilizationSample]]) {
+    private static func scenario1() -> DemoFrame {
         let resetsAt5h = Date().addingTimeInterval(2.7 * Constants.Time.secondsPerHour)
         let resetsAt7d = Date().addingTimeInterval(4.5 * Constants.Time.secondsPerDay)
         let usage = UsageResponse(entries: [
@@ -148,10 +161,10 @@ enum DemoData {
             ],
             status: PageStatus(indicator: "major", description: "Major Service Outage")
         )
-        return (usage, status, samples)
+        return DemoFrame(usage: usage, status: status, samples: samples, isOnline: true, isStale: false, hasRecentFailure: false, lastFailedAt: nil)
     }
 
-    private static func scenario2() -> (UsageResponse, StatusSummary, [String: [UtilizationSample]]) {
+    private static func scenario2() -> DemoFrame {
         let resetsAt5h = Date().addingTimeInterval(1.4 * Constants.Time.secondsPerHour)
         let resetsAt7d = Date().addingTimeInterval(4.2 * Constants.Time.secondsPerDay)
         let usage = UsageResponse(entries: [
@@ -180,10 +193,10 @@ enum DemoData {
             ],
             status: PageStatus(indicator: "minor", description: "Minor Service Disruption")
         )
-        return (usage, status, samples)
+        return DemoFrame(usage: usage, status: status, samples: samples, isOnline: true, isStale: false, hasRecentFailure: false, lastFailedAt: nil)
     }
 
-    private static func scenario3() -> (UsageResponse, StatusSummary, [String: [UtilizationSample]]) {
+    private static func scenario3() -> DemoFrame {
         let resetsAt5h = Date().addingTimeInterval(0.8 * Constants.Time.secondsPerHour)
         let resetsAt7d = Date().addingTimeInterval(1.5 * Constants.Time.secondsPerDay)
         let usage = UsageResponse(entries: [
@@ -201,10 +214,10 @@ enum DemoData {
             incidents: [],
             status: PageStatus(indicator: "none", description: "All Systems Operational")
         )
-        return (usage, status, samples)
+        return DemoFrame(usage: usage, status: status, samples: samples, isOnline: true, isStale: false, hasRecentFailure: false, lastFailedAt: nil)
     }
 
-    private static func scenario4() -> (UsageResponse, StatusSummary, [String: [UtilizationSample]]) {
+    private static func scenario4() -> DemoFrame {
         let resetsAt5h = Date().addingTimeInterval(2.25 * Constants.Time.secondsPerHour)
         let resetsAt7d = Date().addingTimeInterval(3.5 * Constants.Time.secondsPerDay)
         let usage = UsageResponse(entries: [
@@ -222,6 +235,65 @@ enum DemoData {
             incidents: [],
             status: PageStatus(indicator: "none", description: "All Systems Operational")
         )
-        return (usage, status, samples)
+        return DemoFrame(usage: usage, status: status, samples: samples, isOnline: true, isStale: false, hasRecentFailure: false, lastFailedAt: nil)
+    }
+
+    private static func scenario5() -> DemoFrame {
+        let resetsAt5h = Date().addingTimeInterval(1.4 * Constants.Time.secondsPerHour)
+        let resetsAt7d = Date().addingTimeInterval(4.2 * Constants.Time.secondsPerDay)
+        let usage = UsageResponse(entries: [
+            .make(key: "five_hour", utilization: 74, resetsAt: resetsAt5h),
+            .make(key: "seven_day", utilization: 61, resetsAt: resetsAt7d),
+        ])
+        let samples = [
+            "five_hour": makeSamples(samples_s2_5h, resetsAt: resetsAt5h),
+            "seven_day": makeSamples(samples_s2_7d, resetsAt: resetsAt7d),
+        ]
+        let status = StatusSummary(
+            components: allOperationalComponents,
+            incidents: [],
+            status: PageStatus(indicator: "none", description: "All Systems Operational")
+        )
+        return DemoFrame(usage: usage, status: status, samples: samples, isOnline: true, isStale: false, hasRecentFailure: true, lastFailedAt: Date().addingTimeInterval(-90))
+    }
+
+    private static func scenario6() -> DemoFrame {
+        let resetsAt5h = Date().addingTimeInterval(0.8 * Constants.Time.secondsPerHour)
+        let resetsAt7d = Date().addingTimeInterval(1.5 * Constants.Time.secondsPerDay)
+        let usage = UsageResponse(entries: [
+            .make(key: "five_hour", utilization: 91, resetsAt: resetsAt5h),
+            .make(key: "seven_day", utilization: 85, resetsAt: resetsAt7d),
+            .make(key: "seven_day_sonnet", utilization: 52, resetsAt: resetsAt7d),
+        ])
+        let samples = [
+            "five_hour": makeSamples(samples_s3_5h, resetsAt: resetsAt5h),
+            "seven_day": makeSamples(samples_s3_7d, resetsAt: resetsAt7d),
+            "seven_day_sonnet": makeSamples(samples_s3_7d_sonnet, resetsAt: resetsAt7d),
+        ]
+        let status = StatusSummary(
+            components: allOperationalComponents,
+            incidents: [],
+            status: PageStatus(indicator: "none", description: "All Systems Operational")
+        )
+        return DemoFrame(usage: usage, status: status, samples: samples, isOnline: false, isStale: true, hasRecentFailure: false, lastFailedAt: Date().addingTimeInterval(-180))
+    }
+
+    private static func scenario7() -> DemoFrame {
+        let resetsAt5h = Date().addingTimeInterval(2.7 * Constants.Time.secondsPerHour)
+        let resetsAt7d = Date().addingTimeInterval(4.5 * Constants.Time.secondsPerDay)
+        let usage = UsageResponse(entries: [
+            .make(key: "five_hour", utilization: 42, resetsAt: resetsAt5h),
+            .make(key: "seven_day", utilization: 18, resetsAt: resetsAt7d),
+        ])
+        let samples = [
+            "five_hour": makeSamples(samples_s1_5h, resetsAt: resetsAt5h),
+            "seven_day": makeSamples(samples_s1_7d, resetsAt: resetsAt7d),
+        ]
+        let status = StatusSummary(
+            components: allOperationalComponents,
+            incidents: [],
+            status: PageStatus(indicator: "none", description: "All Systems Operational")
+        )
+        return DemoFrame(usage: usage, status: status, samples: samples, isOnline: true, isStale: true, hasRecentFailure: false, lastFailedAt: Date().addingTimeInterval(-240))
     }
 }

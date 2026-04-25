@@ -201,6 +201,9 @@ final class AboutWindowController: NSWindowController, NSWindowDelegate {
         s.append(line(""))
         s.append(secondary(String(localized: "about.secondary.outpacing", bundle: .module)))
 
+        heading(String(localized: "about.heading.stale_data", bundle: .module), into: s)
+        s.append(line(String(localized: "about.line.stale_prefix", bundle: .module)))
+
         heading(String(localized: "about.heading.usage_graph", bundle: .module), into: s)
         s.append(secondary(String(localized: "about.secondary.usage_graph_explain", bundle: .module)))
 

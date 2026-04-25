@@ -302,8 +302,9 @@ struct PollingRateTests {
         let threshold = Constants.Retry.failureThreshold
         for _ in 0..<threshold {
             scheduler.recordUsageFailure(category: .transient)
+            scheduler.recordStatusFailure(category: .transient)
         }
-        // initialBackoff=10, doubled threshold times: 10*2^threshold=40
+        // initialBackoff=10, doubled threshold times: 10*2^threshold
         let expectedBackoff = Constants.Retry.initialBackoff * pow(2.0, Double(threshold))
         #expect(scheduler.nextPollInterval(usage: nil) == min(expectedBackoff, Constants.Retry.maxBackoff))
     }
@@ -359,11 +360,12 @@ struct PollingRateTests {
 
     @Test func picksShorterOfTwoBackoffs() {
         var scheduler = PollingScheduler()
-        scheduler.recordStatusFailure(category: .transient)
-        scheduler.recordStatusFailure(category: .transient)
-        scheduler.recordUsageFailure(category: .transient)
-        scheduler.recordUsageFailure(category: .transient)
-        let thresholdBackoff = Constants.Retry.initialBackoff * pow(2.0, Double(Constants.Retry.failureThreshold))
+        let threshold = Constants.Retry.failureThreshold
+        for _ in 0..<threshold {
+            scheduler.recordStatusFailure(category: .transient)
+            scheduler.recordUsageFailure(category: .transient)
+        }
+        let thresholdBackoff = Constants.Retry.initialBackoff * pow(2.0, Double(threshold))
         #expect(scheduler.nextPollInterval(usage: nil) == thresholdBackoff)
 
         scheduler.recordStatusFailure(category: .transient)

@@ -59,12 +59,21 @@ enum Constants {
     enum Retry {
         static let initialBackoff: TimeInterval = 10
         static let maxBackoff: TimeInterval = 300
-        static let failureThreshold: Int = 2
+        /// 2 consecutive failures: dropdown shows "Last update failed" row, data still considered fresh.
+        static let warnThreshold: Int = 2
+        /// 3 consecutive failures: data is stale (banner, dimmed colors, "!" prefix, backoff active).
+        static let failureThreshold: Int = 3
         static let staleDataMaxAge: TimeInterval = 3600
     }
 
     enum Network {
         static let requestTimeout: TimeInterval = 15
+        static let pathMonitorQueueLabel = "com.claudemonitor.pathmonitor"
+    }
+
+    enum Color {
+        static let staleSaturationScale: CGFloat = 0.25
+        static let staleLightnessShiftToMid: CGFloat = 0.5
     }
 
     enum Time {
@@ -88,7 +97,7 @@ enum Constants {
 
     enum Demo {
         static let isActive: Bool = ProcessInfo.processInfo.arguments.contains("--demo")
-        static let rotationOrder: [Int] = [3, 2, 1, 4]
+        static let rotationOrder: [Int] = [3, 2, 1, 4, 5, 6, 7]
         static let rotationInterval: TimeInterval = 5
     }
 

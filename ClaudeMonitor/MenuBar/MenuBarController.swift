@@ -36,10 +36,11 @@ final class MenuBarController: NSObject, MenuActions {
         guard let button = statusItem.button else { return }
         button.imagePosition = .imageTrailing
         button.image = StatusBarRenderer.makeImage(symbolName: "circle.fill", color: .systemGray)
+        let state = coordinator.monitorState
         StatusBarRenderer.updateText(
-            button: button, usage: coordinator.currentUsage,
-            hasCredentials: coordinator.hasCredentials,
-            isStale: coordinator.scheduler.isUsageStale
+            button: button, usage: state.currentUsage,
+            hasCredentials: state.hasCredentials,
+            isStale: state.isStale || state.isUsageStale
         )
         let menu = NSMenu()
         menu.delegate = self
@@ -55,12 +56,12 @@ final class MenuBarController: NSObject, MenuActions {
         if let button = statusItem.button {
             StatusBarRenderer.updateIcon(
                 button: button, status: state.currentStatus,
-                hasRefreshWarning: coordinator.scheduler.hasRefreshWarning
+                hasRefreshWarning: state.isStale
             )
             StatusBarRenderer.updateText(
                 button: button, usage: state.currentUsage,
                 hasCredentials: state.hasCredentials,
-                isStale: state.isUsageStale,
+                isStale: state.isStale || state.isUsageStale,
                 windowAnalyses: state.windowAnalyses
             )
         }

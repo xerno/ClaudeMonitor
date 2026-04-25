@@ -5,11 +5,14 @@ final class DataCoordinator {
     private let statusService: any StatusFetching
     private let usageService: any UsageFetching
     private let systemIdleProvider: any SystemIdleProviding
+    private let pathMonitor: any PathMonitoring
     private let loadCredential: @Sendable (String) -> String?
     private var pollTask: Task<Void, Never>?
     private var demoRotationIndex = 0
     private var loadedCredentials: (cookie: String, orgId: String)?
     private let usageHistory = UsageHistory()
+    private var demoFrame: DemoData.DemoFrame?
+    private var lastFailedAt: Date?
 
     private(set) var currentStatus: StatusSummary?
     private(set) var currentUsage: UsageResponse?
@@ -28,11 +31,13 @@ final class DataCoordinator {
         statusService: any StatusFetching = StatusService(),
         usageService: any UsageFetching = UsageService(),
         systemIdleProvider: any SystemIdleProviding = SystemIdleService(),
+        pathMonitor: any PathMonitoring = PathMonitor(),
         loadCredential: @escaping @Sendable (String) -> String? = { KeychainService.load(key: $0) }
     ) {
         self.statusService = statusService
         self.usageService = usageService
         self.systemIdleProvider = systemIdleProvider
+        self.pathMonitor = pathMonitor
         self.loadCredential = loadCredential
         UsageHistory.migrateAndDeleteLegacyData()
         reloadCredentials()
@@ -44,7 +49,7 @@ final class DataCoordinator {
 
     var monitorState: MonitorState {
         MonitorState(
-            currentUsage: scheduler.isUsageStale ? nil : currentUsage,
+            currentUsage: currentUsage,
             currentStatus: currentStatus,
             usageError: usageError,
             statusError: statusError,
@@ -52,32 +57,45 @@ final class DataCoordinator {
             hasCredentials: hasCredentials,
             currentPollInterval: currentPollInterval,
             windowAnalyses: windowAnalyses,
-            isUsageStale: scheduler.isUsageStale
+            isUsageStale: scheduler.isUsageStale,
+            isOnline: demoFrame?.isOnline ?? pathMonitor.isSatisfied,
+            hasRecentFailure: demoFrame?.hasRecentFailure ?? scheduler.hasRecentFailure,
+            lastFailedAt: demoFrame?.lastFailedAt ?? lastFailedAt,
+            isStale: demoFrame?.isStale ?? scheduler.isStale
         )
     }
 
     func startPolling() {
+        pathMonitor.setOnPathChange { [weak self] satisfied in
+            guard let self, satisfied else { return }
+            self.scheduler.resetRetryState()
+            self.pollTask?.cancel()
+            self.pollTask = Task { await self.pollLoop() }
+        }
+        pathMonitor.start()
         pollTask?.cancel()
-        pollTask = Task {
-            while !Task.isCancelled {
-                await refresh()
-                guard !Task.isCancelled else { break }
-                let delay = nextPollDate.map { $0.timeIntervalSinceNow } ?? Constants.Polling.baseInterval
-                guard delay > 0 else { continue }
+        pollTask = Task { await pollLoop() }
+    }
 
-                if scheduler.isAwayMode {
-                    let deadline = Date().addingTimeInterval(delay)
-                    while Date() < deadline && !Task.isCancelled {
-                        let sleepTime = min(Constants.Polling.heartbeatInterval, deadline.timeIntervalSinceNow)
-                        guard sleepTime > 0 else { break }
-                        try? await Task.sleep(for: .seconds(sleepTime))
-                        if systemIdleProvider.idleTime() < Constants.Polling.awayThreshold {
-                            break
-                        }
+    private func pollLoop() async {
+        while !Task.isCancelled {
+            await refresh()
+            guard !Task.isCancelled else { break }
+            let delay = nextPollDate.map { $0.timeIntervalSinceNow } ?? Constants.Polling.baseInterval
+            guard delay > 0 else { continue }
+
+            if scheduler.isAwayMode {
+                let deadline = Date().addingTimeInterval(delay)
+                while Date() < deadline && !Task.isCancelled {
+                    let sleepTime = min(Constants.Polling.heartbeatInterval, deadline.timeIntervalSinceNow)
+                    guard sleepTime > 0 else { break }
+                    try? await Task.sleep(for: .seconds(sleepTime))
+                    if systemIdleProvider.idleTime() < Constants.Polling.awayThreshold {
+                        break
                     }
-                } else {
-                    try? await Task.sleep(for: .seconds(delay))
                 }
+            } else {
+                try? await Task.sleep(for: .seconds(delay))
             }
         }
     }
@@ -93,18 +111,33 @@ final class DataCoordinator {
         if Constants.Demo.isActive {
             let scenario = Constants.Demo.rotationOrder[demoRotationIndex]
             demoRotationIndex = (demoRotationIndex + 1) % Constants.Demo.rotationOrder.count
-            let (usage, status, demoSamples) = DemoData.scenario(scenario)
-            currentUsage = usage
-            currentStatus = status
+            let frame = DemoData.scenario(scenario)
+            demoFrame = frame
+            currentUsage = frame.usage
+            currentStatus = frame.status
             usageError = nil
             statusError = nil
             let now = Date()
             lastRefreshed = now
             nextPollDate = now.addingTimeInterval(Constants.Demo.rotationInterval)
             currentPollInterval = Constants.Demo.rotationInterval
-            windowAnalyses = usage.entries.map { entry in
-                UsageHistory.analyze(entry: entry, samples: demoSamples[entry.key] ?? [], now: now)
+            windowAnalyses = frame.usage.entries.map { entry in
+                UsageHistory.analyze(entry: entry, samples: frame.samples[entry.key] ?? [], now: now)
             }
+            onUpdate?()
+            return
+        }
+        if !pathMonitor.isSatisfied {
+            scheduler.recordStatusFailure(category: .transient)
+            scheduler.recordUsageFailure(category: .transient)
+            // Don't stamp lastFailedAt for offline ticks: the "Last update failed at HH:MM" row
+            // would advance every tick despite no real attempt being made. Stale banner already
+            // signals the problem at threshold.
+            let now = Date()
+            lastRefreshed = now
+            let pollInterval = scheduler.nextPollInterval(usage: currentUsage)
+            nextPollDate = now.addingTimeInterval(pollInterval)
+            currentPollInterval = pollInterval
             onUpdate?()
             return
         }
@@ -113,6 +146,9 @@ final class DataCoordinator {
         async let usageResult: Void = refreshUsage()
         _ = await (statusResult, usageResult)
         guard !Task.isCancelled else { return }
+        if scheduler.statusState.consecutiveFailures == 0 && scheduler.usageState.consecutiveFailures == 0 {
+            lastFailedAt = nil
+        }
         if let newUsage = currentUsage {
             let now = Date()
             var anyReset = false
@@ -161,6 +197,7 @@ final class DataCoordinator {
         } catch {
             if Task.isCancelled { return }
             scheduler.recordStatusFailure(category: RetryCategory(classifying: error))
+            lastFailedAt = Date()
             if scheduler.statusState.consecutiveFailures >= Constants.Retry.failureThreshold {
                 statusError = error.localizedDescription
             }
@@ -201,6 +238,7 @@ final class DataCoordinator {
             if Task.isCancelled { return }
             let category = RetryCategory(classifying: error)
             scheduler.recordUsageFailure(category: category)
+            lastFailedAt = Date()
             if scheduler.usageState.consecutiveFailures >= Constants.Retry.failureThreshold {
                 usageError = error.localizedDescription
             }
