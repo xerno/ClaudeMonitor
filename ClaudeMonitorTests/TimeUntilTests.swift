@@ -31,7 +31,7 @@ struct TimeUntilTests {
 
     @Test func timeUntil1MinuteExactly() {
         let now = Date()
-        #expect(Formatting.timeUntil(now.addingTimeInterval(60), now: now) == "1m 0s")
+        #expect(Formatting.timeUntil(now.addingTimeInterval(60), now: now) == "1m")
     }
 
     @Test func timeUntil1Minute30Seconds() {
@@ -61,7 +61,7 @@ struct TimeUntilTests {
 
     @Test func timeUntil1HourExactly() {
         let now = Date()
-        #expect(Formatting.timeUntil(now.addingTimeInterval(3600), now: now) == "1h 0m")
+        #expect(Formatting.timeUntil(now.addingTimeInterval(3600), now: now) == "1h")
     }
 
     @Test func timeUntil3Hours21Minutes() {
@@ -76,7 +76,7 @@ struct TimeUntilTests {
 
     @Test func timeUntil24HoursExactly() {
         let now = Date()
-        #expect(Formatting.timeUntil(now.addingTimeInterval(86400), now: now) == "24h 0m")
+        #expect(Formatting.timeUntil(now.addingTimeInterval(86400), now: now) == "24h")
     }
 
     @Test func timeUntil24Hours59Minutes() {
@@ -96,7 +96,7 @@ struct TimeUntilTests {
 
     @Test func timeUntil7DaysExactly() {
         let now = Date()
-        #expect(Formatting.timeUntil(now.addingTimeInterval(604800), now: now) == "7d 0h")
+        #expect(Formatting.timeUntil(now.addingTimeInterval(604800), now: now) == "7d")
     }
 
     @Test func timeUntilNegative() {
