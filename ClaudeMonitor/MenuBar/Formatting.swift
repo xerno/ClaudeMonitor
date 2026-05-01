@@ -10,14 +10,18 @@ enum Formatting {
         if totalSeconds < 60 { return "\(totalSeconds)s" }
         let totalMinutes = totalSeconds / 60
         let seconds = totalSeconds % 60
-        if totalMinutes < 2 { return "\(totalMinutes)m \(seconds)s" }
+        if totalMinutes < 2 {
+            return seconds == 0 ? "\(totalMinutes)m" : "\(totalMinutes)m \(seconds)s"
+        }
         if totalMinutes < 60 { return "\(totalMinutes)m" }
         let hours = totalMinutes / 60
         let minutes = totalMinutes % 60
-        if hours < 25 { return "\(hours)h \(minutes)m" }
+        if hours < 25 {
+            return minutes == 0 ? "\(hours)h" : "\(hours)h \(minutes)m"
+        }
         let days = hours / 24
         let remainingHours = hours % 24
-        return "\(days)d \(remainingHours)h"
+        return remainingHours == 0 ? "\(days)d" : "\(days)d \(remainingHours)h"
     }
 
     static func nextTickTarget(resetTimes: [Date], now: Date) -> Date? {
