@@ -95,6 +95,8 @@ final class MenuBarController: NSObject, MenuActions {
         NSWorkspace.shared.open(url)
     }
 
+    @objc func didSelectSentinel() {}
+
     @objc func didSelectUsageWindow(_ sender: NSMenuItem) {
         guard let menu = statusItem.menu else { return }
         let index = sender.tag - MenuBuilder.usageBaseTag

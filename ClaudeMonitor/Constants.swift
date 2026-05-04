@@ -23,6 +23,9 @@ enum Constants {
 
     enum Polling {
         static let baseInterval: TimeInterval = 60
+        // When a general (non-model-specific) window is blocked, utilization won't
+        // change until reset — poll slowly and rely on the post-reset 1s snap instead.
+        static let blockedBaseInterval: TimeInterval = 300
         static let minInterval: TimeInterval = 24
 
         static let rateEmaTau: TimeInterval = 60

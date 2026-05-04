@@ -4,11 +4,12 @@ import AppKit
 enum WindowManager {
     static func bringToFront(_ window: NSWindow?) {
         NSApp.setActivationPolicy(.regular)
-        window?.level = .floating
-        window?.makeKeyAndOrderFront(nil)
-        NSApp.activate()
-        Task { @MainActor in
-            window?.level = .normal
+        // Defer past the current run loop so the menu's dismissal sequence completes before we grab focus.
+        DispatchQueue.main.async {
+            window?.level = .floating
+            window?.makeKeyAndOrderFront(nil)
+            NSApp.activate()
+            Task { @MainActor in window?.level = .normal }
         }
     }
 

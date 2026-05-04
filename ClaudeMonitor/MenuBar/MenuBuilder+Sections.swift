@@ -11,6 +11,17 @@ extension MenuBuilder {
         return item
     }
 
+    // Invisible navigable item that absorbs NSMenu's auto-highlight on open, so the
+    // first real usage row doesn't appear pre-selected. Custom 1×1 view.
+    static func usageSentinelItem(target: any MenuActions) -> NSMenuItem {
+        let item = NSMenuItem()
+        item.target = target
+        item.action = #selector(MenuActions.didSelectSentinel)
+        let view = SentinelView(frame: NSRect(x: 0, y: 0, width: 1, height: 1))
+        item.view = view
+        return item
+    }
+
     static func usageItems(state: MonitorState, target: (any MenuActions)?) -> ([NSMenuItem], UsageCache) {
         if !state.hasCredentials {
             return ([staticItem(String(localized: "menu.credentials.configure", bundle: .module), tag: usagePlaceholderTag)], UsageCache())
@@ -24,6 +35,9 @@ extension MenuBuilder {
         let cache = UsageCache(labels: labels, style: style, prefixes: prefixes)
 
         var items: [NSMenuItem] = []
+        if let target {
+            items.append(usageSentinelItem(target: target))
+        }
         for (tag, label, window) in labels {
             guard let window else { continue }
             items.append(usageItem(label: label, window: window, tag: tag, style: style, target: target))
@@ -113,6 +127,9 @@ extension MenuBuilder {
                 target?.didSelectUsageWindow(sender)
             }
             item.view = rowView
+            // Target/action register the item as a keyboard-navigation focus stop; activation goes through onClick (NSMenu does not invoke item.action for view-based items).
+            item.target = target
+            item.action = #selector(MenuActions.didSelectUsageWindow(_:))
         } else {
             item.attributedTitle = attrTitle
             item.isEnabled = false
@@ -129,10 +146,14 @@ extension MenuBuilder {
     private static let menuFont = NSFont.menuFont(ofSize: 0)
     private static let boldMenuFont = NSFontManager.shared.convert(menuFont, toHaveTrait: .boldFontMask)
 
-    static let barPercentWidth: CGFloat = NSAttributedString(
-        string: "\(Formatting.progressBar(percent: 50))  100%",
-        attributes: [.font: menuFont]
-    ).size().width
+    // Vertical offset that visually centers the bar attachment against the menu font's cap height.
+    private static let barAttachmentY: CGFloat = (menuFont.capHeight - Formatting.barImageHeight) / 2
+
+    // Bar image width + suffix "   100%" measured in menuFont (the font used for that segment).
+    static let barPercentWidth: CGFloat = {
+        let suffixStr = NSAttributedString(string: "   100%", attributes: [.font: menuFont])
+        return Formatting.barImageWidth + suffixStr.size().width
+    }()
 
     static func usageParagraphStyle(labelColumnWidth: CGFloat) -> NSParagraphStyle {
         let padding: CGFloat = 8
@@ -142,6 +163,7 @@ extension MenuBuilder {
         let style = NSMutableParagraphStyle()
         style.tabStops = [
             NSTextTab(textAlignment: .left, location: barStart),
+            NSTextTab(textAlignment: .right, location: barStart + barPercentWidth),
             NSTextTab(textAlignment: .left, location: resetsStart),
         ]
         return style
@@ -171,41 +193,38 @@ extension MenuBuilder {
         style: NSParagraphStyle
     ) -> [Int: NSAttributedString] {
         var prefixes: [Int: NSAttributedString] = [:]
-        let attrs: [NSAttributedString.Key: Any] = [.font: menuFont, .paragraphStyle: style]
+        let menuAttrs: [NSAttributedString.Key: Any] = [.font: menuFont, .paragraphStyle: style]
         for (tag, label, window) in labels {
             guard let window, window.resetsAt != nil else { continue }
-            let bar = Formatting.progressBar(percent: window.utilization)
-            prefixes[tag] = NSAttributedString(
-                string: "  \(label)  \t\(bar)  \(window.utilization)%\t \(String(localized: "menu.resets.prefix", bundle: .module))",
-                attributes: attrs
-            )
+            let prefix = NSMutableAttributedString(string: "  \(label)  \t", attributes: menuAttrs)
+            prefix.append(barAndPercentSegment(window: window, style: style))
+            prefix.append(NSAttributedString(string: "\t \(String(localized: "menu.resets.prefix", bundle: .module))", attributes: menuAttrs))
+            prefixes[tag] = prefix
         }
         return prefixes
     }
 
     static func usageAttributedTitle(label: String, window: UsageWindow, style: NSParagraphStyle) -> NSAttributedString {
-        let bar = Formatting.progressBar(percent: window.utilization)
-        let attrs: [NSAttributedString.Key: Any] = [.font: menuFont, .paragraphStyle: style]
-
-        guard let resetsAt = window.resetsAt else {
-            let text = NSMutableAttributedString(
-                string: "  \(label)  \t\(bar)  \(window.utilization)%\t ",
-                attributes: attrs
-            )
-            text.append(NSAttributedString(
-                string: String(localized: "graph.stats.no_reset", bundle: .module),
-                attributes: [.font: menuFont, .foregroundColor: NSColor.tertiaryLabelColor, .paragraphStyle: style]
-            ))
-            return text
+        let menuAttrs: [NSAttributedString.Key: Any] = [.font: menuFont, .paragraphStyle: style]
+        let text = NSMutableAttributedString(string: "  \(label)  \t", attributes: menuAttrs)
+        text.append(barAndPercentSegment(window: window, style: style))
+        if let resetsAt = window.resetsAt {
+            text.append(NSAttributedString(string: "\t \(String(localized: "menu.resets.prefix", bundle: .module))", attributes: menuAttrs))
+            text.append(NSAttributedString(string: Formatting.timeUntil(resetsAt), attributes: [.font: boldMenuFont, .paragraphStyle: style]))
         }
-
-        let reset = Formatting.timeUntil(resetsAt)
-        let text = NSMutableAttributedString(
-            string: "  \(label)  \t\(bar)  \(window.utilization)%\t \(String(localized: "menu.resets.prefix", bundle: .module))",
-            attributes: attrs
-        )
-        text.append(NSAttributedString(string: reset, attributes: [.font: boldMenuFont, .paragraphStyle: style]))
         return text
+    }
+
+    // Bar attachment + right-tab + percentage. The right tab stop right-aligns "<pct>%" to the end
+    // of the bar+percent column. Shared by buildPrefixes and usageAttributedTitle.
+    private static func barAndPercentSegment(window: UsageWindow, style: NSParagraphStyle) -> NSAttributedString {
+        let menuAttrs: [NSAttributedString.Key: Any] = [.font: menuFont, .paragraphStyle: style]
+        let attachment = NSTextAttachment()
+        attachment.image = Formatting.progressBarImage(percent: window.utilization)
+        attachment.bounds = NSRect(x: 0, y: barAttachmentY, width: Formatting.barImageWidth, height: Formatting.barImageHeight)
+        let result = NSMutableAttributedString(attachment: attachment)
+        result.append(NSAttributedString(string: "\t\(window.utilization)%", attributes: menuAttrs))
+        return result
     }
 
     static func updatedNextTitle(lastRefreshed: Date, interval: TimeInterval?) -> String {

@@ -130,6 +130,10 @@ extension Formatting {
 
     // MARK: - Unchanged functions
 
+    static func hasBlockingGeneralWindow(_ entries: [WindowEntry]) -> Bool {
+        entries.contains { $0.modelScope == nil && $0.window.utilization >= Constants.Projection.blockedUtilization }
+    }
+
     static func blockingLimit(_ usage: UsageResponse?) -> Date? {
         guard let usage else { return nil }
         return usage.entries

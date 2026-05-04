@@ -61,7 +61,6 @@
   "graph.stats.idle": "boşta · %1$ld%% pay",
   "graph.stats.limit_soon": "%1$@ · sıfırlamadan ~%2$@ önce sınıra ulaşır",
   "graph.stats.limit_unknown": "%1$@ · sınır yakında",
-  "graph.stats.no_reset": "sıfırlama verisi yok",
   "graph.stats.projected": "%1$@ · sıfırlamada ~%2$ld%%",
   "guide.org_id_label": "Kuruluş Kimliği",
   "guide.step1.prefix": "1. Açın: ",

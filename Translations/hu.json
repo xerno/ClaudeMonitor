@@ -61,7 +61,6 @@
   "graph.stats.idle": "tétlen · %1$ld%% tartalék",
   "graph.stats.limit_soon": "%1$@ · eléri a korlátot ~%2$@ a visszaállítás előtt",
   "graph.stats.limit_unknown": "%1$@ · korlát hamarosan",
-  "graph.stats.no_reset": "nincs visszaállítási adat",
   "graph.stats.projected": "%1$@ · ~%2$ld%% visszaállításkor",
   "guide.org_id_label": "Szervezeti azonosító",
   "guide.step1.prefix": "1. Nyissa meg a következőt: ",

@@ -1,5 +1,13 @@
 import AppKit
 
+// MARK: - SentinelView
+
+/// Invisible 1×1 view that accepts first responder so NSMenu treats its enclosing menu item
+/// as a navigable target — used to absorb NSMenu's auto-highlight on open.
+final class SentinelView: NSView {
+    override var acceptsFirstResponder: Bool { true }
+}
+
 // MARK: - UsageRowView
 
 /// A custom NSView used as an NSMenuItem's view for usage rows.
@@ -11,6 +19,7 @@ final class UsageRowView: NSView {
     var isSelected = false {
         didSet { needsDisplay = true }
     }
+    private var menuItemObservation: NSKeyValueObservation?
 
     private static let selectionBarWidth: CGFloat = 3
     private static let leftPadding: CGFloat = 17  // standard menu item left margin
@@ -50,17 +59,38 @@ final class UsageRowView: NSView {
         addTrackingArea(area)
     }
 
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        menuItemObservation = enclosingMenuItem?.observe(\.isHighlighted, options: []) { [weak self] _, _ in
+            // AppKit fires KVO on the main thread; assumeIsolated avoids an unnecessary hop.
+            MainActor.assumeIsolated { self?.needsDisplay = true }
+        }
+    }
+
     override func mouseEntered(with event: NSEvent) { isHighlighted = true; needsDisplay = true }
     override func mouseExited(with event: NSEvent) { isHighlighted = false; needsDisplay = true }
+
+    override var acceptsFirstResponder: Bool { true }
 
     override func mouseUp(with event: NSEvent) {
         onClick?()
     }
 
+    override func keyDown(with event: NSEvent) {
+        // Do NOT call cancelTracking() — mouse clicks don't close the menu either.
+        if let chars = event.charactersIgnoringModifiers, chars == "\r" || chars == " " {
+            onClick?()
+        } else {
+            super.keyDown(with: event)
+        }
+    }
+
     func updateTitle(_ attributedTitle: NSAttributedString) {
         textField.attributedStringValue = attributedTitle
         let textSize = attributedTitle.size()
-        textField.frame.size.width = textSize.width + UsageRowView.rightPadding
+        let newWidth = textSize.width + UsageRowView.rightPadding
+        textField.frame.size.width = newWidth
+        frame.size.width = newWidth
     }
 
     /// Returns the current attributed title of the row.
@@ -70,7 +100,7 @@ final class UsageRowView: NSView {
     var textContent: String { textField.attributedStringValue.string }
 
     override func draw(_ dirtyRect: NSRect) {
-        if isHighlighted {
+        if isHighlighted || enclosingMenuItem?.isHighlighted == true {
             NSColor.selectedContentBackgroundColor.withAlphaComponent(0.15).setFill()
             dirtyRect.fill()
         }
@@ -467,8 +497,17 @@ final class UsageGraphView: NSView {
         currentUtil: Double,
         analysis: WindowAnalysis
     ) {
-        let projectionColor = color(for: analysis.style)
         let xNow = xPosition(for: now, in: rect, timeRange: timeRange)
+        let xReset = xPosition(for: resetsAt, in: rect, timeRange: timeRange)
+        let yLimit = yPosition(for: 100, in: rect)
+
+        // Already blocked: draw only the red blocked zone from now until reset, no projection.
+        if currentUtil >= 100 {
+            drawBlockedZone(fromX: xNow, in: rect, yLimit: yLimit, xReset: xReset)
+            return
+        }
+
+        let projectionColor = color(for: analysis.style)
         let yNow = yPosition(for: currentUtil, in: rect)
 
         let timeRemaining = max(0, resetsAt.timeIntervalSince(now))
@@ -504,16 +543,7 @@ final class UsageGraphView: NSView {
         // "Blocked zone" fill if projection crosses 100%
         if let crossing = crossingDate {
             let xCrossing = xPosition(for: crossing, in: rect, timeRange: timeRange)
-            let xReset = xPosition(for: resetsAt, in: rect, timeRange: timeRange)
-            let yLimit = yPosition(for: 100, in: rect)
-            let blockedPath = NSBezierPath()
-            blockedPath.move(to: NSPoint(x: xCrossing, y: rect.maxY))
-            blockedPath.line(to: NSPoint(x: xCrossing, y: yLimit))
-            blockedPath.line(to: NSPoint(x: xReset, y: yLimit))
-            blockedPath.line(to: NSPoint(x: xReset, y: rect.maxY))
-            blockedPath.close()
-            NSColor.systemRed.withAlphaComponent(0.08).setFill()
-            blockedPath.fill()
+            drawBlockedZone(fromX: xCrossing, in: rect, yLimit: yLimit, xReset: xReset)
         }
 
         // Projection line (dashed)
@@ -540,6 +570,17 @@ final class UsageGraphView: NSView {
             labelX = xEnd - labelSize.width - 3
         }
         labelStr.draw(at: NSPoint(x: labelX, y: labelY))
+    }
+
+    private func drawBlockedZone(fromX: CGFloat, in rect: NSRect, yLimit: CGFloat, xReset: CGFloat) {
+        let path = NSBezierPath()
+        path.move(to: NSPoint(x: fromX, y: rect.maxY))
+        path.line(to: NSPoint(x: fromX, y: yLimit))
+        path.line(to: NSPoint(x: xReset, y: yLimit))
+        path.line(to: NSPoint(x: xReset, y: rect.maxY))
+        path.close()
+        NSColor.systemRed.withAlphaComponent(0.08).setFill()
+        path.fill()
     }
 
     private func drawNowMarker(in rect: NSRect, timeRange: ClosedRange<Date>, now: Date) {
@@ -623,7 +664,12 @@ final class UsageGraphView: NSView {
         }
 
         if util >= 100 {
-            let timeStr = Formatting.timeUntil(resetsAt)
+            let timeStr: String
+            if Calendar.current.isDateInToday(resetsAt) {
+                timeStr = resetsAt.formatted(Date.FormatStyle().hour().minute().locale(.autoupdatingCurrent))
+            } else {
+                timeStr = resetsAt.formatted(Date.FormatStyle().day().month().year().hour().minute().locale(.autoupdatingCurrent))
+            }
             statsLabel.stringValue = String(format: String(localized: "graph.stats.blocked", bundle: .module), timeStr)
             return
         }

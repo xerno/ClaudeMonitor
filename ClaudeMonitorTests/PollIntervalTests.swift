@@ -11,6 +11,50 @@ struct PollIntervalTests {
         ])
     }
 
+    // MARK: - Blocked General Window
+
+    private func makeAnalysis(key: String, modelScope: String?, utilization: Int) -> WindowAnalysis {
+        let entry = WindowEntry(
+            key: key, duration: 18000, durationLabel: "5h", modelScope: modelScope,
+            window: UsageWindow(utilization: utilization, resetsAt: Date().addingTimeInterval(3600))
+        )
+        return WindowAnalysis(
+            entry: entry, samples: [], consumptionRate: 0, projectedAtReset: Double(utilization),
+            timeToLimit: nil, rateSource: .insufficient,
+            style: Formatting.UsageStyle(level: .normal, isBold: false),
+            segments: [], timeSinceLastChange: nil, recentRate: nil
+        )
+    }
+
+    @Test func blockedGeneralWindowFloorsIntervalAt300() {
+        var scheduler = PollingScheduler()
+        let blocked = makeAnalysis(key: "five_hour", modelScope: nil, utilization: 100)
+        scheduler.adjustPollingRate(windowAnalyses: [blocked])
+        #expect(scheduler.effectivePollingInterval == Constants.Polling.blockedBaseInterval)
+    }
+
+    @Test func blockedModelSpecificOnlyDoesNotFloor() {
+        var scheduler = PollingScheduler()
+        let blocked = makeAnalysis(key: "seven_day_sonnet", modelScope: "Sonnet", utilization: 100)
+        scheduler.adjustPollingRate(windowAnalyses: [blocked])
+        #expect(scheduler.effectivePollingInterval < Constants.Polling.blockedBaseInterval)
+    }
+
+    @Test func noBlockedWindowUsesNormalInterval() {
+        var scheduler = PollingScheduler()
+        let normal = makeAnalysis(key: "five_hour", modelScope: nil, utilization: 50)
+        scheduler.adjustPollingRate(windowAnalyses: [normal])
+        #expect(scheduler.effectivePollingInterval < Constants.Polling.blockedBaseInterval)
+    }
+
+    @Test func blockedGeneralWithModelSpecificAlsoBlockedStillFloors() {
+        var scheduler = PollingScheduler()
+        let blockedGeneral = makeAnalysis(key: "five_hour", modelScope: nil, utilization: 100)
+        let blockedModel = makeAnalysis(key: "seven_day_sonnet", modelScope: "Sonnet", utilization: 100)
+        scheduler.adjustPollingRate(windowAnalyses: [blockedGeneral, blockedModel])
+        #expect(scheduler.effectivePollingInterval == Constants.Polling.blockedBaseInterval)
+    }
+
     // MARK: - Near-Reset Snapping
 
     @Test func nextPollIntervalNearReset() {

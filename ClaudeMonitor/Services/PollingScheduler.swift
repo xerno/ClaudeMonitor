@@ -87,7 +87,14 @@ struct PollingScheduler {
             windowAnalyses: windowAnalyses
         )
 
-        effectivePollingInterval = max(Constants.Polling.minInterval, min(desired, upperBound))
+        let computed = max(Constants.Polling.minInterval, min(desired, upperBound))
+        // When a general window is blocked, utilization won't change until reset.
+        // Floor the interval at blockedBaseInterval so we don't waste API quota;
+        // the post-reset 1s snap in nextPollInterval handles recovery automatically.
+        let generalBlocked = Formatting.hasBlockingGeneralWindow(windowAnalyses.map(\.entry))
+        effectivePollingInterval = generalBlocked
+            ? max(computed, Constants.Polling.blockedBaseInterval)
+            : computed
     }
 
     // MARK: - Error Recording

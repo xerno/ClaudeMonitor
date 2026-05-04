@@ -13,6 +13,7 @@ struct UsageCache {
     func didSelectPreferences()
     func didSelectAbout()
     func didSelectUsageWindow(_ sender: NSMenuItem)
+    func didSelectSentinel()
 }
 
 @MainActor
@@ -78,7 +79,7 @@ enum MenuBuilder {
 
     static func refreshTimes(in menu: NSMenu, cache: UsageCache) {
         for (tag, _, window) in cache.labels {
-            guard let window, let resetsAt = window.resetsAt,
+            guard let resetsAt = window?.resetsAt,
                   let prefix = cache.prefixes[tag],
                   let item = menu.item(withTag: tag) else { continue }
             let text = appendTime(to: prefix, resetsAt: resetsAt, style: cache.style)

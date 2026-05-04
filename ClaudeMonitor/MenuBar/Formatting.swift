@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 
 enum Formatting {
@@ -90,9 +91,23 @@ enum Formatting {
         return String(localized: "rate.minimal", bundle: .module)
     }
 
-    static func progressBar(percent: Int, width: Int = 10) -> String {
-        let clamped = min(max(percent, 0), 100)
-        let filled = Int(round(Double(clamped) / 100.0 * Double(width)))
-        return String(repeating: "█", count: filled) + String(repeating: "░", count: width - filled)
+    static let barImageWidth: CGFloat = 120
+    static let barImageHeight: CGFloat = 12
+
+    static func progressBarImage(percent: Int) -> NSImage {
+        let clamped = max(0, min(100, percent))
+        return NSImage(size: NSSize(width: barImageWidth, height: barImageHeight), flipped: false) { rect in
+            NSColor.tertiaryLabelColor.setFill()
+            let bgPath = NSBezierPath(roundedRect: rect, xRadius: rect.height / 2, yRadius: rect.height / 2)
+            bgPath.fill()
+            let filledWidth = rect.width * CGFloat(clamped) / 100
+            if filledWidth > 0 {
+                NSColor.labelColor.setFill()
+                let fgPath = NSBezierPath(roundedRect: NSRect(x: 0, y: 0, width: filledWidth, height: rect.height),
+                                          xRadius: rect.height / 2, yRadius: rect.height / 2)
+                fgPath.fill()
+            }
+            return true
+        }
     }
 }

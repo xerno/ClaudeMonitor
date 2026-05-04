@@ -38,6 +38,44 @@ struct BlockingLimitTests {
         #expect(Formatting.blockingLimit(usage) == sevenDayReset)
     }
 
+    // MARK: - hasBlockingGeneralWindow
+
+    @Test func hasBlockingGeneralWindowFalseWhenEmpty() {
+        #expect(!Formatting.hasBlockingGeneralWindow([]))
+    }
+
+    @Test func hasBlockingGeneralWindowFalseWhenBelowThreshold() {
+        let entries: [WindowEntry] = [
+            .make(key: "five_hour", utilization: 99, resetsAt: nil),
+            .make(key: "seven_day", utilization: 50, resetsAt: nil),
+        ]
+        #expect(!Formatting.hasBlockingGeneralWindow(entries))
+    }
+
+    @Test func hasBlockingGeneralWindowTrueWhenGeneralAt100() {
+        let entries: [WindowEntry] = [
+            .make(key: "five_hour", utilization: 100, resetsAt: nil),
+            .make(key: "seven_day", utilization: 50, resetsAt: nil),
+        ]
+        #expect(Formatting.hasBlockingGeneralWindow(entries))
+    }
+
+    @Test func hasBlockingGeneralWindowFalseWhenOnlyModelSpecificAt100() {
+        let entries: [WindowEntry] = [
+            .make(key: "five_hour", utilization: 50, resetsAt: nil),
+            .make(key: "seven_day_sonnet", utilization: 100, resetsAt: nil),
+        ]
+        #expect(!Formatting.hasBlockingGeneralWindow(entries))
+    }
+
+    @Test func hasBlockingGeneralWindowTrueWhenBothGeneralAndModelSpecificAt100() {
+        let entries: [WindowEntry] = [
+            .make(key: "five_hour", utilization: 100, resetsAt: nil),
+            .make(key: "seven_day_sonnet", utilization: 100, resetsAt: nil),
+        ]
+        #expect(Formatting.hasBlockingGeneralWindow(entries))
+    }
+
     @Test func blockingLimitAllThreeAt100ReturnsLatest() {
         let now = Date()
         let fiveHourReset = now.addingTimeInterval(7200)

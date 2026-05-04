@@ -9,6 +9,7 @@ private final class MockMenuActions: NSObject, MenuActions {
     @objc func didSelectPreferences() {}
     @objc func didSelectAbout() {}
     @objc func didSelectUsageWindow(_ sender: NSMenuItem) {}
+    @objc func didSelectSentinel() {}
 }
 
 @MainActor struct MenuBuilderTests {
