@@ -357,7 +357,7 @@ import Foundation
     @Test func analyzeWithZeroSamplesUsesImpliedRate() {
         let now = Date()
         let resetsAt = now.addingTimeInterval(3600)
-        let entry = WindowEntry.make(key: "five_hour", utilization: 50, resetsAt: resetsAt)
+        let entry = WindowEntry.make(key: "five_hour", utilization: 50, resetsAt: resetsAt)!
 
         let analysis = UsageHistory.analyze(entry: entry, samples: [], now: now)
 
@@ -373,7 +373,7 @@ import Foundation
     @Test func analyzeWithOneSample() {
         let now = Date()
         let resetsAt = now.addingTimeInterval(3600)
-        let entry = WindowEntry.make(key: "five_hour", utilization: 40, resetsAt: resetsAt)
+        let entry = WindowEntry.make(key: "five_hour", utilization: 40, resetsAt: resetsAt)!
         // Single sample matches current utilization
         let sample = UtilizationSample(utilization: 40, timestamp: now.addingTimeInterval(-300))
 
@@ -392,7 +392,7 @@ import Foundation
     @Test func analyzeUpwardTrendBelowLimit() {
         let now = Date()
         let resetsAt = now.addingTimeInterval(3600) // 1h remaining
-        let entry = WindowEntry.make(key: "five_hour", utilization: 40, resetsAt: resetsAt)
+        let entry = WindowEntry.make(key: "five_hour", utilization: 40, resetsAt: resetsAt)!
         // 6 samples rising 0→40 over 2400s (40min) before now
         let samples = (0..<6).map { i in
             UtilizationSample(utilization: i * 8, timestamp: now.addingTimeInterval(Double(i) * 480 - 2400))
@@ -416,7 +416,7 @@ import Foundation
     @Test func analyzeUpwardTrendCriticalProjection() {
         let now = Date()
         let resetsAt = now.addingTimeInterval(9000)
-        let entry = WindowEntry.make(key: "five_hour", utilization: 65, resetsAt: resetsAt)
+        let entry = WindowEntry.make(key: "five_hour", utilization: 65, resetsAt: resetsAt)!
         let samples = (0..<4).map { i in
             UtilizationSample(utilization: 20 + i * 15, timestamp: now.addingTimeInterval(Double(i) * 1000 - 3000))
         }
@@ -437,7 +437,7 @@ import Foundation
     @Test func analyzeWithFlatSamples() {
         let now = Date()
         let resetsAt = now.addingTimeInterval(9000)
-        let entry = WindowEntry.make(key: "five_hour", utilization: 20, resetsAt: resetsAt)
+        let entry = WindowEntry.make(key: "five_hour", utilization: 20, resetsAt: resetsAt)!
         // All samples at 20% — timeSinceLastChange spans full sample range
         let span: TimeInterval = 3600
         let samples = (0..<5).map { i in
@@ -458,7 +458,7 @@ import Foundation
     @Test func analyzeBlockedUtilizationAlwaysCritical() {
         let now = Date()
         let resetsAt = now.addingTimeInterval(3600)
-        let entry = WindowEntry.make(key: "five_hour", utilization: 100, resetsAt: resetsAt)
+        let entry = WindowEntry.make(key: "five_hour", utilization: 100, resetsAt: resetsAt)!
         let samples = [UtilizationSample(utilization: 100, timestamp: now.addingTimeInterval(-300))]
 
         let analysis = UsageHistory.analyze(entry: entry, samples: samples, now: now)
@@ -474,7 +474,7 @@ import Foundation
     @Test func analyzeWithGapInSamples() {
         let now = Date()
         let resetsAt = now.addingTimeInterval(3600)
-        let entry = WindowEntry.make(key: "five_hour", utilization: 50, resetsAt: resetsAt)
+        let entry = WindowEntry.make(key: "five_hour", utilization: 50, resetsAt: resetsAt)!
         // s1→s2: 60s (no gap), s2→s3: 600s (gap), s3→s4: 60s (no gap)
         let s1 = UtilizationSample(utilization: 10, timestamp: now.addingTimeInterval(-780))
         let s2 = UtilizationSample(utilization: 20, timestamp: now.addingTimeInterval(-720))
@@ -497,7 +497,7 @@ import Foundation
     // No resetsAt → rate source is .insufficient, projected = current utilization (rate=0).
     @Test func analyzeWithNoResetsAtIsInsufficient() {
         let now = Date()
-        let entry = WindowEntry.make(key: "five_hour", utilization: 60, resetsAt: nil)
+        let entry = WindowEntry.make(key: "five_hour", utilization: 60, resetsAt: nil)!
         let samples = [UtilizationSample(utilization: 60, timestamp: now.addingTimeInterval(-300))]
 
         let analysis = UsageHistory.analyze(entry: entry, samples: samples, now: now)
@@ -515,7 +515,7 @@ import Foundation
         let now = Date()
         // resetsAt = now → timeRemaining = 0
         let resetsAt = now
-        let entry = WindowEntry.make(key: "five_hour", utilization: 90, resetsAt: resetsAt)
+        let entry = WindowEntry.make(key: "five_hour", utilization: 90, resetsAt: resetsAt)!
         let samples = [UtilizationSample(utilization: 90, timestamp: now.addingTimeInterval(-300))]
 
         let analysis = UsageHistory.analyze(entry: entry, samples: samples, now: now)

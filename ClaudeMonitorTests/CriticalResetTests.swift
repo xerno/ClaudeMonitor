@@ -61,10 +61,10 @@ struct CriticalResetTests {
         let now = Date()
 
         let previous = UsageResponse(entries: [
-            .make(key: "five_hour", utilization: 90, resetsAt: now.addingTimeInterval(1000))
+            .make(key: "five_hour", utilization: 90, resetsAt: now.addingTimeInterval(1000))!
         ])
         let current = UsageResponse(entries: [
-            .make(key: "seven_day", utilization: 5, resetsAt: now.addingTimeInterval(604_800))
+            .make(key: "seven_day", utilization: 5, resetsAt: now.addingTimeInterval(604_800))!
         ])
 
         #expect(!Formatting.detectCriticalReset(previous: previous, current: current))
@@ -130,7 +130,7 @@ struct CriticalResetTests {
     @Test func emptyResponses() {
         let empty = UsageResponse(entries: [])
         let nonEmpty = UsageResponse(entries: [
-            .make(key: "five_hour", utilization: 85, resetsAt: Date().addingTimeInterval(18000))
+            .make(key: "five_hour", utilization: 85, resetsAt: Date().addingTimeInterval(18000))!
         ])
         #expect(!Formatting.detectCriticalReset(previous: empty, current: nonEmpty))
         #expect(!Formatting.detectCriticalReset(previous: nonEmpty, current: empty))

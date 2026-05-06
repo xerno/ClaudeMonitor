@@ -131,14 +131,14 @@ struct DemoDataTests {
         let frame = DemoData.scenario(5)
         #expect(frame.isOnline == true)
         #expect(frame.hasRecentFailure == true)
-        #expect(frame.isStale == false)
+        #expect(frame.isAnyServiceStale == false)
         #expect(frame.lastFailedAt != nil)
     }
 
     @Test func scenario6IsOfflineAndStale() {
         let frame = DemoData.scenario(6)
         #expect(frame.isOnline == false)
-        #expect(frame.isStale == true)
+        #expect(frame.isAnyServiceStale == true)
         #expect(frame.hasRecentFailure == false)
         #expect(frame.lastFailedAt != nil)
     }
@@ -146,7 +146,7 @@ struct DemoDataTests {
     @Test func scenario7IsStaleWithConnectionError() {
         let frame = DemoData.scenario(7)
         #expect(frame.isOnline == true)
-        #expect(frame.isStale == true)
+        #expect(frame.isAnyServiceStale == true)
         #expect(frame.hasRecentFailure == false)
         #expect(frame.lastFailedAt != nil)
     }

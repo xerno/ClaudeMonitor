@@ -11,7 +11,7 @@ final class SystemIdleService: SystemIdleProviding, @unchecked Sendable {
 
     init() {
         var iter: io_iterator_t = 0
-        guard IOServiceGetMatchingServices(kIOMainPortDefault, IOServiceMatching("IOHIDSystem"), &iter) == KERN_SUCCESS else {
+        guard IOServiceGetMatchingServices(kIOMainPortDefault, IOServiceMatching(Constants.IOKit.hidSystemServiceName), &iter) == KERN_SUCCESS else {
             hidEntry = 0
             return
         }
@@ -27,7 +27,7 @@ final class SystemIdleService: SystemIdleProviding, @unchecked Sendable {
 
     func idleTime() -> TimeInterval {
         guard hidEntry != 0 else { return 0 }
-        guard let property = IORegistryEntryCreateCFProperty(hidEntry, "HIDIdleTime" as CFString, kCFAllocatorDefault, 0) else { return 0 }
+        guard let property = IORegistryEntryCreateCFProperty(hidEntry, Constants.IOKit.hidIdleTimeKey as CFString, kCFAllocatorDefault, 0) else { return 0 }
         let nanoseconds = (property.takeRetainedValue() as? NSNumber)?.int64Value ?? 0
         return TimeInterval(nanoseconds) / 1_000_000_000
     }

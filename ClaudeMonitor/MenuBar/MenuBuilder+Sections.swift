@@ -3,6 +3,10 @@ import AppKit
 extension MenuBuilder {
     // MARK: - Section Builders
 
+    // The fresh UsageGraphView allocated here is only used on the first populate;
+    // reconcile() preserves the existing view-based item by tag, so on subsequent
+    // populates this instance is discarded and UI state (selectedIndex, hover)
+    // survives across polling cycles.
     static func usageGraphPlaceholder() -> NSMenuItem {
         let item = NSMenuItem()
         item.tag = usageGraphTag

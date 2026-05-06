@@ -7,37 +7,29 @@ import Foundation
     private let mockUsage = MockUsageService()
     private let mockIdleProvider = MockSystemIdleProvider()
 
-    private func makeCoordinator(
+    private func coordinator(
+        fixture: UsageHistoryTestFixture,
         testOrgId: String = UUID().uuidString,
         credentials: [String: String]? = nil
     ) -> (DataCoordinator, String) {
-        let resolvedCredentials = credentials ?? [
-            Constants.Keychain.cookieString: "test-cookie",
-            Constants.Keychain.organizationId: testOrgId,
-        ]
-        let coordinator = DataCoordinator(
-            statusService: mockStatus,
-            usageService: mockUsage,
-            systemIdleProvider: mockIdleProvider,
-            loadCredential: { resolvedCredentials[$0] }
+        makeCoordinator(
+            fixture: fixture,
+            status: mockStatus,
+            usage: mockUsage,
+            idle: mockIdleProvider,
+            testOrgId: testOrgId,
+            credentials: credentials
         )
-        return (coordinator, testOrgId)
-    }
-
-    private func cleanupTestOrg(_ orgId: String) {
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        let orgDir = appSupport.appendingPathComponent("ClaudeMonitor/usage/\(orgId)")
-        try? FileManager.default.removeItem(at: orgDir)
     }
 
     // MARK: - Status Failure
 
     @Test func statusFailureBelowThresholdDoesNotSetError() async {
         mockStatus.result = .failure(ServiceError.unexpectedStatus(500))
-        let (coordinator, orgId) = makeCoordinator()
-        defer { cleanupTestOrg(orgId) }
-
+        let fixture = UsageHistoryTestFixture()
+        let (coordinator, _) = coordinator(fixture: fixture)
         await coordinator.refresh()
+        await fixture.cleanup()
 
         #expect(coordinator.statusError == nil)
         #expect(coordinator.scheduler.statusState.consecutiveFailures == 1)
@@ -45,40 +37,42 @@ import Foundation
 
     @Test func statusFailureAtThresholdSetsError() async {
         mockStatus.result = .failure(ServiceError.unexpectedStatus(500))
-        let (coordinator, orgId) = makeCoordinator()
-        defer { cleanupTestOrg(orgId) }
+        let fixture = UsageHistoryTestFixture()
+        let (coordinator, _) = coordinator(fixture: fixture)
 
         for _ in 0..<Constants.Retry.failureThreshold {
             await coordinator.refresh()
         }
+        await fixture.cleanup()
 
         #expect(coordinator.statusError != nil)
     }
 
     @Test func statusSuccessAfterFailureClearsError() async {
         mockStatus.result = .failure(ServiceError.unexpectedStatus(500))
-        let (coordinator, orgId) = makeCoordinator()
-        defer { cleanupTestOrg(orgId) }
+        let fixture = UsageHistoryTestFixture()
+        let (coordinator, _) = coordinator(fixture: fixture)
         for _ in 0..<Constants.Retry.failureThreshold {
             await coordinator.refresh()
         }
         #expect(coordinator.statusError != nil)
 
-        mockStatus.result = .success(testStatus)
+        mockStatus.result = .success(TestFixtures.status())
         await coordinator.refresh()
+        await fixture.cleanup()
 
         #expect(coordinator.statusError == nil)
-        #expect(coordinator.currentStatus == testStatus)
+        #expect(coordinator.currentStatus == (try? mockStatus.result.get()))
     }
 
     // MARK: - Usage Failure
 
     @Test func usageFailureBelowThresholdDoesNotSetError() async {
         mockUsage.result = .failure(ServiceError.unexpectedStatus(500))
-        let (coordinator, orgId) = makeCoordinator()
-        defer { cleanupTestOrg(orgId) }
-
+        let fixture = UsageHistoryTestFixture()
+        let (coordinator, _) = coordinator(fixture: fixture)
         await coordinator.refresh()
+        await fixture.cleanup()
 
         #expect(coordinator.usageError == nil)
         #expect(coordinator.scheduler.usageState.consecutiveFailures == 1)
@@ -86,12 +80,13 @@ import Foundation
 
     @Test func usageFailureAtThresholdSetsError() async {
         mockUsage.result = .failure(ServiceError.unexpectedStatus(500))
-        let (coordinator, orgId) = makeCoordinator()
-        defer { cleanupTestOrg(orgId) }
+        let fixture = UsageHistoryTestFixture()
+        let (coordinator, _) = coordinator(fixture: fixture)
 
         for _ in 0..<Constants.Retry.failureThreshold {
             await coordinator.refresh()
         }
+        await fixture.cleanup()
 
         #expect(coordinator.usageError != nil)
     }
@@ -99,22 +94,24 @@ import Foundation
     // MARK: - Auth Failure
 
     @Test func authFailureNilsOutUsage() async {
-        let (coordinator, orgId) = makeCoordinator()
-        defer { cleanupTestOrg(orgId) }
+        let fixture = UsageHistoryTestFixture()
+        let (coordinator, _) = coordinator(fixture: fixture)
         await coordinator.refresh()
         #expect(coordinator.currentUsage != nil)
 
         mockUsage.result = .failure(ServiceError.unauthorized)
         await coordinator.refresh()
+        await fixture.cleanup()
 
         #expect(coordinator.currentUsage == nil)
     }
 
     @Test func authFailureClassifiedCorrectly() async {
         mockUsage.result = .failure(ServiceError.unauthorized)
-        let (coordinator, orgId) = makeCoordinator()
-        defer { cleanupTestOrg(orgId) }
+        let fixture = UsageHistoryTestFixture()
+        let (coordinator, _) = coordinator(fixture: fixture)
         await coordinator.refresh()
+        await fixture.cleanup()
 
         #expect(coordinator.scheduler.usageState.lastError == .authFailure)
     }
@@ -123,35 +120,39 @@ import Foundation
 
     @Test func multipleRefreshesAccumulateFailures() async {
         mockStatus.result = .failure(ServiceError.rateLimited)
-        let (coordinator, orgId) = makeCoordinator()
-        defer { cleanupTestOrg(orgId) }
+        let fixture = UsageHistoryTestFixture()
+        let (coordinator, _) = coordinator(fixture: fixture)
 
         await coordinator.refresh()
         #expect(coordinator.scheduler.statusState.consecutiveFailures == 1)
 
         await coordinator.refresh()
         #expect(coordinator.scheduler.statusState.consecutiveFailures == 2)
+
+        await fixture.cleanup()
     }
 
     // MARK: - Mixed Service Results
 
     @Test func statusFailureDoesNotAffectUsage() async {
         mockStatus.result = .failure(ServiceError.unexpectedStatus(503))
-        let (coordinator, orgId) = makeCoordinator()
-        defer { cleanupTestOrg(orgId) }
+        let fixture = UsageHistoryTestFixture()
+        let (coordinator, _) = coordinator(fixture: fixture)
         await coordinator.refresh()
+        await fixture.cleanup()
 
         #expect(coordinator.currentStatus == nil)
-        #expect(coordinator.currentUsage == testUsage)
+        #expect(coordinator.currentUsage == (try? mockUsage.result.get()))
     }
 
     @Test func usageFailureDoesNotAffectStatus() async {
         mockUsage.result = .failure(ServiceError.unexpectedStatus(503))
-        let (coordinator, orgId) = makeCoordinator()
-        defer { cleanupTestOrg(orgId) }
+        let fixture = UsageHistoryTestFixture()
+        let (coordinator, _) = coordinator(fixture: fixture)
         await coordinator.refresh()
+        await fixture.cleanup()
 
-        #expect(coordinator.currentStatus == testStatus)
+        #expect(coordinator.currentStatus == (try? mockStatus.result.get()))
         #expect(coordinator.currentUsage == nil)
     }
 }

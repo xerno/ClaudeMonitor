@@ -4,6 +4,14 @@ enum Constants {
     enum Keychain {
         static let cookieString = "cookieString"
         static let organizationId = "organizationId"
+        static let keySalt = ".com.claudemonitor"
+        static let encryptionService = "com.claudemonitor.encryption"
+        static let fallbackUUIDAccount = "fallbackUUID"
+    }
+
+    enum IOKit {
+        static let hidSystemServiceName = "IOHIDSystem"
+        static let hidIdleTimeKey = "HIDIdleTime"
     }
 
     enum API {
@@ -82,6 +90,7 @@ enum Constants {
     enum Time {
         static let secondsPerHour: TimeInterval = 3600
         static let secondsPerDay: TimeInterval = 86_400
+        static let daysHoursTierThreshold: Int = 25
     }
 
     enum Preferences {
@@ -108,6 +117,8 @@ enum Constants {
         static let deduplicationInterval: TimeInterval = 30
         static let gapThreshold: TimeInterval = 300
         static let archiveRetentionMultiplier = 11
+        static let resetWindowFraction: Double = 0.5
+        static let inferredSegmentMinGap: TimeInterval = 60
     }
 
     enum Projection {

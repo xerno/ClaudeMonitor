@@ -8,77 +8,74 @@ import Foundation
     private let mockIdleProvider = MockSystemIdleProvider()
     private let mockPath = MockPathMonitor()
 
-    private func makeCoordinator(
+    private func coordinator(
+        fixture: UsageHistoryTestFixture,
         testOrgId: String = UUID().uuidString,
         credentials: [String: String]? = nil
     ) -> (DataCoordinator, String) {
-        let resolvedCredentials = credentials ?? [
-            Constants.Keychain.cookieString: "test-cookie",
-            Constants.Keychain.organizationId: testOrgId,
-        ]
-        let coordinator = DataCoordinator(
-            statusService: mockStatus,
-            usageService: mockUsage,
-            systemIdleProvider: mockIdleProvider,
-            pathMonitor: mockPath,
-            loadCredential: { resolvedCredentials[$0] }
+        makeCoordinator(
+            fixture: fixture,
+            status: mockStatus,
+            usage: mockUsage,
+            idle: mockIdleProvider,
+            path: mockPath,
+            testOrgId: testOrgId,
+            credentials: credentials
         )
-        return (coordinator, testOrgId)
-    }
-
-    private func cleanupTestOrg(_ orgId: String) {
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        let orgDir = appSupport.appendingPathComponent("ClaudeMonitor/usage/\(orgId)")
-        try? FileManager.default.removeItem(at: orgDir)
     }
 
     // MARK: - Successful Fetch
 
     @Test func refreshUpdatesStateOnSuccess() async {
-        let (coordinator, orgId) = makeCoordinator()
-        defer { cleanupTestOrg(orgId) }
+        let fixture = UsageHistoryTestFixture()
+        let (coordinator, _) = coordinator(fixture: fixture)
         await coordinator.refresh()
+        await fixture.cleanup()
 
-        #expect(coordinator.currentStatus == testStatus)
-        #expect(coordinator.currentUsage == testUsage)
+        #expect(coordinator.currentStatus == (try? mockStatus.result.get()))
+        #expect(coordinator.currentUsage == (try? mockUsage.result.get()))
         #expect(coordinator.usageError == nil)
         #expect(coordinator.statusError == nil)
         #expect(coordinator.lastRefreshed != nil)
     }
 
     @Test func refreshCallsBothServices() async {
-        let (coordinator, orgId) = makeCoordinator()
-        defer { cleanupTestOrg(orgId) }
+        let fixture = UsageHistoryTestFixture()
+        let (coordinator, _) = coordinator(fixture: fixture)
         await coordinator.refresh()
+        await fixture.cleanup()
 
         #expect(mockStatus.fetchCount == 1)
         #expect(mockUsage.fetchCount == 1)
     }
 
     @Test func refreshPassesCredentialsToUsageService() async {
-        let (coordinator, orgId) = makeCoordinator()
-        defer { cleanupTestOrg(orgId) }
+        let fixture = UsageHistoryTestFixture()
+        let (coordinator, orgId) = coordinator(fixture: fixture)
         await coordinator.refresh()
+        await fixture.cleanup()
 
         #expect(mockUsage.lastOrgId == orgId)
         #expect(mockUsage.lastCookie == "test-cookie")
     }
 
     @Test func refreshCallsOnUpdate() async {
-        let (coordinator, orgId) = makeCoordinator()
-        defer { cleanupTestOrg(orgId) }
+        let fixture = UsageHistoryTestFixture()
+        let (coordinator, _) = coordinator(fixture: fixture)
         var updateCount = 0
         coordinator.onUpdate = { updateCount += 1 }
 
         await coordinator.refresh()
+        await fixture.cleanup()
 
         #expect(updateCount == 1)
     }
 
     @Test func refreshRecordsSchedulerSuccess() async {
-        let (coordinator, orgId) = makeCoordinator()
-        defer { cleanupTestOrg(orgId) }
+        let fixture = UsageHistoryTestFixture()
+        let (coordinator, _) = coordinator(fixture: fixture)
         await coordinator.refresh()
+        await fixture.cleanup()
 
         #expect(coordinator.scheduler.statusState.lastSuccess != nil)
         #expect(coordinator.scheduler.usageState.lastSuccess != nil)
@@ -89,61 +86,73 @@ import Foundation
     // MARK: - Credentials
 
     @Test func refreshWithNoCredentialsSetsUsageError() async {
-        let (coordinator, _) = makeCoordinator(credentials: [:])
+        let fixture = UsageHistoryTestFixture()
+        let (coordinator, _) = coordinator(fixture: fixture, credentials: [:])
         await coordinator.refresh()
+        await fixture.cleanup()
 
         #expect(coordinator.usageError == "Configure credentials in Preferences")
         #expect(mockUsage.fetchCount == 0)
     }
 
     @Test func refreshWithEmptyCredentialsSetsUsageError() async {
-        let (coordinator, orgId) = makeCoordinator(credentials: [
+        let fixture = UsageHistoryTestFixture()
+        let (coordinator, _) = coordinator(fixture: fixture, credentials: [
             Constants.Keychain.cookieString: "",
             Constants.Keychain.organizationId: "org",
         ])
-        defer { cleanupTestOrg(orgId) }
         await coordinator.refresh()
+        await fixture.cleanup()
 
         #expect(coordinator.usageError == "Configure credentials in Preferences")
         #expect(mockUsage.fetchCount == 0)
     }
 
     @Test func noCredentialsStillFetchesStatus() async {
-        let (coordinator, _) = makeCoordinator(credentials: [:])
+        let fixture = UsageHistoryTestFixture()
+        let (coordinator, _) = coordinator(fixture: fixture, credentials: [:])
         await coordinator.refresh()
+        await fixture.cleanup()
 
         #expect(mockStatus.fetchCount == 1)
-        #expect(coordinator.currentStatus == testStatus)
+        #expect(coordinator.currentStatus == (try? mockStatus.result.get()))
     }
 
-    @Test func hasCredentialsReturnsFalseWhenMissing() {
-        let (coordinator, _) = makeCoordinator(credentials: [:])
+    @Test func hasCredentialsReturnsFalseWhenMissing() async {
+        let fixture = UsageHistoryTestFixture()
+        let (coordinator, _) = coordinator(fixture: fixture, credentials: [:])
+        await fixture.cleanup()
         #expect(!coordinator.hasCredentials)
     }
 
-    @Test func hasCredentialsReturnsTrueWhenPresent() {
-        let (coordinator, _) = makeCoordinator()
+    @Test func hasCredentialsReturnsTrueWhenPresent() async {
+        let fixture = UsageHistoryTestFixture()
+        let (coordinator, _) = coordinator(fixture: fixture)
+        await fixture.cleanup()
         #expect(coordinator.hasCredentials)
     }
 
     // MARK: - MonitorState
 
     @Test func monitorStateReflectsCurrentData() async {
-        let (coordinator, orgId) = makeCoordinator()
-        defer { cleanupTestOrg(orgId) }
+        let fixture = UsageHistoryTestFixture()
+        let (coordinator, _) = coordinator(fixture: fixture)
         await coordinator.refresh()
+        await fixture.cleanup()
 
         let state = coordinator.monitorState
-        #expect(state.currentUsage == testUsage)
-        #expect(state.currentStatus == testStatus)
+        #expect(state.currentUsage == (try? mockUsage.result.get()))
+        #expect(state.currentStatus == (try? mockStatus.result.get()))
         #expect(state.hasCredentials)
         #expect(state.usageError == nil)
         #expect(state.statusError == nil)
         #expect(state.lastRefreshed != nil)
     }
 
-    @Test func monitorStateWithNoCredentials() {
-        let (coordinator, _) = makeCoordinator(credentials: [:])
+    @Test func monitorStateWithNoCredentials() async {
+        let fixture = UsageHistoryTestFixture()
+        let (coordinator, _) = coordinator(fixture: fixture, credentials: [:])
+        await fixture.cleanup()
         let state = coordinator.monitorState
 
         #expect(!state.hasCredentials)
@@ -154,29 +163,31 @@ import Foundation
 
     @Test func restartResetsScheduler() async {
         mockUsage.result = .failure(ServiceError.unexpectedStatus(500))
-        let (coordinator, orgId) = makeCoordinator()
-        defer { cleanupTestOrg(orgId) }
+        let fixture = UsageHistoryTestFixture()
+        let (coordinator, _) = coordinator(fixture: fixture)
         await coordinator.refresh()
         #expect(coordinator.scheduler.usageState.consecutiveFailures == 1)
 
-        mockUsage.result = .success(testUsage)
+        mockUsage.result = .success(TestFixtures.usage())
         coordinator.restartPolling()
-        try? await Task.sleep(for: .milliseconds(100))
+        await fixture.cleanup()
 
         #expect(coordinator.scheduler.usageState.consecutiveFailures == 0)
+        #expect(coordinator.scheduler.effectivePollingInterval == Constants.Polling.baseInterval)
     }
 
     // MARK: - Multiple Refreshes
 
     @Test func onUpdateCalledOnEveryRefresh() async {
-        let (coordinator, orgId) = makeCoordinator()
-        defer { cleanupTestOrg(orgId) }
+        let fixture = UsageHistoryTestFixture()
+        let (coordinator, _) = coordinator(fixture: fixture)
         var updateCount = 0
         coordinator.onUpdate = { updateCount += 1 }
 
         await coordinator.refresh()
         await coordinator.refresh()
         await coordinator.refresh()
+        await fixture.cleanup()
 
         #expect(updateCount == 3)
     }
@@ -184,9 +195,10 @@ import Foundation
     // MARK: - Scheduler Adjustment
 
     @Test func schedulerNoRampUpAfterNormalUtilization() async {
-        let (coordinator, orgId) = makeCoordinator()
-        defer { cleanupTestOrg(orgId) }
+        let fixture = UsageHistoryTestFixture()
+        let (coordinator, _) = coordinator(fixture: fixture)
         await coordinator.refresh()
+        await fixture.cleanup()
 
         // testUsage has 42% and 18% utilization — projected well below 100%, so no ramp-up.
         // Interval must be at or above baseInterval (may be higher due to idle cooldown, never lower).
@@ -230,23 +242,25 @@ import Foundation
     // MARK: - WindowAnalyses
 
     @Test func windowAnalysesPopulatedAfterRefresh() async {
-        let (coordinator, orgId) = makeCoordinator()
-        defer { cleanupTestOrg(orgId) }
+        let fixture = UsageHistoryTestFixture()
+        let (coordinator, _) = coordinator(fixture: fixture)
         await coordinator.refresh()
+        await fixture.cleanup()
 
         let analyses = coordinator.monitorState.windowAnalyses
         #expect(!analyses.isEmpty)
-        #expect(analyses.count == testUsage.entries.count)
+        #expect(analyses.count == TestFixtures.usage().entries.count)
     }
 
     @Test func windowAnalysisEntriesMatchUsageEntries() async {
-        let (coordinator, orgId) = makeCoordinator()
-        defer { cleanupTestOrg(orgId) }
+        let fixture = UsageHistoryTestFixture()
+        let (coordinator, _) = coordinator(fixture: fixture)
         await coordinator.refresh()
+        await fixture.cleanup()
 
         let analyses = coordinator.monitorState.windowAnalyses
         let analysisKeys = Set(analyses.map(\.entry.key))
-        let usageKeys = Set(testUsage.entries.map(\.key))
+        let usageKeys = Set((try? mockUsage.result.get())?.entries.map(\.key) ?? [])
         #expect(analysisKeys == usageKeys)
     }
 
@@ -255,9 +269,10 @@ import Foundation
     @Test func awayModeOffWhenIdleBelowThreshold() async {
         // Idle time below the away threshold: away mode must be off regardless.
         mockIdleProvider.idleTimeValue = Constants.Polling.awayThreshold - 1
-        let (coordinator, orgId) = makeCoordinator()
-        defer { cleanupTestOrg(orgId) }
+        let fixture = UsageHistoryTestFixture()
+        let (coordinator, _) = coordinator(fixture: fixture)
         await coordinator.refresh()
+        await fixture.cleanup()
 
         #expect(coordinator.scheduler.isAwayMode == false)
     }
@@ -266,8 +281,10 @@ import Foundation
 
     @Test func offlinePollSkipsNetwork() async {
         mockPath.simulate(satisfied: false)
-        let (coordinator, _) = makeCoordinator()
+        let fixture = UsageHistoryTestFixture()
+        let (coordinator, _) = coordinator(fixture: fixture)
         await coordinator.refresh()
+        await fixture.cleanup()
 
         #expect(mockStatus.fetchCount == 0)
         #expect(mockUsage.fetchCount == 0)
@@ -290,35 +307,40 @@ import Foundation
 
     @Test func warnThresholdDoesNotTriggerStale() async {
         mockUsage.result = .failure(ServiceError.unexpectedStatus(500))
-        let (coordinator, _) = makeCoordinator()
+        let fixture = UsageHistoryTestFixture()
+        let (coordinator, _) = coordinator(fixture: fixture)
         for _ in 0..<Constants.Retry.warnThreshold {
             await coordinator.refresh()
         }
+        await fixture.cleanup()
 
         #expect(coordinator.monitorState.hasRecentFailure == true)
-        #expect(coordinator.monitorState.isStale == false)
+        #expect(coordinator.monitorState.isAnyServiceStale == false)
     }
 
     @Test func failureThresholdTriggersStale() async {
         mockUsage.result = .failure(ServiceError.unexpectedStatus(500))
-        let (coordinator, _) = makeCoordinator()
+        let fixture = UsageHistoryTestFixture()
+        let (coordinator, _) = coordinator(fixture: fixture)
         for _ in 0..<Constants.Retry.failureThreshold {
             await coordinator.refresh()
         }
+        await fixture.cleanup()
 
-        #expect(coordinator.monitorState.isStale == true)
+        #expect(coordinator.monitorState.isAnyServiceStale == true)
     }
 
     @Test func lastFailedAtTracking() async {
         mockUsage.result = .failure(ServiceError.unexpectedStatus(500))
-        let (coordinator, orgId) = makeCoordinator()
+        let fixture = UsageHistoryTestFixture()
+        let (coordinator, _) = coordinator(fixture: fixture)
         await coordinator.refresh()
         #expect(coordinator.monitorState.lastFailedAt != nil)
 
-        mockUsage.result = .success(testUsage)
-        mockStatus.result = .success(testStatus)
-        defer { cleanupTestOrg(orgId) }
+        mockUsage.result = .success(TestFixtures.usage())
+        mockStatus.result = .success(TestFixtures.status())
         await coordinator.refresh()
+        await fixture.cleanup()
         #expect(coordinator.monitorState.lastFailedAt == nil)
     }
 }

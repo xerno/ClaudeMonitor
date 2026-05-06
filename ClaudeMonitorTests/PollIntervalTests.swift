@@ -89,160 +89,41 @@ struct PollIntervalTests {
         #expect(interval > 18 && interval < 25)
     }
 
-    // MARK: - Error Backoff
-
-    @Test func nextPollIntervalInErrorStateUsesBackoff() {
-        var scheduler = PollingScheduler()
-        for _ in 0..<Constants.Retry.failureThreshold {
-            scheduler.recordStatusFailure(category: .transient)
-            scheduler.recordUsageFailure(category: .transient)
-        }
-        // After 3 transient failures: backoff = 10→20→40→80; both services at threshold → backoff wins
-        #expect(scheduler.nextPollInterval(usage: nil) == 80)
-    }
-
-    @Test func nextPollIntervalAuthErrorFallsBackToEffective() {
-        var scheduler = PollingScheduler()
-        for _ in 0..<Constants.Retry.failureThreshold {
-            scheduler.recordUsageFailure(category: .authFailure)
-        }
-        // Auth errors return nil from retryInterval → uses effectivePollingInterval
-        #expect(scheduler.nextPollInterval(usage: nil) == Constants.Polling.baseInterval)
-    }
-
-    @Test func nextPollIntervalBothNonRetryableFailuresFlooredAtBase() {
-        var scheduler = PollingScheduler()
-        // Drive effectivePollingInterval below baseInterval via high recentRate within grace period.
-        // recentRate=0.1 %/s → desired=10s → clamped to minInterval=24s (below baseInterval=60s).
-        let entry = WindowEntry(key: "five_hour", duration: 18000, durationLabel: "5h", modelScope: nil,
-                                window: UsageWindow(utilization: 95, resetsAt: Date().addingTimeInterval(3600)))
-        let nearLimitAnalysis = WindowAnalysis(
-            entry: entry, samples: [], consumptionRate: 0, projectedAtReset: 130,
-            timeToLimit: nil, rateSource: .insufficient,
-            style: Formatting.UsageStyle(level: .critical, isBold: true),
-            segments: [], timeSinceLastChange: 60, recentRate: 0.1
-        )
-        scheduler.adjustPollingRate(windowAnalyses: [nearLimitAnalysis])
-        // Confirm effectivePollingInterval is below baseInterval
-        assert(scheduler.effectivePollingInterval < Constants.Polling.baseInterval)
-
-        // Now both services hit non-retryable failures (authFailure + permanent)
-        for _ in 0..<Constants.Retry.failureThreshold {
-            scheduler.recordUsageFailure(category: .authFailure)
-            scheduler.recordStatusFailure(category: .permanent)
-        }
-
-        // Must not poll faster than baseInterval, even though effectivePollingInterval is 24s
-        #expect(scheduler.nextPollInterval(usage: nil) >= Constants.Polling.baseInterval)
-    }
-
-    @Test func nextPollIntervalMixedHealthyAndAuthFailedDoesNotFloor() {
-        var scheduler = PollingScheduler()
-        // Drive effectivePollingInterval below baseInterval via high recentRate within grace period.
-        let entry = WindowEntry(key: "five_hour", duration: 18000, durationLabel: "5h", modelScope: nil,
-                                window: UsageWindow(utilization: 95, resetsAt: Date().addingTimeInterval(3600)))
-        let nearLimitAnalysis = WindowAnalysis(
-            entry: entry, samples: [], consumptionRate: 0, projectedAtReset: 130,
-            timeToLimit: nil, rateSource: .insufficient,
-            style: Formatting.UsageStyle(level: .critical, isBold: true),
-            segments: [], timeSinceLastChange: 60, recentRate: 0.1
-        )
-        scheduler.adjustPollingRate(windowAnalyses: [nearLimitAnalysis])
-        assert(scheduler.effectivePollingInterval < Constants.Polling.baseInterval)
-
-        // Only usage hits the threshold with a non-retryable auth failure; status is healthy (0 failures).
-        for _ in 0..<Constants.Retry.failureThreshold {
-            scheduler.recordUsageFailure(category: .authFailure)
-        }
-
-        // Must NOT floor at baseInterval — only usage is non-retryable, status is healthy.
-        // retryInterval(for: usageState) == nil (non-retryable), retryInterval(for: statusState) == nil (below threshold).
-        // The fix ensures we use effectivePollingInterval (the aggressive 24s) rather than baseInterval.
-        #expect(scheduler.nextPollInterval(usage: nil) < Constants.Polling.baseInterval)
-    }
-
-    @Test func nextPollIntervalPicksShorterOfTwoBackoffs() {
-        var scheduler = PollingScheduler()
-        // Status: 3 transient failures → backoff 80
-        scheduler.recordStatusFailure(category: .transient)
-        scheduler.recordStatusFailure(category: .transient)
-        scheduler.recordStatusFailure(category: .transient)
-        // Usage: 3 transient failures → backoff 80 (same)
-        scheduler.recordUsageFailure(category: .transient)
-        scheduler.recordUsageFailure(category: .transient)
-        scheduler.recordUsageFailure(category: .transient)
-        #expect(scheduler.nextPollInterval(usage: nil) == 80)
-
-        // One more status failure → backoff 160; usage still 80
-        scheduler.recordStatusFailure(category: .transient)
-        #expect(scheduler.nextPollInterval(usage: nil) == 80) // picks shorter
-    }
-
-    @Test func nextPollIntervalMixedErrorCategories() {
-        var scheduler = PollingScheduler()
-        // Status: auth failure (no backoff)
-        for _ in 0..<Constants.Retry.failureThreshold {
-            scheduler.recordStatusFailure(category: .authFailure)
-        }
-        // Usage: transient (has backoff 80)
-        for _ in 0..<Constants.Retry.failureThreshold {
-            scheduler.recordUsageFailure(category: .transient)
-        }
-        // min(effective=60, 80) = 60
-        #expect(scheduler.nextPollInterval(usage: nil) == 60)
-    }
-
     // MARK: - Refresh Warning
 
-    @Test func isStaleBelowThreshold() {
+    @Test func isAnyServiceStaleBelowThreshold() {
         var scheduler = PollingScheduler()
         scheduler.recordStatusFailure(category: .transient)
-        #expect(!scheduler.isStale)
+        #expect(!scheduler.isAnyServiceStale)
     }
 
-    @Test func isStaleAtThreshold() {
+    @Test func isAnyServiceStaleAtThreshold() {
         var scheduler = PollingScheduler()
         for _ in 0..<Constants.Retry.failureThreshold {
             scheduler.recordStatusFailure(category: .transient)
         }
-        #expect(scheduler.isStale)
+        #expect(scheduler.isAnyServiceStale)
     }
 
-    @Test func isStaleFromUsageOnly() {
+    @Test func isAnyServiceStaleFromUsageOnly() {
         var scheduler = PollingScheduler()
         for _ in 0..<Constants.Retry.failureThreshold {
             scheduler.recordUsageFailure(category: .rateLimited)
         }
-        #expect(scheduler.isStale)
+        #expect(scheduler.isAnyServiceStale)
     }
 
     // MARK: - Staleness
 
-    @Test func isUsageStaleReturnsFalseWithNoSuccess() {
+    @Test func isUsageDataExpiredReturnsFalseWithNoSuccess() {
         let scheduler = PollingScheduler()
-        #expect(!scheduler.isUsageStale) // guard let fails → false
+        #expect(!scheduler.isUsageDataExpired) // guard let fails → false
     }
 
-    @Test func isUsageStaleReturnsFalseAfterFreshSuccess() {
+    @Test func isUsageDataExpiredReturnsFalseAfterFreshSuccess() {
         var scheduler = PollingScheduler()
         scheduler.recordUsageSuccess()
-        #expect(!scheduler.isUsageStale)
+        #expect(!scheduler.isUsageDataExpired)
     }
 
-    // MARK: - Reset
-
-    @Test func resetClearsAllState() {
-        var scheduler = PollingScheduler()
-        scheduler.recordStatusFailure(category: .transient)
-        scheduler.recordUsageFailure(category: .rateLimited)
-        scheduler.adjustPollingRate(windowAnalyses: [])
-        scheduler.adjustPollingRate(windowAnalyses: [])
-
-        scheduler.reset()
-
-        #expect(scheduler.statusState.consecutiveFailures == 0)
-        #expect(scheduler.usageState.consecutiveFailures == 0)
-        #expect(scheduler.nextPollInterval(usage: nil) == Constants.Polling.baseInterval)
-        #expect(!scheduler.isStale)
-    }
 }

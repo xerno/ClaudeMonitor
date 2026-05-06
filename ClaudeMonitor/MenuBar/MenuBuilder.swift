@@ -122,7 +122,7 @@ enum MenuBuilder {
     private static func buildDesiredItems(state: MonitorState, target: any MenuActions) -> ([NSMenuItem], UsageCache) {
         var items: [NSMenuItem] = []
 
-        if state.isStale {
+        if state.isAnyServiceStale {
             let bannerText = state.isOnline
                 ? String(localized: "connectivity.connectionError", bundle: .module)
                 : String(localized: "connectivity.offline", bundle: .module)
@@ -134,9 +134,9 @@ enum MenuBuilder {
         let (usageMenuItems, cache) = usageItems(state: state, target: target)
         items.append(contentsOf: usageMenuItems)
 
-        // !isStale guard is defensive: scheduler.hasRecentFailure already excludes stale, but
+        // !isAnyServiceStale guard is defensive: scheduler.hasRecentFailure already excludes stale, but
         // MonitorState can be constructed directly (demo, tests) without that invariant.
-        if state.hasRecentFailure, !state.isStale, let failedAt = state.lastFailedAt {
+        if state.hasRecentFailure, !state.isAnyServiceStale, let failedAt = state.lastFailedAt {
             let timeStr = failedAt.formatted(.dateTime.hour().minute().second())
             let text = String(format: String(localized: "connectivity.lastUpdateFailed", bundle: .module), timeStr)
             items.append(staticItem(text, tag: lastFailedRowTag))

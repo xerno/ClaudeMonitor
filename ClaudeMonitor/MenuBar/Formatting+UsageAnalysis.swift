@@ -137,7 +137,7 @@ extension Formatting {
     static func blockingLimit(_ usage: UsageResponse?) -> Date? {
         guard let usage else { return nil }
         return usage.entries
-            .filter { $0.window.utilization >= 100 }
+            .filter { $0.window.utilization >= Constants.Projection.blockedUtilization }
             .compactMap(\.window.resetsAt)
             .max()
     }
@@ -149,7 +149,7 @@ extension Formatting {
             let prev = prevEntry.window
             let curr = currEntry.window
             guard let prevReset = prev.resetsAt, let currReset = curr.resetsAt else { continue }
-            guard currReset.timeIntervalSince(prevReset) > currEntry.duration / 2 else { continue }
+            guard currReset.timeIntervalSince(prevReset) > currEntry.duration * Constants.History.resetWindowFraction else { continue }
             if usageStyle(
                 utilization: prev.utilization,
                 resetsAt: prev.resetsAt,

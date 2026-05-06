@@ -21,7 +21,7 @@ extension MenuBarController {
             StatusBarRenderer.updateIcon(
                 button: button,
                 status: state.currentStatus,
-                hasRefreshWarning: state.isStale
+                hasRefreshWarning: state.isAnyServiceStale
             )
         }
     }
@@ -73,7 +73,7 @@ extension MenuBarController {
             StatusBarRenderer.updateText(
                 button: button, usage: state.currentUsage,
                 hasCredentials: state.hasCredentials,
-                isStale: state.isStale || state.isUsageStale,
+                isStale: state.isAnyServiceStale || state.isUsageDataExpired,
                 windowAnalyses: state.windowAnalyses
             )
         }

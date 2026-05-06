@@ -17,6 +17,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
         setupMainMenu()
         setupEditingShortcuts()
+        UsageHistory.migrateAndDeleteLegacyData()
         menuBarController = MenuBarController()
     }
 

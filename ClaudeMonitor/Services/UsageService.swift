@@ -5,6 +5,8 @@ protocol UsageFetching: Sendable {
 }
 
 struct UsageService: UsageFetching, Sendable {
+    private static let decoder = JSONDecoder.iso8601WithFractionalSeconds
+
     func fetch(organizationId: String, cookieString: String) async throws -> UsageResponse {
         guard let url = Constants.API.usageURL(organizationId: organizationId) else {
             throw URLError(.badURL)
@@ -23,7 +25,7 @@ struct UsageService: UsageFetching, Sendable {
         }
         switch http.statusCode {
         case 200:
-            return try JSONDecoder.iso8601WithFractionalSeconds.decode(UsageResponse.self, from: data)
+            return try Self.decoder.decode(UsageResponse.self, from: data)
         case 401, 403:
             throw ServiceError.unauthorized
         case 429:

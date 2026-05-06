@@ -34,10 +34,8 @@ nonisolated enum KeychainService {
         }
     }
 
-    private static let keySalt = ".com.claudemonitor"
-
     private static let cachedEncryptionKey: SymmetricKey = {
-        let material = hardwareUUID() + keySalt
+        let material = hardwareUUID() + Constants.Keychain.keySalt
         let hash = SHA256.hash(data: Data(material.utf8))
         return SymmetricKey(data: hash)
     }()
@@ -53,8 +51,8 @@ nonisolated enum KeychainService {
     }
 
     private static func persistedFallbackUUID() -> String {
-        let service = "com.claudemonitor.encryption"
-        let account = "fallbackUUID"
+        let service = Constants.Keychain.encryptionService
+        let account = Constants.Keychain.fallbackUUIDAccount
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,

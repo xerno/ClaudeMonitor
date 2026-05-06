@@ -10,7 +10,7 @@ final class DataCoordinator {
     private var pollTask: Task<Void, Never>?
     private var demoRotationIndex = 0
     private var loadedCredentials: (cookie: String, orgId: String)?
-    private let usageHistory = UsageHistory()
+    private let usageHistory: UsageHistory
     private var demoFrame: DemoData.DemoFrame?
     private var lastFailedAt: Date?
 
@@ -32,15 +32,22 @@ final class DataCoordinator {
         usageService: any UsageFetching = UsageService(),
         systemIdleProvider: any SystemIdleProviding = SystemIdleService(),
         pathMonitor: any PathMonitoring = PathMonitor(),
-        loadCredential: @escaping @Sendable (String) -> String? = { KeychainService.load(key: $0) }
+        loadCredential: @escaping @Sendable (String) -> String? = { KeychainService.load(key: $0) },
+        usageHistory: UsageHistory = UsageHistory()
     ) {
         self.statusService = statusService
         self.usageService = usageService
         self.systemIdleProvider = systemIdleProvider
         self.pathMonitor = pathMonitor
         self.loadCredential = loadCredential
-        UsageHistory.migrateAndDeleteLegacyData()
+        self.usageHistory = usageHistory
         reloadCredentials()
+        pathMonitor.setOnPathChange { [weak self] satisfied in
+            guard let self, satisfied else { return }
+            self.scheduler.resetRetryState()
+            self.pollTask?.cancel()
+            self.pollTask = Task { await self.pollLoop() }
+        }
     }
 
     var hasCredentials: Bool {
@@ -57,21 +64,15 @@ final class DataCoordinator {
             hasCredentials: hasCredentials,
             currentPollInterval: currentPollInterval,
             windowAnalyses: windowAnalyses,
-            isUsageStale: scheduler.isUsageStale,
+            isUsageDataExpired: scheduler.isUsageDataExpired,
             isOnline: demoFrame?.isOnline ?? pathMonitor.isSatisfied,
             hasRecentFailure: demoFrame?.hasRecentFailure ?? scheduler.hasRecentFailure,
             lastFailedAt: demoFrame?.lastFailedAt ?? lastFailedAt,
-            isStale: demoFrame?.isStale ?? scheduler.isStale
+            isAnyServiceStale: demoFrame?.isAnyServiceStale ?? scheduler.isAnyServiceStale
         )
     }
 
     func startPolling() {
-        pathMonitor.setOnPathChange { [weak self] satisfied in
-            guard let self, satisfied else { return }
-            self.scheduler.resetRetryState()
-            self.pollTask?.cancel()
-            self.pollTask = Task { await self.pollLoop() }
-        }
         pathMonitor.start()
         pollTask?.cancel()
         pollTask = Task { await pollLoop() }
@@ -118,12 +119,10 @@ final class DataCoordinator {
             usageError = nil
             statusError = nil
             let now = Date()
-            lastRefreshed = now
-            nextPollDate = now.addingTimeInterval(Constants.Demo.rotationInterval)
-            currentPollInterval = Constants.Demo.rotationInterval
             windowAnalyses = frame.usage.entries.map { entry in
                 UsageHistory.analyze(entry: entry, samples: frame.samples[entry.key] ?? [], now: now)
             }
+            commitPollState(now: now, schedulerInterval: Constants.Demo.rotationInterval)
             onUpdate?()
             return
         }
@@ -134,10 +133,7 @@ final class DataCoordinator {
             // would advance every tick despite no real attempt being made. Stale banner already
             // signals the problem at threshold.
             let now = Date()
-            lastRefreshed = now
-            let pollInterval = scheduler.nextPollInterval(usage: currentUsage)
-            nextPollDate = now.addingTimeInterval(pollInterval)
-            currentPollInterval = pollInterval
+            commitPollState(now: now, schedulerInterval: scheduler.nextPollInterval(usage: currentUsage))
             onUpdate?()
             return
         }
@@ -155,7 +151,7 @@ final class DataCoordinator {
             let previousByKey = Dictionary(uniqueKeysWithValues: usageBeforeRefresh?.entries.map { ($0.key, $0) } ?? [])
             for entry in newUsage.entries {
                 let previousEntry = previousByKey[entry.key]
-                let didReset = usageHistory.detectAndHandleReset(
+                let didReset = await usageHistory.detectAndHandleReset(
                     entry: entry,
                     newResetsAt: entry.window.resetsAt,
                     previousResetsAt: previousEntry?.window.resetsAt
@@ -165,20 +161,17 @@ final class DataCoordinator {
                 }
             }
             if anyReset {
-                usageHistory.pruneArchives(currentEntries: newUsage.entries)
+                await usageHistory.pruneArchives(currentEntries: newUsage.entries)
             }
             usageHistory.record(entries: newUsage.entries, at: now)
-            usageHistory.save()
+            await usageHistory.save()
             windowAnalyses = newUsage.entries.map { entry in
                 UsageHistory.analyze(entry: entry, samples: usageHistory.samples(for: entry), now: now)
             }
         }
         scheduler.adjustPollingRate(windowAnalyses: windowAnalyses, systemIdleTime: systemIdleProvider.idleTime())
         let now = Date()
-        lastRefreshed = now
-        let pollInterval = scheduler.nextPollInterval(usage: currentUsage)
-        nextPollDate = now.addingTimeInterval(pollInterval)
-        currentPollInterval = pollInterval
+        commitPollState(now: now, schedulerInterval: scheduler.nextPollInterval(usage: currentUsage))
         onUpdate?()
         if let prev = usageBeforeRefresh, let curr = currentUsage,
            Formatting.detectCriticalReset(previous: prev, current: curr) {
@@ -187,6 +180,12 @@ final class DataCoordinator {
     }
 
     // MARK: - Private
+
+    private func commitPollState(now: Date, schedulerInterval: TimeInterval) {
+        lastRefreshed = now
+        nextPollDate = now.addingTimeInterval(schedulerInterval)
+        currentPollInterval = schedulerInterval
+    }
 
     private func refreshStatus() async {
         guard !Task.isCancelled else { return }
@@ -244,6 +243,7 @@ final class DataCoordinator {
             }
             if category == .authFailure {
                 currentUsage = nil
+                windowAnalyses = []
             }
         }
     }

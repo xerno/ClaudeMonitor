@@ -26,9 +26,8 @@ struct NSColorDesaturateTests {
         let (_, s, _) = hsl(of: result)
         let orig = hsl(of: red)
         #expect(result.usingColorSpace(.sRGB)!.redComponent > 0.5)
-        #expect(result.usingColorSpace(.sRGB)!.greenComponent > 0)
-        #expect(result.usingColorSpace(.sRGB)!.blueComponent > 0)
-        #expect(s < orig.s)
+        // Pure red has saturation=1.0; desaturation must cut it by more than half
+        #expect(s < orig.s * 0.5, "saturation must drop by more than 50% (orig=\(orig.s), result=\(s))")
     }
 
     @Test func pureWhiteShiftsTowardMidGray() {

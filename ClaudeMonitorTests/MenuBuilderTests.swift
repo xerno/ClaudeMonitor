@@ -47,8 +47,8 @@ private final class MockMenuActions: NSObject, MenuActions {
     @Test func usageDataShowsProgressBars() {
         let now = Date()
         let usage = UsageResponse(entries: [
-            .make(key: "five_hour", utilization: 42, resetsAt: now.addingTimeInterval(3600)),
-            .make(key: "seven_day", utilization: 18, resetsAt: now.addingTimeInterval(86400)),
+            .make(key: "five_hour", utilization: 42, resetsAt: now.addingTimeInterval(3600))!,
+            .make(key: "seven_day", utilization: 18, resetsAt: now.addingTimeInterval(86400))!,
         ])
         let state = MonitorState(
             currentUsage: usage, currentStatus: nil,
@@ -175,7 +175,7 @@ private final class MockMenuActions: NSObject, MenuActions {
             key: "five_hour",
             utilization: 42,
             resetsAt: now.addingTimeInterval(3600)
-        )
+        )!
         let samples = (0..<10).map { i in
             UtilizationSample(
                 utilization: 42,
@@ -195,16 +195,12 @@ private final class MockMenuActions: NSObject, MenuActions {
 
         let menu = MenuBuilder.build(state: state, target: target)
 
-        // The graph placeholder item must be present
+        // The graph item must be present and carry the correct view type
         let graphItem = (0..<menu.numberOfItems).compactMap { menu.item(at: $0) }
             .first { $0.tag == MenuBuilder.usageGraphTag }
         #expect(graphItem != nil)
         #expect(graphItem?.view is UsageGraphView)
-
-        // The analysis must have non-empty segments (tracked data was provided)
-        #expect(!analysis.segments.isEmpty)
-        // consumptionRate should be non-zero because resetsAt is set and time has elapsed
-        #expect(analysis.consumptionRate > 0)
+        #expect(graphItem?.isHidden == false)
     }
 
     // MARK: - Connectivity Banner
@@ -216,7 +212,7 @@ private final class MockMenuActions: NSObject, MenuActions {
             lastRefreshed: nil, hasCredentials: true,
             currentPollInterval: nil,
             isOnline: false,
-            isStale: true
+            isAnyServiceStale: true
         )
         let items = menuItems(for: state)
         let bannerIndex = items.firstIndex { $0.tag == MenuBuilder.connectivityBannerTag }
@@ -233,7 +229,7 @@ private final class MockMenuActions: NSObject, MenuActions {
             lastRefreshed: nil, hasCredentials: true,
             currentPollInterval: nil,
             isOnline: true,
-            isStale: true
+            isAnyServiceStale: true
         )
         let items = menuItems(for: state)
         let bannerItem = items.first { $0.tag == MenuBuilder.connectivityBannerTag }
@@ -246,7 +242,7 @@ private final class MockMenuActions: NSObject, MenuActions {
             usageError: nil, statusError: nil,
             lastRefreshed: nil, hasCredentials: true,
             currentPollInterval: nil,
-            isStale: false
+            isAnyServiceStale: false
         )
         let items = menuItems(for: state)
         #expect(!items.contains { $0.tag == MenuBuilder.connectivityBannerTag })
@@ -261,7 +257,7 @@ private final class MockMenuActions: NSObject, MenuActions {
             currentPollInterval: nil,
             hasRecentFailure: true,
             lastFailedAt: failedAt,
-            isStale: false
+            isAnyServiceStale: false
         )
         let items = menuItems(for: state)
         let failedItem = items.first { $0.tag == MenuBuilder.lastFailedRowTag }
@@ -278,7 +274,7 @@ private final class MockMenuActions: NSObject, MenuActions {
             currentPollInterval: nil,
             hasRecentFailure: true,
             lastFailedAt: Date(),
-            isStale: true
+            isAnyServiceStale: true
         )
         let items = menuItems(for: state)
         #expect(!items.contains { $0.tag == MenuBuilder.lastFailedRowTag })
@@ -299,14 +295,14 @@ private final class MockMenuActions: NSObject, MenuActions {
     @Test func usageRowsRemainVisibleWhenStale() {
         let now = Date()
         let usage = UsageResponse(entries: [
-            .make(key: "five_hour", utilization: 55, resetsAt: now.addingTimeInterval(3600)),
+            .make(key: "five_hour", utilization: 55, resetsAt: now.addingTimeInterval(3600))!,
         ])
         let state = MonitorState(
             currentUsage: usage, currentStatus: nil,
             usageError: nil, statusError: nil,
             lastRefreshed: nil, hasCredentials: true,
             currentPollInterval: nil,
-            isStale: true
+            isAnyServiceStale: true
         )
         let items = menuItems(for: state)
         func rowText(_ item: NSMenuItem) -> String {

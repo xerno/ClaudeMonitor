@@ -20,7 +20,8 @@ import Foundation
     /// Setup: stable at 20% for 96 minutes via 96 record() calls spaced 60s apart.
     ///   timeSinceLastChange ≈ 95 * 60 = 5700s  (= cooldownEnd=5700s → t=1 → maxIdleInterval)
     @Test func cooldownViaUsageHistoryRecordAndSamplesPath() throws {
-        let history = UsageHistory()
+        let fixture = UsageHistoryTestFixture()
+        let history = fixture.history
 
         let now = Date()
         let resetsAt = now.addingTimeInterval(3600)
@@ -64,6 +65,7 @@ import Foundation
         #expect(scheduler.effectivePollingInterval > Constants.Polling.baseInterval,
                 "cooldown interval must exceed baseInterval=60s")
 
+        Task { await fixture.cleanup() }
     }
 
     // MARK: - Test 4: Credential swap clears windowAnalyses
@@ -86,13 +88,9 @@ import Foundation
         // mutate the orgId from the test body without a Sendable capture violation.
         let orgAlpha = "org-alpha-\(UUID().uuidString)"
         let orgBeta = "org-beta-\(UUID().uuidString)"
-        defer {
-            let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-            try? FileManager.default.removeItem(at: base.appendingPathComponent("ClaudeMonitor/usage/\(orgAlpha)"))
-            try? FileManager.default.removeItem(at: base.appendingPathComponent("ClaudeMonitor/usage/\(orgBeta)"))
-        }
         final class OrgIdBox: @unchecked Sendable { var value: String; init(_ v: String) { value = v } }
         let orgIdBox = OrgIdBox(orgAlpha)
+        let fixture = UsageHistoryTestFixture()
         let coordinator = DataCoordinator(
             statusService: mockStatus,
             usageService: mockUsage,
@@ -103,7 +101,8 @@ import Foundation
                 case Constants.Keychain.organizationId: return orgIdBox.value
                 default: return nil
                 }
-            }
+            },
+            usageHistory: fixture.history
         )
 
         // Populate windowAnalyses by refreshing with real usage data.
@@ -127,6 +126,8 @@ import Foundation
         // This check is synchronous (restartPolling is sync up to launching the Task).
         #expect(coordinator.windowAnalyses.isEmpty,
                 "windowAnalyses must be cleared when org ID changes")
+
+        await fixture.cleanup()
     }
 
     // MARK: - Test 5: UsageHistory.switchOrganization clears history and analyses
@@ -134,22 +135,17 @@ import Foundation
     /// Tests UsageHistory.switchOrganization() directly: verifies that switching org ID
     /// clears in-memory samples, preventing data from org-A bleeding into org-B analyses.
     ///
-    /// Uses time-based unique org IDs to avoid cross-run disk pollution, and clears
-    /// disk state before and after. switchOrganization() calls load() which reads from
-    /// disk, so we must ensure no stale files exist for either org ID.
+    /// Uses the fixture's tmpdir so no production paths are touched.
     @Test func switchOrganizationClearsHistoryAndProducesEmptyAnalysis() async {
-        // Generate unique org IDs for this test run to prevent cross-run interference.
-        // switchOrganization() calls load() which reads from disk, so org IDs must be fresh.
-        let runId = Int(Date().timeIntervalSince1970)
-        let orgA = "test-org-a-\(runId)"
-        let orgB = "test-org-b-\(runId)"
+        let fixture = UsageHistoryTestFixture()
+        let history = fixture.history
 
-        let history = UsageHistory()
+        let orgA = "test-org-a-\(UUID().uuidString)"
+        let orgB = "test-org-b-\(UUID().uuidString)"
 
-        // Start on orgA and clear any stale disk state for it.
+        // Start on orgA and clear any stale state for it.
         history.switchOrganization(orgA)
-        history.clearAll()
-        try? await Task.sleep(for: .milliseconds(200))
+        await history.clearAll()
 
         let now = Date()
         let resetsAt = now.addingTimeInterval(3600)
@@ -186,10 +182,6 @@ import Foundation
         #expect(scheduler.effectivePollingInterval == Constants.Polling.baseInterval,
                 "with no outpacing and no history, interval should be baseInterval=60s")
 
-        // Cleanup both orgs' disk state.
-        history.clearAll()  // clears orgB
-        history.switchOrganization(orgA)
-        history.clearAll()  // clears orgA
-        try? await Task.sleep(for: .milliseconds(200))
+        await fixture.cleanup()
     }
 }

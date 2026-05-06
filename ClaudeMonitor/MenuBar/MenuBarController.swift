@@ -40,12 +40,12 @@ final class MenuBarController: NSObject, MenuActions {
         StatusBarRenderer.updateText(
             button: button, usage: state.currentUsage,
             hasCredentials: state.hasCredentials,
-            isStale: state.isStale || state.isUsageStale
+            isStale: state.isAnyServiceStale || state.isUsageDataExpired
         )
         let menu = NSMenu()
         menu.delegate = self
         statusItem.menu = menu
-        rebuildMenu()
+        usageCache = MenuBuilder.populate(menu: menu, state: coordinator.monitorState, target: self)
     }
 
     // MARK: - UI Updates
@@ -56,12 +56,12 @@ final class MenuBarController: NSObject, MenuActions {
         if let button = statusItem.button {
             StatusBarRenderer.updateIcon(
                 button: button, status: state.currentStatus,
-                hasRefreshWarning: state.isStale
+                hasRefreshWarning: state.isAnyServiceStale
             )
             StatusBarRenderer.updateText(
                 button: button, usage: state.currentUsage,
                 hasCredentials: state.hasCredentials,
-                isStale: state.isStale || state.isUsageStale,
+                isStale: state.isAnyServiceStale || state.isUsageDataExpired,
                 windowAnalyses: state.windowAnalyses
             )
         }
@@ -69,13 +69,6 @@ final class MenuBarController: NSObject, MenuActions {
             usageCache = MenuBuilder.populate(menu: menu, state: state, target: self)
         }
         updateCountdownState()
-    }
-
-    // MARK: - Menu
-
-    private func rebuildMenu() {
-        guard let menu = statusItem.menu else { return }
-        usageCache = MenuBuilder.populate(menu: menu, state: coordinator.monitorState, target: self)
     }
 
     // MARK: - MenuActions

@@ -14,10 +14,8 @@ struct WindowEntry: Sendable, Equatable, Hashable, Comparable {
         return (lhs.modelScope ?? "") < (rhs.modelScope ?? "")
     }
 
-    static func make(key: String, utilization: Int, resetsAt: Date?) -> WindowEntry {
-        guard let parsed = WindowKeyParser.parse(key) else {
-            preconditionFailure("Invalid window key: \(key)")
-        }
+    static func make(key: String, utilization: Int, resetsAt: Date?) -> WindowEntry? {
+        guard let parsed = WindowKeyParser.parse(key) else { return nil }
         return WindowEntry(
             key: key, duration: parsed.duration, durationLabel: parsed.durationLabel,
             modelScope: parsed.modelScope,

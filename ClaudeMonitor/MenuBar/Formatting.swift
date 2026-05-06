@@ -17,7 +17,7 @@ enum Formatting {
         if totalMinutes < 60 { return "\(totalMinutes)m" }
         let hours = totalMinutes / 60
         let minutes = totalMinutes % 60
-        if hours < 25 {
+        if hours < Constants.Time.daysHoursTierThreshold {
             return minutes == 0 ? "\(hours)h" : "\(hours)h \(minutes)m"
         }
         let days = hours / 24
@@ -42,7 +42,7 @@ enum Formatting {
         let intervalStart: TimeInterval
         let intervalSize: TimeInterval
 
-        if totalHours >= 25 {
+        if totalHours >= Constants.Time.daysHoursTierThreshold {
             intervalStart = TimeInterval(totalHours) * Constants.Time.secondsPerHour
             intervalSize = Constants.Time.secondsPerHour
         } else if totalMinutes >= 2 {
@@ -56,7 +56,7 @@ enum Formatting {
         var nextCenter = intervalStart - intervalSize / 2
 
         // Snap to just before zone transitions (match display tiers in timeUntil)
-        let daysToHoursThreshold: TimeInterval = 25 * Constants.Time.secondsPerHour
+        let daysToHoursThreshold: TimeInterval = TimeInterval(Constants.Time.daysHoursTierThreshold) * Constants.Time.secondsPerHour
         let minutesToSecondsThreshold: TimeInterval = 2 * 60
         if intervalSize == Constants.Time.secondsPerHour && nextCenter < daysToHoursThreshold {
             nextCenter = daysToHoursThreshold - 30

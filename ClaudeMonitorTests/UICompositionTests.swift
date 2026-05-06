@@ -51,7 +51,7 @@ struct UICompositionTests {
         let now = Date()
         // Low utilization so inline style would be .normal (labelColor).
         let resetsAt = now.addingTimeInterval(18000 * 0.9) // 90% remaining
-        let entry = WindowEntry.make(key: "five_hour", utilization: 10, resetsAt: resetsAt)
+        let entry = WindowEntry.make(key: "five_hour", utilization: 10, resetsAt: resetsAt)!
         let usage = UsageResponse(entries: [entry])
 
         // Build a WindowAnalysis that carries a .critical style independent of the entry values.
@@ -64,7 +64,7 @@ struct UICompositionTests {
             key: "five_hour",
             utilization: 65,
             resetsAt: now.addingTimeInterval(9000) // 50% remaining on 18000s window
-        )
+        )!
         let samples: [UtilizationSample] = [] // no samples → rate from implied
         let analysis = UsageHistory.analyze(entry: criticalEntry, samples: samples, now: now)
 
@@ -93,7 +93,7 @@ struct UICompositionTests {
         // (e.g., off-by-one in the dictionary key), the low-util entry would fall back to .normal.
         let mismatchedAnalysis = UsageHistory.analyze(
             entry: WindowEntry.make(key: "seven_day", utilization: 65,
-                                    resetsAt: now.addingTimeInterval(302_400)), // 50% remaining
+                                    resetsAt: now.addingTimeInterval(302_400))!, // 50% remaining
             samples: [],
             now: now
         )
@@ -115,7 +115,7 @@ struct UICompositionTests {
         let now = Date()
         let resetsAt = now.addingTimeInterval(3600) // 1 hour from now
         let usage = UsageResponse(entries: [
-            WindowEntry.make(key: "five_hour", utilization: 42, resetsAt: resetsAt),
+            WindowEntry.make(key: "five_hour", utilization: 42, resetsAt: resetsAt)!,
         ])
         let state = makeState(usage: usage)
         let target = MockActions()
@@ -169,7 +169,7 @@ struct UICompositionTests {
 
         // First populate: 42% utilization.
         let usage1 = UsageResponse(entries: [
-            WindowEntry.make(key: "five_hour", utilization: 42, resetsAt: now.addingTimeInterval(3600)),
+            WindowEntry.make(key: "five_hour", utilization: 42, resetsAt: now.addingTimeInterval(3600))!,
         ])
         let state1 = makeState(usage: usage1)
         MenuBuilder.populate(menu: menu, state: state1, target: target)
@@ -178,7 +178,7 @@ struct UICompositionTests {
 
         // Second populate: 77% utilization on the same window type.
         let usage2 = UsageResponse(entries: [
-            WindowEntry.make(key: "five_hour", utilization: 77, resetsAt: now.addingTimeInterval(2400)),
+            WindowEntry.make(key: "five_hour", utilization: 77, resetsAt: now.addingTimeInterval(2400))!,
         ])
         let state2 = makeState(usage: usage2)
         MenuBuilder.populate(menu: menu, state: state2, target: target)

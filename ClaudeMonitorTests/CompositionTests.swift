@@ -11,27 +11,19 @@ import AppKit
     private let mockUsage = MockUsageService()
     private let mockIdleProvider = MockSystemIdleProvider()
 
-    private func makeCoordinator(
+    private func coordinator(
+        fixture: UsageHistoryTestFixture,
         testOrgId: String = UUID().uuidString,
         credentials: [String: String]? = nil
     ) -> (DataCoordinator, String) {
-        let creds = credentials ?? [
-            Constants.Keychain.cookieString: "test-cookie",
-            Constants.Keychain.organizationId: testOrgId,
-        ]
-        let coordinator = DataCoordinator(
-            statusService: mockStatus,
-            usageService: mockUsage,
-            systemIdleProvider: mockIdleProvider,
-            loadCredential: { creds[$0] }
+        makeCoordinator(
+            fixture: fixture,
+            status: mockStatus,
+            usage: mockUsage,
+            idle: mockIdleProvider,
+            testOrgId: testOrgId,
+            credentials: credentials
         )
-        return (coordinator, testOrgId)
-    }
-
-    private func cleanupTestOrg(_ orgId: String) {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        let orgDir = base.appendingPathComponent("ClaudeMonitor/usage/\(orgId)")
-        try? FileManager.default.removeItem(at: orgDir)
     }
 
     // MARK: - Test 1: JSON decode → WindowKeyParser → WindowEntry → analyze → scheduler
@@ -66,9 +58,10 @@ import AppKit
         #expect(decoded.entries[0].window.utilization == 65)
 
         mockUsage.result = .success(decoded)
-        let (coordinator, orgId) = makeCoordinator()
-        defer { cleanupTestOrg(orgId) }
+        let fixture = UsageHistoryTestFixture()
+        let (coordinator, _) = coordinator(fixture: fixture)
         await coordinator.refresh()
+        await fixture.cleanup()
 
         // First refresh produces one sample — recentRate requires ≥2 samples, so the
         // rate-driven formula is inactive. Scheduler falls back to cooldownInterval,
@@ -91,8 +84,8 @@ import AppKit
                         window: UsageWindow(utilization: 30, resetsAt: resetsAt)),
         ])
         mockUsage.result = .success(firstUsage)
-        let (coordinator, orgId) = makeCoordinator()
-        defer { cleanupTestOrg(orgId) }
+        let fixture = UsageHistoryTestFixture()
+        let (coordinator, _) = coordinator(fixture: fixture)
 
         // First refresh: utilization = 30
         await coordinator.refresh()
@@ -106,6 +99,7 @@ import AppKit
 
         // Second refresh: utilization = 45
         await coordinator.refresh()
+        await fixture.cleanup()
 
         // The WindowAnalysis should reflect a utilization change between the two refreshes.
         let analyses = coordinator.monitorState.windowAnalyses
@@ -128,9 +122,10 @@ import AppKit
     /// here is verifying that MonitorState.currentPollInterval is wired to the scheduler:
     /// whatever the scheduler decides, MonitorState exposes the same value.
     @Test func testMonitorStateCurrentPollIntervalReflectsSchedulerState() async {
-        let (coordinator, orgId) = makeCoordinator()
-        defer { cleanupTestOrg(orgId) }
+        let fixture = UsageHistoryTestFixture()
+        let (coordinator, _) = coordinator(fixture: fixture)
         await coordinator.refresh()
+        await fixture.cleanup()
 
         let state = coordinator.monitorState
 
@@ -151,7 +146,7 @@ import AppKit
         // projected = 2 + 0.0022 * (18000 * 0.95) ≈ 2 + 37.8 ≈ 40 → well below bold threshold
         let resetsAt = Date().addingTimeInterval(18000 * 0.95)
         let usage = UsageResponse(entries: [
-            WindowEntry.make(key: "five_hour", utilization: 2, resetsAt: resetsAt),
+            WindowEntry.make(key: "five_hour", utilization: 2, resetsAt: resetsAt)!,
         ])
 
         let title = StatusBarRenderer.usageTitle(usage: usage)
@@ -214,9 +209,10 @@ import AppKit
     /// This test instead verifies that a scheduler driven into cooldown via analyze() directly
     /// is reset by restartPolling(), confirming the scheduler.reset() call is wired correctly.
     @Test func testRestartPollingResetsCurrentPollIntervalInMonitorState() async {
-        let (coordinator, orgId) = makeCoordinator()
-        defer { cleanupTestOrg(orgId) }
+        let fixture = UsageHistoryTestFixture()
+        let (coordinator, _) = coordinator(fixture: fixture)
         await coordinator.refresh()
+        await fixture.cleanup()
 
         // After a successful refresh, currentPollInterval is set.
         let stateAfterRefresh = coordinator.monitorState
@@ -230,10 +226,9 @@ import AppKit
     // MARK: - Test 7: windowAnalyses consistency with currentUsage
 
     /// Tests that windowAnalyses and currentUsage are kept consistent across state transitions.
-    @Test func testWindowAnalysesRetainStaleValuesAfterAuthFailure() async {
-        // First refresh: succeeds → windowAnalyses should be non-empty.
-        let (coordinator, orgId) = makeCoordinator()
-        defer { cleanupTestOrg(orgId) }
+    @Test func testWindowAnalysesClearedAfterAuthFailure() async {
+        let fixture = UsageHistoryTestFixture()
+        let (coordinator, _) = coordinator(fixture: fixture)
         await coordinator.refresh()
 
         let firstState = coordinator.monitorState
@@ -243,19 +238,10 @@ import AppKit
         // Change mock to return auth failure → currentUsage becomes nil.
         mockUsage.result = .failure(ServiceError.unauthorized)
         await coordinator.refresh()
+        await fixture.cleanup()
 
-        // After auth failure, currentUsage is nil (DataCoordinator nils it out).
-        // windowAnalyses is only updated when currentUsage is non-nil (inside the `if let newUsage` block).
-        // So windowAnalyses retains its stale values from the previous successful refresh.
         let secondState = coordinator.monitorState
         #expect(secondState.currentUsage == nil)
-
-        // DOCUMENTED BEHAVIOR: windowAnalyses retains stale values after auth failure.
-        // The coordinator only updates windowAnalyses inside `if let newUsage = currentUsage`,
-        // so a nil usage leaves the previous analyses in place. This means windowAnalyses may
-        // be non-empty even when currentUsage is nil — they are NOT kept in lock-step.
-        // UI consumers must check currentUsage (or usageError) independently.
-        #expect(!secondState.windowAnalyses.isEmpty,
-                "windowAnalyses retains stale values after auth failure (documented behavior)")
+        #expect(secondState.windowAnalyses.isEmpty, "windowAnalyses must be cleared after auth failure")
     }
 }

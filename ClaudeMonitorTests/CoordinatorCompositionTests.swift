@@ -8,32 +8,6 @@ import Foundation
 
     // MARK: - Helpers
 
-    private func makeCoordinator(
-        status: any StatusFetching = MockStatusService(),
-        usage: any UsageFetching = MockUsageService(),
-        idle: MockSystemIdleProvider = MockSystemIdleProvider(),
-        testOrgId: String = UUID().uuidString,
-        credentials: [String: String]? = nil
-    ) -> (DataCoordinator, String) {
-        let creds = credentials ?? [
-            Constants.Keychain.cookieString: "test-cookie",
-            Constants.Keychain.organizationId: testOrgId,
-        ]
-        let coordinator = DataCoordinator(
-            statusService: status,
-            usageService: usage,
-            systemIdleProvider: idle,
-            loadCredential: { creds[$0] }
-        )
-        return (coordinator, testOrgId)
-    }
-
-    private func cleanupTestOrg(_ orgId: String) {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        let orgDir = base.appendingPathComponent("ClaudeMonitor/usage/\(orgId)")
-        try? FileManager.default.removeItem(at: orgDir)
-    }
-
     private var testUsage: UsageResponse {
         UsageResponse(entries: [
             WindowEntry(key: "five_hour", duration: 18000, durationLabel: "5h", modelScope: nil,
@@ -71,9 +45,10 @@ import Foundation
         // Feed the decoded response through DataCoordinator.
         let mockUsage = MockUsageService()
         mockUsage.result = .success(decoded)
-        let (coordinator, orgId) = makeCoordinator(usage: mockUsage)
-        defer { cleanupTestOrg(orgId) }
+        let fixture = UsageHistoryTestFixture()
+        let (coordinator, _) = makeCoordinator(fixture: fixture, usage: mockUsage)
         await coordinator.refresh()
+        await fixture.cleanup()
 
         // The coordinator's windowAnalyses must carry the same duration that came from the parser.
         let analyses = coordinator.monitorState.windowAnalyses
@@ -125,8 +100,8 @@ import Foundation
 
         let sequencedUsage = SequencedMockUsage(responses: [firstResponse, secondResponse])
         var criticalResetCount = 0
-        let (coordinator, orgId) = makeCoordinator(usage: sequencedUsage)
-        defer { cleanupTestOrg(orgId) }
+        let fixture = UsageHistoryTestFixture()
+        let (coordinator, _) = makeCoordinator(fixture: fixture, usage: sequencedUsage)
         coordinator.onCriticalReset = { criticalResetCount += 1 }
 
         await coordinator.refresh() // Refresh 1: establishes critical baseline, no previous usage.
@@ -137,6 +112,8 @@ import Foundation
 
         await coordinator.refresh() // Refresh 3: second response served again; same resetsAt, no new reset.
         #expect(criticalResetCount == 1, "onCriticalReset must not fire again when no new reset occurred.")
+
+        await fixture.cleanup()
     }
 
     // MARK: - Test 3: Style equivalence between analyze() and inline usageStyle()
@@ -188,15 +165,8 @@ import Foundation
 
     /// Verifies that detectAndHandleReset for one key does not clear samples for a different key.
     @Test func detectAndHandleResetDoesNotAffectOtherKeys() async {
-        let history = UsageHistory()
-        let testOrgId = "test-reset-\(UUID().uuidString)"
-        history.switchOrganization(testOrgId)
-        defer {
-            history.clearAll()
-            let orgDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-                .appendingPathComponent("ClaudeMonitor/usage/\(testOrgId)")
-            try? FileManager.default.removeItem(at: orgDir)
-        }
+        let fixture = UsageHistoryTestFixture()
+        let history = fixture.history
 
         let now = Date()
         let fiveHourResetsAt = now.addingTimeInterval(9000)
@@ -221,7 +191,7 @@ import Foundation
 
         // Simulate a reset for five_hour only — advance its resetsAt by more than duration/2.
         let newFiveHourResetsAt = fiveHourResetsAt.addingTimeInterval(18000)
-        history.detectAndHandleReset(
+        await history.detectAndHandleReset(
             entry: fiveHourEntry,
             newResetsAt: newFiveHourResetsAt,
             previousResetsAt: fiveHourResetsAt
@@ -234,6 +204,8 @@ import Foundation
         // seven_day samples must be completely unaffected.
         #expect(!history.samples(for: sevenDayEntry).isEmpty,
                 "seven_day samples must not be affected by the five_hour reset")
+
+        await fixture.cleanup()
     }
 
     // MARK: - Test 5: reloadCredentials org switch clears state
@@ -252,10 +224,6 @@ import Foundation
         }
         let orgA = "test-org-a-\(UUID().uuidString)"
         let orgB = "test-org-b-\(UUID().uuidString)"
-        defer {
-            cleanupTestOrg(orgA)
-            cleanupTestOrg(orgB)
-        }
 
         let store = CredentialStore([
             Constants.Keychain.cookieString: "test-cookie",
@@ -264,11 +232,13 @@ import Foundation
 
         let mockUsage = MockUsageService()
         mockUsage.result = .success(testUsage)
+        let fixture = UsageHistoryTestFixture()
         let coordinator = DataCoordinator(
             statusService: MockStatusService(),
             usageService: mockUsage,
             systemIdleProvider: MockSystemIdleProvider(),
-            loadCredential: { store.dict[$0] }
+            loadCredential: { store.dict[$0] },
+            usageHistory: fixture.history
         )
 
         // First refresh under orgA — populates windowAnalyses.
@@ -283,5 +253,7 @@ import Foundation
         // After reloadCredentials detects a different org ID, windowAnalyses must be cleared.
         #expect(coordinator.monitorState.windowAnalyses.isEmpty,
                 "windowAnalyses must be cleared after switching to a different org ID")
+
+        await fixture.cleanup()
     }
 }

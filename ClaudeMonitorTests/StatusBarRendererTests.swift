@@ -162,7 +162,7 @@ import AppKit
 
     @Test func usageTitleSingleWindow() {
         let usage = UsageResponse(entries: [
-            .make(key: "five_hour", utilization: 42, resetsAt: Date().addingTimeInterval(3600)),
+            .make(key: "five_hour", utilization: 42, resetsAt: Date().addingTimeInterval(3600))!,
         ])
         let title = StatusBarRenderer.usageTitle(usage: usage)
         #expect(title.string.contains("42%"))
@@ -177,8 +177,8 @@ import AppKit
     @Test func usageTitleMultipleWindowsWithOutpacing() {
         // Second window is outpacing → should appear with separator
         let usage = UsageResponse(entries: [
-            .make(key: "five_hour", utilization: 42, resetsAt: Date().addingTimeInterval(3600)),
-            .make(key: "seven_day", utilization: 65, resetsAt: Date().addingTimeInterval(604_800 * 0.4)),
+            .make(key: "five_hour", utilization: 42, resetsAt: Date().addingTimeInterval(3600))!,
+            .make(key: "seven_day", utilization: 65, resetsAt: Date().addingTimeInterval(604_800 * 0.4))!,
         ])
         let title = StatusBarRenderer.usageTitle(usage: usage)
         #expect(title.string.contains("42%"))
@@ -189,8 +189,8 @@ import AppKit
     @Test func usageTitleSecondWindowNotOutpacingIsHidden() {
         // Second window: 8% used, 90% time remaining (10% elapsed) → 8 ≤ 10, not outpacing
         let usage = UsageResponse(entries: [
-            .make(key: "five_hour", utilization: 42, resetsAt: Date().addingTimeInterval(3600)),
-            .make(key: "seven_day", utilization: 8, resetsAt: Date().addingTimeInterval(604_800 * 0.9)),
+            .make(key: "five_hour", utilization: 42, resetsAt: Date().addingTimeInterval(3600))!,
+            .make(key: "seven_day", utilization: 8, resetsAt: Date().addingTimeInterval(604_800 * 0.9))!,
         ])
         let title = StatusBarRenderer.usageTitle(usage: usage)
         #expect(title.string.contains("42%"))
@@ -198,9 +198,9 @@ import AppKit
     }
 
     @Test func usageTitleBoldWhenOutpacing() {
-        // 60% used, 40% time remaining (60% elapsed) → bold (60 > 60% elapsed = outpacing)
+        // 60% used, 30% time remaining (70% elapsed) → projected = 60 + (60/12600)*5400 ≈ 85.7 → bold (≥80)
         let usage = UsageResponse(entries: [
-            .make(key: "five_hour", utilization: 60, resetsAt: Date().addingTimeInterval(18000 * 0.4)),
+            .make(key: "five_hour", utilization: 60, resetsAt: Date().addingTimeInterval(18000 * 0.3))!,
         ])
         let title = StatusBarRenderer.usageTitle(usage: usage)
         let font = title.attribute(.font, at: 0, effectiveRange: nil) as? NSFont
@@ -211,7 +211,7 @@ import AppKit
     @Test func usageTitleRegularWhenNotOutpacing() {
         // 10% used, 80% remaining (duration=18000) → elapsed=3600, rate=10/3600, projected=10+(10/3600)*14400=50 → normal, not bold
         let usage = UsageResponse(entries: [
-            .make(key: "five_hour", utilization: 10, resetsAt: Date().addingTimeInterval(18000 * 0.8)),
+            .make(key: "five_hour", utilization: 10, resetsAt: Date().addingTimeInterval(18000 * 0.8))!,
         ])
         let title = StatusBarRenderer.usageTitle(usage: usage)
         let font = title.attribute(.font, at: 0, effectiveRange: nil) as? NSFont
@@ -222,7 +222,7 @@ import AppKit
     @Test func usageTitleCriticalUsesRedColor() {
         // 65% used, 50% remaining (duration=18000) → projected = 65+(65/9000)*9000 = 130 → critical → red
         let usage = UsageResponse(entries: [
-            .make(key: "five_hour", utilization: 65, resetsAt: Date().addingTimeInterval(9000)),
+            .make(key: "five_hour", utilization: 65, resetsAt: Date().addingTimeInterval(9000))!,
         ])
         let title = StatusBarRenderer.usageTitle(usage: usage)
         let color = title.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor
@@ -232,7 +232,7 @@ import AppKit
     @Test func usageTitleWarningUsesOrangeColor() {
         // 55% used, 50% remaining (duration=18000) → projected = 55+(55/9000)*9000 = 110 → warning → orange
         let usage = UsageResponse(entries: [
-            .make(key: "five_hour", utilization: 55, resetsAt: Date().addingTimeInterval(9000)),
+            .make(key: "five_hour", utilization: 55, resetsAt: Date().addingTimeInterval(9000))!,
         ])
         let title = StatusBarRenderer.usageTitle(usage: usage)
         let color = title.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor
@@ -242,7 +242,7 @@ import AppKit
     @Test func usageTitleNormalUsesLabelColor() {
         // 20% utilization → normal
         let usage = UsageResponse(entries: [
-            .make(key: "five_hour", utilization: 20, resetsAt: Date().addingTimeInterval(18000 * 0.8)),
+            .make(key: "five_hour", utilization: 20, resetsAt: Date().addingTimeInterval(18000 * 0.8))!,
         ])
         let title = StatusBarRenderer.usageTitle(usage: usage)
         let color = title.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor
@@ -253,7 +253,7 @@ import AppKit
 
     @Test func usageTitleWithStaleHasBoldExclamationPrefix() {
         let usage = UsageResponse(entries: [
-            .make(key: "five_hour", utilization: 42, resetsAt: Date().addingTimeInterval(3600)),
+            .make(key: "five_hour", utilization: 42, resetsAt: Date().addingTimeInterval(3600))!,
         ])
         let title = StatusBarRenderer.usageTitle(usage: usage, isStale: true)
         #expect(title.string.hasPrefix("! "))
@@ -266,7 +266,7 @@ import AppKit
     @Test func usageTitleWithStaleDimsPercentageColor() {
         // 65% used, 50% remaining → critical → red, but desaturated when stale
         let usage = UsageResponse(entries: [
-            .make(key: "five_hour", utilization: 65, resetsAt: Date().addingTimeInterval(9000)),
+            .make(key: "five_hour", utilization: 65, resetsAt: Date().addingTimeInterval(9000))!,
         ])
         let title = StatusBarRenderer.usageTitle(usage: usage, isStale: true)
         // "! 65%" — percentage starts at index 2
@@ -277,7 +277,7 @@ import AppKit
 
     @Test func usageTitleWithoutStaleHasNoPrefix() {
         let usage = UsageResponse(entries: [
-            .make(key: "five_hour", utilization: 42, resetsAt: Date().addingTimeInterval(3600)),
+            .make(key: "five_hour", utilization: 42, resetsAt: Date().addingTimeInterval(3600))!,
         ])
         let title = StatusBarRenderer.usageTitle(usage: usage, isStale: false)
         #expect(title.string.hasPrefix("42%"))
@@ -286,7 +286,7 @@ import AppKit
     @Test func staleDoesNotAffectBoldness() {
         // 65% used, 50% remaining → critical → bold stays bold when stale
         let usage = UsageResponse(entries: [
-            .make(key: "five_hour", utilization: 65, resetsAt: Date().addingTimeInterval(9000)),
+            .make(key: "five_hour", utilization: 65, resetsAt: Date().addingTimeInterval(9000))!,
         ])
         let title = StatusBarRenderer.usageTitle(usage: usage, isStale: true)
         // "! 65%" — percentage starts at index 2
@@ -299,7 +299,7 @@ import AppKit
         // 100% utilization → blocked; even with isStale = true, updateText must produce blockedTitle
         let blockedUntil = Date().addingTimeInterval(3600)
         let usage = UsageResponse(entries: [
-            .make(key: "five_hour", utilization: 100, resetsAt: blockedUntil),
+            .make(key: "five_hour", utilization: 100, resetsAt: blockedUntil)!,
         ])
         let button = NSStatusBarButton()
         StatusBarRenderer.updateText(

@@ -9,11 +9,11 @@ struct MonitorState: Sendable, Equatable {
     let hasCredentials: Bool
     let currentPollInterval: TimeInterval?
     let windowAnalyses: [WindowAnalysis]
-    let isUsageStale: Bool
+    let isUsageDataExpired: Bool
     let isOnline: Bool
     let hasRecentFailure: Bool
     let lastFailedAt: Date?
-    let isStale: Bool
+    let isAnyServiceStale: Bool
 
     init(
         currentUsage: UsageResponse?,
@@ -24,11 +24,11 @@ struct MonitorState: Sendable, Equatable {
         hasCredentials: Bool,
         currentPollInterval: TimeInterval?,
         windowAnalyses: [WindowAnalysis] = [],
-        isUsageStale: Bool = false,
+        isUsageDataExpired: Bool = false,
         isOnline: Bool = true,
         hasRecentFailure: Bool = false,
         lastFailedAt: Date? = nil,
-        isStale: Bool = false
+        isAnyServiceStale: Bool = false
     ) {
         self.currentUsage = currentUsage
         self.currentStatus = currentStatus
@@ -38,11 +38,11 @@ struct MonitorState: Sendable, Equatable {
         self.hasCredentials = hasCredentials
         self.currentPollInterval = currentPollInterval
         self.windowAnalyses = windowAnalyses
-        self.isUsageStale = isUsageStale
+        self.isUsageDataExpired = isUsageDataExpired
         self.isOnline = isOnline
         self.hasRecentFailure = hasRecentFailure
         self.lastFailedAt = lastFailedAt
-        self.isStale = isStale
+        self.isAnyServiceStale = isAnyServiceStale
     }
 }
 

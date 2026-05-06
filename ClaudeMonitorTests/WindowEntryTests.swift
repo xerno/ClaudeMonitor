@@ -8,9 +8,9 @@ struct WindowEntryTests {
 
     @Test func windowEntrySorting() {
         let entries = [
-            WindowEntry.make(key: "seven_day_sonnet", utilization: 10, resetsAt: nil),
-            WindowEntry.make(key: "five_hour", utilization: 10, resetsAt: nil),
-            WindowEntry.make(key: "seven_day", utilization: 10, resetsAt: nil),
+            WindowEntry.make(key: "seven_day_sonnet", utilization: 10, resetsAt: nil)!,
+            WindowEntry.make(key: "five_hour", utilization: 10, resetsAt: nil)!,
+            WindowEntry.make(key: "seven_day", utilization: 10, resetsAt: nil)!,
         ]
         let sorted = entries.sorted()
         #expect(sorted[0].key == "five_hour")
@@ -22,8 +22,8 @@ struct WindowEntryTests {
 
     @Test func displayLabelAllModelsOnly() {
         let usage = UsageResponse(entries: [
-            .make(key: "five_hour", utilization: 42, resetsAt: nil),
-            .make(key: "seven_day", utilization: 18, resetsAt: nil),
+            .make(key: "five_hour", utilization: 42, resetsAt: nil)!,
+            .make(key: "seven_day", utilization: 18, resetsAt: nil)!,
         ])
         #expect(Formatting.displayLabel(for: usage.entries[0], in: usage) == "5h")
         #expect(Formatting.displayLabel(for: usage.entries[1], in: usage) == "7d")
@@ -31,16 +31,16 @@ struct WindowEntryTests {
 
     @Test func displayLabelSingleWindow() {
         let usage = UsageResponse(entries: [
-            .make(key: "five_hour", utilization: 42, resetsAt: nil),
+            .make(key: "five_hour", utilization: 42, resetsAt: nil)!,
         ])
         #expect(Formatting.displayLabel(for: usage.entries[0], in: usage) == "5h")
     }
 
     @Test func displayLabelWithModelSpecificShowsAllOnEveryAllModelsWindow() {
         let usage = UsageResponse(entries: [
-            .make(key: "five_hour", utilization: 42, resetsAt: nil),
-            .make(key: "seven_day", utilization: 18, resetsAt: nil),
-            .make(key: "seven_day_sonnet", utilization: 22, resetsAt: nil),
+            .make(key: "five_hour", utilization: 42, resetsAt: nil)!,
+            .make(key: "seven_day", utilization: 18, resetsAt: nil)!,
+            .make(key: "seven_day_sonnet", utilization: 22, resetsAt: nil)!,
         ])
         #expect(Formatting.displayLabel(for: usage.entries[0], in: usage) == "5h all")
         #expect(Formatting.displayLabel(for: usage.entries[1], in: usage) == "7d all")
@@ -49,16 +49,16 @@ struct WindowEntryTests {
 
     @Test func displayLabelOnlyModelSpecific() {
         let usage = UsageResponse(entries: [
-            .make(key: "seven_day_sonnet", utilization: 22, resetsAt: nil),
+            .make(key: "seven_day_sonnet", utilization: 22, resetsAt: nil)!,
         ])
         #expect(Formatting.displayLabel(for: usage.entries[0], in: usage) == "7d Sonnet")
     }
 
     @Test func displayLabelMultipleModelSpecificSameDuration() {
         let usage = UsageResponse(entries: [
-            .make(key: "seven_day", utilization: 18, resetsAt: nil),
-            .make(key: "seven_day_opus", utilization: 10, resetsAt: nil),
-            .make(key: "seven_day_sonnet", utilization: 22, resetsAt: nil),
+            .make(key: "seven_day", utilization: 18, resetsAt: nil)!,
+            .make(key: "seven_day_opus", utilization: 10, resetsAt: nil)!,
+            .make(key: "seven_day_sonnet", utilization: 22, resetsAt: nil)!,
         ])
         #expect(Formatting.displayLabel(for: usage.entries[0], in: usage) == "7d all")
         #expect(Formatting.displayLabel(for: usage.entries[1], in: usage) == "7d Opus")
@@ -67,9 +67,9 @@ struct WindowEntryTests {
 
     @Test func displayLabelModelSpecificAtDifferentDuration() {
         let usage = UsageResponse(entries: [
-            .make(key: "five_hour", utilization: 42, resetsAt: nil),
-            .make(key: "five_hour_sonnet", utilization: 30, resetsAt: nil),
-            .make(key: "seven_day", utilization: 18, resetsAt: nil),
+            .make(key: "five_hour", utilization: 42, resetsAt: nil)!,
+            .make(key: "five_hour_sonnet", utilization: 30, resetsAt: nil)!,
+            .make(key: "seven_day", utilization: 18, resetsAt: nil)!,
         ])
         #expect(Formatting.displayLabel(for: usage.entries[0], in: usage) == "5h all")
         #expect(Formatting.displayLabel(for: usage.entries[1], in: usage) == "5h Sonnet")

@@ -254,6 +254,19 @@ struct PollingRateTests {
         #expect(scheduler.nextPollInterval(usage: nil) == Constants.Polling.maxIdleInterval)
     }
 
+    @Test func awayModeDeactivatesWhenSystemBecomesActive() {
+        // Activate away mode first: tslc=5700 (atCooldownCap), systemIdle=600 (> awayThreshold)
+        var scheduler = PollingScheduler()
+        let analysis = makeAnalysis(timeSinceLastChange: Constants.Polling.cooldownEnd)
+        scheduler.adjustPollingRate(windowAnalyses: [analysis], systemIdleTime: 600)
+        #expect(scheduler.isAwayMode, "Precondition: away mode must be active before deactivation test")
+
+        // User moves mouse: idle time drops below awayThreshold (300s)
+        scheduler.adjustPollingRate(windowAnalyses: [analysis], systemIdleTime: 100)
+
+        #expect(!scheduler.isAwayMode)
+    }
+
     @Test func awayModeIgnoresNearLimitCap() {
         // tslc=5700, systemIdle=600, util=85% → Away mode → interval from away ramp (not capped at 120s)
         var scheduler = PollingScheduler()
@@ -288,7 +301,7 @@ struct PollingRateTests {
             key: "five_hour",
             utilization: 40,
             resetsAt: Date().addingTimeInterval(resetsIn)
-        )
+        )!
         let usage = UsageResponse(entries: [entry])
         let interval = scheduler.nextPollInterval(usage: usage)
         #expect(abs(interval - (resetsIn + 1)) < 0.5)

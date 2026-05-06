@@ -6,7 +6,7 @@ struct PollingScheduler {
     private(set) var effectivePollingInterval: TimeInterval = Constants.Polling.baseInterval
     private(set) var isAwayMode: Bool = false
 
-    var isStale: Bool {
+    var isAnyServiceStale: Bool {
         statusState.consecutiveFailures >= Constants.Retry.failureThreshold
             || usageState.consecutiveFailures >= Constants.Retry.failureThreshold
     }
@@ -18,7 +18,7 @@ struct PollingScheduler {
             && usageState.consecutiveFailures < Constants.Retry.failureThreshold)
     }
 
-    var isUsageStale: Bool {
+    var isUsageDataExpired: Bool {
         guard let last = usageState.lastSuccess else { return false }
         return Date().timeIntervalSince(last) > Constants.Retry.staleDataMaxAge
     }

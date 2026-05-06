@@ -5,7 +5,7 @@ import Foundation
 @MainActor struct SecondaryWindowKeysTests {
 
     private func entry(key: String, utilization: Int, resetsIn: TimeInterval) -> WindowEntry {
-        .make(key: key, utilization: utilization, resetsAt: Date().addingTimeInterval(resetsIn))
+        .make(key: key, utilization: utilization, resetsAt: Date().addingTimeInterval(resetsIn))!
     }
 
     // MARK: - Basic filtering
@@ -79,7 +79,7 @@ import Foundation
     // MARK: - Past reset date
 
     @Test func pastResetDateExcludesWindow() {
-        let past = WindowEntry.make(key: "seven_day", utilization: 90, resetsAt: Date().addingTimeInterval(-100))
+        let past = WindowEntry.make(key: "seven_day", utilization: 90, resetsAt: Date().addingTimeInterval(-100))!
         let keys = StatusBarRenderer.secondaryWindowKeys(from: [past])
         #expect(keys.isEmpty) // shouldShowInMenuBar returns false for past reset
     }
