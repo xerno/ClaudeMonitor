@@ -560,13 +560,13 @@ final class UsageGraphView: NSView {
         }
 
         if util >= 100 {
-            let timeStr: String
             if Calendar.current.isDateInToday(resetsAt) {
-                timeStr = resetsAt.formatted(Date.FormatStyle().hour().minute().locale(.autoupdatingCurrent))
+                let timeStr = resetsAt.formatted(Date.FormatStyle().hour().minute().locale(.autoupdatingCurrent))
+                statsLabel.stringValue = String(format: String(localized: "graph.stats.blocked", bundle: .module), timeStr)
             } else {
-                timeStr = resetsAt.formatted(Date.FormatStyle().day().month().year().hour().minute().locale(.autoupdatingCurrent))
+                let timeStr = resetsAt.formatted(Date.FormatStyle().day().month().year().hour().minute().locale(.autoupdatingCurrent))
+                statsLabel.stringValue = String(format: String(localized: "graph.stats.blocked_date", bundle: .module), timeStr)
             }
-            statsLabel.stringValue = String(format: String(localized: "graph.stats.blocked", bundle: .module), timeStr)
             return
         }
 
@@ -587,7 +587,17 @@ final class UsageGraphView: NSView {
             if let ttl = analysis.timeToLimit {
                 let beforeReset = max(0, resetsAt.timeIntervalSince(now) - ttl)
                 let beforeResetStr = Formatting.timeUntil(beforeReset)
-                statsLabel.stringValue = String(format: String(localized: "graph.stats.limit_soon", bundle: .module), rateStr, beforeResetStr)
+                if resetsAt.timeIntervalSince(now) > 3600 {
+                    if Calendar.current.isDateInToday(resetsAt) {
+                        let timeStr = resetsAt.formatted(Date.FormatStyle().hour().minute().locale(.autoupdatingCurrent))
+                        statsLabel.stringValue = String(format: String(localized: "graph.stats.limit_soon_timed", bundle: .module), rateStr, beforeResetStr, timeStr)
+                    } else {
+                        let timeStr = resetsAt.formatted(Date.FormatStyle().day().month().year().hour().minute().locale(.autoupdatingCurrent))
+                        statsLabel.stringValue = String(format: String(localized: "graph.stats.limit_soon_timed_date", bundle: .module), rateStr, beforeResetStr, timeStr)
+                    }
+                } else {
+                    statsLabel.stringValue = String(format: String(localized: "graph.stats.limit_soon", bundle: .module), rateStr, beforeResetStr)
+                }
             } else {
                 statsLabel.stringValue = String(format: String(localized: "graph.stats.limit_unknown", bundle: .module), rateStr)
             }
