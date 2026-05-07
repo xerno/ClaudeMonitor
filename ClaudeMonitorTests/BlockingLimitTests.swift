@@ -76,6 +76,16 @@ struct BlockingLimitTests {
         #expect(Formatting.hasBlockingGeneralWindow(entries))
     }
 
+    @Test func blockingLimitOnlyModelSpecificAt100ReturnsNil() {
+        let now = Date()
+        let usage = UsageResponse(entries: [
+            .make(key: "five_hour", utilization: 80, resetsAt: now.addingTimeInterval(3600))!,
+            .make(key: "seven_day", utilization: 70, resetsAt: now.addingTimeInterval(86400))!,
+            .make(key: "seven_day_sonnet", utilization: 100, resetsAt: now.addingTimeInterval(172800))!,
+        ])
+        #expect(Formatting.blockingLimit(usage) == nil)
+    }
+
     @Test func blockingLimitAllThreeAt100ReturnsLatest() {
         let now = Date()
         let fiveHourReset = now.addingTimeInterval(7200)

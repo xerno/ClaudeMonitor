@@ -137,7 +137,7 @@ extension Formatting {
     static func blockingLimit(_ usage: UsageResponse?) -> Date? {
         guard let usage else { return nil }
         return usage.entries
-            .filter { $0.window.utilization >= Constants.Projection.blockedUtilization }
+            .filter { $0.modelScope == nil && $0.window.utilization >= Constants.Projection.blockedUtilization }
             .compactMap(\.window.resetsAt)
             .max()
     }

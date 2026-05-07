@@ -587,12 +587,13 @@ final class UsageGraphView: NSView {
             if let ttl = analysis.timeToLimit {
                 let beforeReset = max(0, resetsAt.timeIntervalSince(now) - ttl)
                 let beforeResetStr = Formatting.timeUntil(beforeReset)
-                if resetsAt.timeIntervalSince(now) > 3600 {
-                    if Calendar.current.isDateInToday(resetsAt) {
-                        let timeStr = resetsAt.formatted(Date.FormatStyle().hour().minute().locale(.autoupdatingCurrent))
+                let limitHitAt = now.addingTimeInterval(ttl)
+                if ttl > 3600 {
+                    if Calendar.current.isDateInToday(limitHitAt) {
+                        let timeStr = limitHitAt.formatted(Date.FormatStyle().hour().minute().locale(.autoupdatingCurrent))
                         statsLabel.stringValue = String(format: String(localized: "graph.stats.limit_soon_timed", bundle: .module), rateStr, beforeResetStr, timeStr)
                     } else {
-                        let timeStr = resetsAt.formatted(Date.FormatStyle().day().month().year().hour().minute().locale(.autoupdatingCurrent))
+                        let timeStr = limitHitAt.formatted(Date.FormatStyle().day().month().year().hour().minute().locale(.autoupdatingCurrent))
                         statsLabel.stringValue = String(format: String(localized: "graph.stats.limit_soon_timed_date", bundle: .module), rateStr, beforeResetStr, timeStr)
                     }
                 } else {
