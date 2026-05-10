@@ -16,8 +16,8 @@ final class CredentialFormView: NSView {
     required init?(coder: NSCoder) { fatalError() }
 
     func loadSavedValues() {
-        cookieTextView.string = KeychainService.load(key: Constants.Keychain.cookieString) ?? ""
-        orgIdField.stringValue = KeychainService.load(key: Constants.Keychain.organizationId) ?? ""
+        cookieTextView.string = EncryptedDefaultsService.load(key: Constants.Keychain.cookieString) ?? ""
+        orgIdField.stringValue = EncryptedDefaultsService.load(key: Constants.Keychain.organizationId) ?? ""
     }
 
     func validateAndSave(in window: NSWindow) -> Bool {
@@ -44,8 +44,8 @@ final class CredentialFormView: NSView {
             return false
         }
 
-        let cookieSaved = KeychainService.save(key: Constants.Keychain.cookieString, value: cookie)
-        let orgIdSaved = KeychainService.save(key: Constants.Keychain.organizationId, value: orgId)
+        let cookieSaved = EncryptedDefaultsService.save(key: Constants.Keychain.cookieString, value: cookie)
+        let orgIdSaved = EncryptedDefaultsService.save(key: Constants.Keychain.organizationId, value: orgId)
 
         guard cookieSaved, orgIdSaved else {
             showAlert(

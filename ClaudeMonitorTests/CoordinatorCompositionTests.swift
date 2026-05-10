@@ -51,7 +51,7 @@ import Foundation
         await fixture.cleanup()
 
         // The coordinator's windowAnalyses must carry the same duration that came from the parser.
-        let analyses = coordinator.monitorState.windowAnalyses
+        let analyses = coordinator.monitorState.usage.windowAnalyses
         #expect(analyses.count == 1)
         #expect(analyses[0].entry.duration == 18000)
         #expect(analyses[0].entry.key == "five_hour")
@@ -243,7 +243,7 @@ import Foundation
 
         // First refresh under orgA — populates windowAnalyses.
         await coordinator.refresh()
-        #expect(!coordinator.monitorState.windowAnalyses.isEmpty,
+        #expect(!coordinator.monitorState.usage.windowAnalyses.isEmpty,
                 "windowAnalyses must be populated after a successful refresh")
 
         // Switch to orgB and call restartPolling() which calls reloadCredentials() internally.
@@ -251,7 +251,7 @@ import Foundation
         coordinator.restartPolling()
 
         // After reloadCredentials detects a different org ID, windowAnalyses must be cleared.
-        #expect(coordinator.monitorState.windowAnalyses.isEmpty,
+        #expect(coordinator.monitorState.usage.windowAnalyses.isEmpty,
                 "windowAnalyses must be cleared after switching to a different org ID")
 
         await fixture.cleanup()

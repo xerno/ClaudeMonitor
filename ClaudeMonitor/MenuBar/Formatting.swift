@@ -91,6 +91,50 @@ enum Formatting {
         return "< 1%/d"
     }
 
+    static func statsLabelText(analysis: WindowAnalysis, now: Date) -> String {
+        let util = analysis.entry.window.utilization
+        guard let resetsAt = analysis.entry.window.resetsAt else { return "" }
+
+        if util >= 100 {
+            let key = Calendar.current.isDateInToday(resetsAt) ? "graph.stats.blocked" : "graph.stats.blocked_date"
+            let fmt: Date.FormatStyle = Calendar.current.isDateInToday(resetsAt)
+                ? Date.FormatStyle().hour().minute().locale(.autoupdatingCurrent)
+                : Date.FormatStyle().day().month().year().hour().minute().locale(.autoupdatingCurrent)
+            return String(format: String(localized: String.LocalizationValue(key), bundle: .module), resetsAt.formatted(fmt))
+        }
+
+        guard analysis.rateSource != .insufficient else {
+            return String(localized: "graph.stats.collecting", bundle: .module)
+        }
+
+        guard analysis.consumptionRate != 0 else {
+            return String(format: String(localized: "graph.stats.idle", bundle: .module), 100 - util)
+        }
+
+        let rateStr = Formatting.formatRate(analysis.consumptionRate)
+
+        guard analysis.projectedAtReset >= 100 else {
+            return String(format: String(localized: "graph.stats.projected", bundle: .module), rateStr, Int(analysis.projectedAtReset.rounded()))
+        }
+
+        guard let ttl = analysis.timeToLimit else {
+            return String(format: String(localized: "graph.stats.limit_unknown", bundle: .module), rateStr)
+        }
+
+        let beforeResetStr = Formatting.timeUntil(max(0, resetsAt.timeIntervalSince(now) - ttl))
+
+        guard ttl > 3600 else {
+            return String(format: String(localized: "graph.stats.limit_soon", bundle: .module), rateStr, beforeResetStr)
+        }
+
+        let limitHitAt = now.addingTimeInterval(ttl)
+        let key = Calendar.current.isDateInToday(limitHitAt) ? "graph.stats.limit_soon_timed" : "graph.stats.limit_soon_timed_date"
+        let fmt: Date.FormatStyle = Calendar.current.isDateInToday(limitHitAt)
+            ? Date.FormatStyle().hour().minute().locale(.autoupdatingCurrent)
+            : Date.FormatStyle().day().month().year().hour().minute().locale(.autoupdatingCurrent)
+        return String(format: String(localized: String.LocalizationValue(key), bundle: .module), rateStr, beforeResetStr, limitHitAt.formatted(fmt))
+    }
+
     static let barImageWidth: CGFloat = 120
     static let barImageWidthWide: CGFloat = 150
     static let barImageHeight: CGFloat = 12

@@ -131,7 +131,6 @@ struct DecodingTests {
         #expect(summary.components.count == 2)
         #expect(summary.incidents.count == 1)
         #expect(summary.incidents.first?.name == "API issues")
-        #expect(summary.status.indicator == "major")
         #expect(summary.components.map(\.status).max() == .majorOutage)
     }
 

@@ -7,7 +7,7 @@ import Security
 /// Encryption key is derived from the machine's hardware UUID,
 /// so the data is unreadable on other machines or by simple plist readers.
 /// Can be swapped to Keychain when the app is properly code-signed.
-nonisolated enum KeychainService {
+nonisolated enum EncryptedDefaultsService {
     nonisolated(unsafe) private static let defaults = UserDefaults.standard
 
     @discardableResult

@@ -38,9 +38,9 @@ final class MenuBarController: NSObject, MenuActions {
         button.image = StatusBarRenderer.makeImage(symbolName: "circle.fill", color: .systemGray)
         let state = coordinator.monitorState
         StatusBarRenderer.updateText(
-            button: button, usage: state.currentUsage,
+            button: button, usage: state.usage.currentUsage,
             hasCredentials: state.hasCredentials,
-            isStale: state.isAnyServiceStale || state.isUsageDataExpired
+            isStale: state.polling.isAnyServiceStale || state.polling.isUsageDataExpired
         )
         let menu = NSMenu()
         menu.delegate = self
@@ -55,14 +55,14 @@ final class MenuBarController: NSObject, MenuActions {
         let state = coordinator.monitorState
         if let button = statusItem.button {
             StatusBarRenderer.updateIcon(
-                button: button, status: state.currentStatus,
-                hasRefreshWarning: state.isAnyServiceStale
+                button: button, status: state.service.currentStatus,
+                hasRefreshWarning: state.polling.isAnyServiceStale
             )
             StatusBarRenderer.updateText(
-                button: button, usage: state.currentUsage,
+                button: button, usage: state.usage.currentUsage,
                 hasCredentials: state.hasCredentials,
-                isStale: state.isAnyServiceStale || state.isUsageDataExpired,
-                windowAnalyses: state.windowAnalyses
+                isStale: state.polling.isAnyServiceStale || state.polling.isUsageDataExpired,
+                windowAnalyses: state.usage.windowAnalyses
             )
         }
         if let menu = statusItem.menu {
@@ -98,29 +98,25 @@ final class MenuBarController: NSObject, MenuActions {
         MenuBuilder.syncUsageCheckmarks(in: menu, selectedIndex: graphView.currentSelectedIndex)
     }
 
+    private func openWindow<T: NSWindowController>(_ controller: inout T?, make: () -> T) {
+        if controller == nil { controller = make() }
+        controller?.showWindow(nil)
+    }
+
     @objc func didSelectAbout() {
-        if aboutController == nil {
-            aboutController = AboutWindowController()
-        }
-        aboutController?.showWindow(nil)
+        openWindow(&aboutController) { AboutWindowController() }
     }
 
     @objc func didSelectPreferences() {
-        if preferencesController == nil {
-            preferencesController = PreferencesWindowController { [weak self] in
-                self?.coordinator.restartPolling()
-            }
+        openWindow(&preferencesController) {
+            PreferencesWindowController { [weak self] in self?.coordinator.restartPolling() }
         }
-        preferencesController?.showWindow(nil)
     }
 
     private func showSetup() {
-        if setupController == nil {
-            setupController = SetupWindowController { [weak self] in
-                self?.coordinator.restartPolling()
-            }
+        openWindow(&setupController) {
+            SetupWindowController { [weak self] in self?.coordinator.restartPolling() }
         }
-        setupController?.showWindow(nil)
     }
 }
 

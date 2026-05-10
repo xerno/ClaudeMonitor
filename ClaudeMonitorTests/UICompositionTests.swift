@@ -17,14 +17,8 @@ struct UICompositionTests {
         hasCredentials: Bool = true
     ) -> MonitorState {
         MonitorState(
-            currentUsage: usage,
-            currentStatus: nil,
-            usageError: nil,
-            statusError: nil,
-            lastRefreshed: nil,
-            hasCredentials: hasCredentials,
-            currentPollInterval: nil,
-            windowAnalyses: analyses
+            usage: UsageSnapshot(currentUsage: usage, windowAnalyses: analyses),
+            hasCredentials: hasCredentials
         )
     }
 

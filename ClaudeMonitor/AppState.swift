@@ -1,48 +1,78 @@
 import Foundation
 
-struct MonitorState: Sendable, Equatable {
-    let currentUsage: UsageResponse?
-    let currentStatus: StatusSummary?
-    let usageError: String?
-    let statusError: String?
-    let lastRefreshed: Date?
-    let hasCredentials: Bool
-    let currentPollInterval: TimeInterval?
-    let windowAnalyses: [WindowAnalysis]
-    let isUsageDataExpired: Bool
+struct PollingState: Sendable, Equatable {
     let isOnline: Bool
     let hasRecentFailure: Bool
     let lastFailedAt: Date?
     let isAnyServiceStale: Bool
+    let currentPollInterval: TimeInterval?
+    let isUsageDataExpired: Bool
 
     init(
-        currentUsage: UsageResponse?,
-        currentStatus: StatusSummary?,
-        usageError: String?,
-        statusError: String?,
-        lastRefreshed: Date?,
-        hasCredentials: Bool,
-        currentPollInterval: TimeInterval?,
-        windowAnalyses: [WindowAnalysis] = [],
-        isUsageDataExpired: Bool = false,
         isOnline: Bool = true,
         hasRecentFailure: Bool = false,
         lastFailedAt: Date? = nil,
-        isAnyServiceStale: Bool = false
+        isAnyServiceStale: Bool = false,
+        currentPollInterval: TimeInterval? = nil,
+        isUsageDataExpired: Bool = false
     ) {
-        self.currentUsage = currentUsage
-        self.currentStatus = currentStatus
-        self.usageError = usageError
-        self.statusError = statusError
-        self.lastRefreshed = lastRefreshed
-        self.hasCredentials = hasCredentials
-        self.currentPollInterval = currentPollInterval
-        self.windowAnalyses = windowAnalyses
-        self.isUsageDataExpired = isUsageDataExpired
         self.isOnline = isOnline
         self.hasRecentFailure = hasRecentFailure
         self.lastFailedAt = lastFailedAt
         self.isAnyServiceStale = isAnyServiceStale
+        self.currentPollInterval = currentPollInterval
+        self.isUsageDataExpired = isUsageDataExpired
+    }
+}
+
+struct UsageSnapshot: Sendable, Equatable {
+    let currentUsage: UsageResponse?
+    let usageError: String?
+    let windowAnalyses: [WindowAnalysis]
+
+    init(
+        currentUsage: UsageResponse? = nil,
+        usageError: String? = nil,
+        windowAnalyses: [WindowAnalysis] = []
+    ) {
+        self.currentUsage = currentUsage
+        self.usageError = usageError
+        self.windowAnalyses = windowAnalyses
+    }
+}
+
+struct ServiceHealth: Sendable, Equatable {
+    let currentStatus: StatusSummary?
+    let statusError: String?
+
+    init(
+        currentStatus: StatusSummary? = nil,
+        statusError: String? = nil
+    ) {
+        self.currentStatus = currentStatus
+        self.statusError = statusError
+    }
+}
+
+struct MonitorState: Sendable, Equatable {
+    let usage: UsageSnapshot
+    let service: ServiceHealth
+    let polling: PollingState
+    let lastRefreshed: Date?
+    let hasCredentials: Bool
+
+    init(
+        usage: UsageSnapshot = UsageSnapshot(),
+        service: ServiceHealth = ServiceHealth(),
+        polling: PollingState = PollingState(),
+        lastRefreshed: Date? = nil,
+        hasCredentials: Bool = false
+    ) {
+        self.usage = usage
+        self.service = service
+        self.polling = polling
+        self.lastRefreshed = lastRefreshed
+        self.hasCredentials = hasCredentials
     }
 }
 

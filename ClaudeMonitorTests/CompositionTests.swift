@@ -9,7 +9,6 @@ import AppKit
 
     private let mockStatus = MockStatusService()
     private let mockUsage = MockUsageService()
-    private let mockIdleProvider = MockSystemIdleProvider()
 
     private func coordinator(
         fixture: UsageHistoryTestFixture,
@@ -20,7 +19,6 @@ import AppKit
             fixture: fixture,
             status: mockStatus,
             usage: mockUsage,
-            idle: mockIdleProvider,
             testOrgId: testOrgId,
             credentials: credentials
         )
@@ -68,7 +66,7 @@ import AppKit
         // which equals baseInterval when timeSinceLastChange is nil (first sample).
         #expect(coordinator.scheduler.effectivePollingInterval == Constants.Polling.baseInterval)
         // Projection is computed correctly even without enough history for rate-driven polling.
-        let analyses = coordinator.monitorState.windowAnalyses
+        let analyses = coordinator.monitorState.usage.windowAnalyses
         #expect(!analyses.isEmpty)
         #expect(analyses[0].projectedAtReset >= Constants.Projection.criticalThreshold)
     }
@@ -102,7 +100,7 @@ import AppKit
         await fixture.cleanup()
 
         // The WindowAnalysis should reflect a utilization change between the two refreshes.
-        let analyses = coordinator.monitorState.windowAnalyses
+        let analyses = coordinator.monitorState.usage.windowAnalyses
         #expect(!analyses.isEmpty)
         let analysis = analyses[0]
 
@@ -130,11 +128,11 @@ import AppKit
         let state = coordinator.monitorState
 
         // currentPollInterval must be set after a successful refresh.
-        #expect(state.currentPollInterval != nil)
+        #expect(state.polling.currentPollInterval != nil)
 
         // currentPollInterval is nextPollInterval(usage:), which returns effectivePollingInterval
         // when no reset is imminent. With a 9000s-out reset and baseInterval=60s, they agree.
-        #expect(state.currentPollInterval! == coordinator.scheduler.effectivePollingInterval)
+        #expect(state.polling.currentPollInterval! == coordinator.scheduler.effectivePollingInterval)
     }
 
     // MARK: - Test 4: usageTitle always shows first entry regardless of projection
@@ -216,7 +214,7 @@ import AppKit
 
         // After a successful refresh, currentPollInterval is set.
         let stateAfterRefresh = coordinator.monitorState
-        #expect(stateAfterRefresh.currentPollInterval != nil)
+        #expect(stateAfterRefresh.polling.currentPollInterval != nil)
 
         // restartPolling() calls scheduler.reset() which sets effectivePollingInterval = baseInterval.
         coordinator.restartPolling()
@@ -232,8 +230,8 @@ import AppKit
         await coordinator.refresh()
 
         let firstState = coordinator.monitorState
-        #expect(firstState.currentUsage != nil)
-        #expect(!firstState.windowAnalyses.isEmpty)
+        #expect(firstState.usage.currentUsage != nil)
+        #expect(!firstState.usage.windowAnalyses.isEmpty)
 
         // Change mock to return auth failure → currentUsage becomes nil.
         mockUsage.result = .failure(ServiceError.unauthorized)
@@ -241,7 +239,7 @@ import AppKit
         await fixture.cleanup()
 
         let secondState = coordinator.monitorState
-        #expect(secondState.currentUsage == nil)
-        #expect(secondState.windowAnalyses.isEmpty, "windowAnalyses must be cleared after auth failure")
+        #expect(secondState.usage.currentUsage == nil)
+        #expect(secondState.usage.windowAnalyses.isEmpty, "windowAnalyses must be cleared after auth failure")
     }
 }

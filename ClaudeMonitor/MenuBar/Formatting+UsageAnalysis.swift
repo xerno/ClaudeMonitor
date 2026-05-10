@@ -30,19 +30,14 @@ extension Formatting {
         windowDuration: TimeInterval,
         now: Date = Date()
     ) -> UsageStyle {
-        if utilization >= Constants.Projection.blockedUtilization {
-            return UsageStyle(level: .critical, isBold: true)
-        }
-        guard let resetsAt else {
-            return usageStyleFallback(utilization: utilization)
-        }
-        guard let projection = computeImpliedRateProjection(
-            utilization: utilization,
-            resetsAt: resetsAt,
-            windowDuration: windowDuration,
-            now: now
-        ) else {
-            return UsageStyle(level: .normal, isBold: false)
+        guard let resetsAt,
+              let projection = computeImpliedRateProjection(
+                utilization: utilization,
+                resetsAt: resetsAt,
+                windowDuration: windowDuration,
+                now: now
+              ) else {
+            return usageStyle(projectedAtReset: 0, utilization: utilization, resetsAt: resetsAt, timeRemaining: 0)
         }
         return usageStyle(projectedAtReset: projection.projectedAtReset, utilization: utilization, resetsAt: resetsAt, timeRemaining: projection.timeRemaining)
     }

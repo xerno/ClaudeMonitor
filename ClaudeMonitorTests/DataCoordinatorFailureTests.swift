@@ -5,7 +5,6 @@ import Foundation
 @MainActor struct DataCoordinatorFailureTests {
     private let mockStatus = MockStatusService()
     private let mockUsage = MockUsageService()
-    private let mockIdleProvider = MockSystemIdleProvider()
 
     private func coordinator(
         fixture: UsageHistoryTestFixture,
@@ -16,7 +15,6 @@ import Foundation
             fixture: fixture,
             status: mockStatus,
             usage: mockUsage,
-            idle: mockIdleProvider,
             testOrgId: testOrgId,
             credentials: credentials
         )

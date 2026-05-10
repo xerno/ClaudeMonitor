@@ -23,22 +23,15 @@ private final class MockMenuActions: NSObject, MenuActions {
     // MARK: - Usage Section
 
     @Test func noCredentialsShowsConfigureMessage() {
-        let state = MonitorState(
-            currentUsage: nil, currentStatus: nil,
-            usageError: nil, statusError: nil,
-            lastRefreshed: nil, hasCredentials: false,
-            currentPollInterval: nil
-        )
+        let state = MonitorState(hasCredentials: false)
         let items = menuItems(for: state)
         #expect(items.contains { $0.title.contains("Configure credentials") })
     }
 
     @Test func usageErrorWithNoDataShowsLoading() {
         let state = MonitorState(
-            currentUsage: nil, currentStatus: nil,
-            usageError: "Session expired", statusError: nil,
-            lastRefreshed: nil, hasCredentials: true,
-            currentPollInterval: nil
+            usage: UsageSnapshot(usageError: "Session expired"),
+            hasCredentials: true
         )
         let items = menuItems(for: state)
         #expect(items.contains { $0.title.contains("Loading") })
@@ -51,10 +44,8 @@ private final class MockMenuActions: NSObject, MenuActions {
             .make(key: "seven_day", utilization: 18, resetsAt: now.addingTimeInterval(86400))!,
         ])
         let state = MonitorState(
-            currentUsage: usage, currentStatus: nil,
-            usageError: nil, statusError: nil,
-            lastRefreshed: nil, hasCredentials: true,
-            currentPollInterval: nil
+            usage: UsageSnapshot(currentUsage: usage),
+            hasCredentials: true
         )
         let items = menuItems(for: state)
         func rowText(_ item: NSMenuItem) -> String {
@@ -75,15 +66,9 @@ private final class MockMenuActions: NSObject, MenuActions {
                 StatusComponent(id: "1", name: "Console", status: .operational),
                 StatusComponent(id: "2", name: "API", status: .operational),
             ],
-            incidents: [],
-            status: PageStatus(indicator: "none", description: "OK")
+            incidents: []
         )
-        let state = MonitorState(
-            currentUsage: nil, currentStatus: status,
-            usageError: nil, statusError: nil,
-            lastRefreshed: nil, hasCredentials: false,
-            currentPollInterval: nil
-        )
+        let state = MonitorState(service: ServiceHealth(currentStatus: status))
         let items = menuItems(for: state)
         let serviceItems = items.filter { $0.title.contains("Operational") }
         #expect(serviceItems.count == 2)
@@ -96,15 +81,9 @@ private final class MockMenuActions: NSObject, MenuActions {
     @Test func incidentsShowWithLinks() {
         let status = StatusSummary(
             components: [StatusComponent(id: "1", name: "API", status: .majorOutage)],
-            incidents: [Incident(id: "i1", name: "API down", status: "investigating", impact: "major", shortlink: "https://stspg.io/x")],
-            status: PageStatus(indicator: "major", description: "Outage")
+            incidents: [Incident(id: "i1", name: "API down", shortlink: "https://stspg.io/x")]
         )
-        let state = MonitorState(
-            currentUsage: nil, currentStatus: status,
-            usageError: nil, statusError: nil,
-            lastRefreshed: nil, hasCredentials: false,
-            currentPollInterval: nil
-        )
+        let state = MonitorState(service: ServiceHealth(currentStatus: status))
         let items = menuItems(for: state)
         let incidentItems = items.filter { $0.title.contains("API down") }
         #expect(incidentItems.count == 1)
@@ -115,15 +94,9 @@ private final class MockMenuActions: NSObject, MenuActions {
     @Test func noIncidentsSectionWhenEmpty() {
         let status = StatusSummary(
             components: [StatusComponent(id: "1", name: "API", status: .operational)],
-            incidents: [],
-            status: PageStatus(indicator: "none", description: "OK")
+            incidents: []
         )
-        let state = MonitorState(
-            currentUsage: nil, currentStatus: status,
-            usageError: nil, statusError: nil,
-            lastRefreshed: nil, hasCredentials: false,
-            currentPollInterval: nil
-        )
+        let state = MonitorState(service: ServiceHealth(currentStatus: status))
         let items = menuItems(for: state)
         #expect(!items.contains { $0.title.contains("Active Incidents") })
     }
@@ -131,12 +104,7 @@ private final class MockMenuActions: NSObject, MenuActions {
     // MARK: - Controls Section
 
     @Test func controlsIncludeRefreshAndPreferences() {
-        let state = MonitorState(
-            currentUsage: nil, currentStatus: nil,
-            usageError: nil, statusError: nil,
-            lastRefreshed: Date(), hasCredentials: false,
-            currentPollInterval: nil
-        )
+        let state = MonitorState(lastRefreshed: Date())
         let items = menuItems(for: state)
         #expect(items.contains { $0.title == "Refresh Now" })
         #expect(items.contains { $0.title == "Preferences" })
@@ -145,12 +113,7 @@ private final class MockMenuActions: NSObject, MenuActions {
     }
 
     @Test func lastRefreshedTimestamp() {
-        let state = MonitorState(
-            currentUsage: nil, currentStatus: nil,
-            usageError: nil, statusError: nil,
-            lastRefreshed: Date(), hasCredentials: false,
-            currentPollInterval: nil
-        )
+        let state = MonitorState(lastRefreshed: Date())
         let items = menuItems(for: state)
         #expect(items.contains { $0.title.starts(with: "Updated:") })
     }
@@ -158,10 +121,8 @@ private final class MockMenuActions: NSObject, MenuActions {
     @Test func lastRefreshedWithInterval() {
         let now = Date()
         let state = MonitorState(
-            currentUsage: nil, currentStatus: nil,
-            usageError: nil, statusError: nil,
-            lastRefreshed: now, hasCredentials: false,
-            currentPollInterval: 60
+            polling: PollingState(currentPollInterval: 60),
+            lastRefreshed: now
         )
         let items = menuItems(for: state)
         #expect(items.contains { $0.title.starts(with: "Updated:") && $0.title.contains("Interval:") && $0.title.contains("Next:") })
@@ -186,11 +147,8 @@ private final class MockMenuActions: NSObject, MenuActions {
 
         let usage = UsageResponse(entries: [entry])
         let state = MonitorState(
-            currentUsage: usage, currentStatus: nil,
-            usageError: nil, statusError: nil,
-            lastRefreshed: nil, hasCredentials: true,
-            currentPollInterval: nil,
-            windowAnalyses: [analysis]
+            usage: UsageSnapshot(currentUsage: usage, windowAnalyses: [analysis]),
+            hasCredentials: true
         )
 
         let menu = MenuBuilder.build(state: state, target: target)
@@ -207,12 +165,8 @@ private final class MockMenuActions: NSObject, MenuActions {
 
     @Test func staleOfflineShowsOfflineBannerAtTop() {
         let state = MonitorState(
-            currentUsage: nil, currentStatus: nil,
-            usageError: nil, statusError: nil,
-            lastRefreshed: nil, hasCredentials: true,
-            currentPollInterval: nil,
-            isOnline: false,
-            isAnyServiceStale: true
+            polling: PollingState(isOnline: false, isAnyServiceStale: true),
+            hasCredentials: true
         )
         let items = menuItems(for: state)
         let bannerIndex = items.firstIndex { $0.tag == MenuBuilder.connectivityBannerTag }
@@ -224,12 +178,8 @@ private final class MockMenuActions: NSObject, MenuActions {
 
     @Test func staleOnlineShowsConnectionErrorBanner() {
         let state = MonitorState(
-            currentUsage: nil, currentStatus: nil,
-            usageError: nil, statusError: nil,
-            lastRefreshed: nil, hasCredentials: true,
-            currentPollInterval: nil,
-            isOnline: true,
-            isAnyServiceStale: true
+            polling: PollingState(isOnline: true, isAnyServiceStale: true),
+            hasCredentials: true
         )
         let items = menuItems(for: state)
         let bannerItem = items.first { $0.tag == MenuBuilder.connectivityBannerTag }
@@ -238,11 +188,8 @@ private final class MockMenuActions: NSObject, MenuActions {
 
     @Test func notStaleHasNoBanner() {
         let state = MonitorState(
-            currentUsage: nil, currentStatus: nil,
-            usageError: nil, statusError: nil,
-            lastRefreshed: nil, hasCredentials: true,
-            currentPollInterval: nil,
-            isAnyServiceStale: false
+            polling: PollingState(isAnyServiceStale: false),
+            hasCredentials: true
         )
         let items = menuItems(for: state)
         #expect(!items.contains { $0.tag == MenuBuilder.connectivityBannerTag })
@@ -251,11 +198,9 @@ private final class MockMenuActions: NSObject, MenuActions {
     @Test func staleBannerSubtitleContainsLastUpdate() {
         let refreshed = Date()
         let state = MonitorState(
-            currentUsage: nil, currentStatus: nil,
-            usageError: nil, statusError: nil,
-            lastRefreshed: refreshed, hasCredentials: true,
-            currentPollInterval: nil,
-            isAnyServiceStale: true
+            polling: PollingState(isAnyServiceStale: true),
+            lastRefreshed: refreshed,
+            hasCredentials: true
         )
         let items = menuItems(for: state)
         let banner = items.first { $0.tag == MenuBuilder.connectivityBannerTag }
@@ -269,11 +214,9 @@ private final class MockMenuActions: NSObject, MenuActions {
             .make(key: "five_hour", utilization: 55, resetsAt: now.addingTimeInterval(3600))!,
         ])
         let state = MonitorState(
-            currentUsage: usage, currentStatus: nil,
-            usageError: nil, statusError: nil,
-            lastRefreshed: nil, hasCredentials: true,
-            currentPollInterval: nil,
-            isAnyServiceStale: true
+            usage: UsageSnapshot(currentUsage: usage),
+            polling: PollingState(isAnyServiceStale: true),
+            hasCredentials: true
         )
         let items = menuItems(for: state)
         func rowText(_ item: NSMenuItem) -> String {

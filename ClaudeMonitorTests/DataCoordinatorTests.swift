@@ -141,11 +141,11 @@ import Foundation
         await fixture.cleanup()
 
         let state = coordinator.monitorState
-        #expect(state.currentUsage == (try? mockUsage.result.get()))
-        #expect(state.currentStatus == (try? mockStatus.result.get()))
+        #expect(state.usage.currentUsage == (try? mockUsage.result.get()))
+        #expect(state.service.currentStatus == (try? mockStatus.result.get()))
         #expect(state.hasCredentials)
-        #expect(state.usageError == nil)
-        #expect(state.statusError == nil)
+        #expect(state.usage.usageError == nil)
+        #expect(state.service.statusError == nil)
         #expect(state.lastRefreshed != nil)
     }
 
@@ -156,7 +156,7 @@ import Foundation
         let state = coordinator.monitorState
 
         #expect(!state.hasCredentials)
-        #expect(state.currentUsage == nil)
+        #expect(state.usage.currentUsage == nil)
     }
 
     // MARK: - Restart
@@ -247,7 +247,7 @@ import Foundation
         await coordinator.refresh()
         await fixture.cleanup()
 
-        let analyses = coordinator.monitorState.windowAnalyses
+        let analyses = coordinator.monitorState.usage.windowAnalyses
         #expect(!analyses.isEmpty)
         #expect(analyses.count == TestFixtures.usage().entries.count)
     }
@@ -258,7 +258,7 @@ import Foundation
         await coordinator.refresh()
         await fixture.cleanup()
 
-        let analyses = coordinator.monitorState.windowAnalyses
+        let analyses = coordinator.monitorState.usage.windowAnalyses
         let analysisKeys = Set(analyses.map(\.entry.key))
         let usageKeys = Set((try? mockUsage.result.get())?.entries.map(\.key) ?? [])
         #expect(analysisKeys == usageKeys)
@@ -314,8 +314,8 @@ import Foundation
         }
         await fixture.cleanup()
 
-        #expect(coordinator.monitorState.hasRecentFailure == true)
-        #expect(coordinator.monitorState.isAnyServiceStale == false)
+        #expect(coordinator.monitorState.polling.hasRecentFailure == true)
+        #expect(coordinator.monitorState.polling.isAnyServiceStale == false)
     }
 
     @Test func failureThresholdTriggersStale() async {
@@ -327,7 +327,7 @@ import Foundation
         }
         await fixture.cleanup()
 
-        #expect(coordinator.monitorState.isAnyServiceStale == true)
+        #expect(coordinator.monitorState.polling.isAnyServiceStale == true)
     }
 
     @Test func lastFailedAtTracking() async {
@@ -335,12 +335,12 @@ import Foundation
         let fixture = UsageHistoryTestFixture()
         let (coordinator, _) = coordinator(fixture: fixture)
         await coordinator.refresh()
-        #expect(coordinator.monitorState.lastFailedAt != nil)
+        #expect(coordinator.monitorState.polling.lastFailedAt != nil)
 
         mockUsage.result = .success(TestFixtures.usage())
         mockStatus.result = .success(TestFixtures.status())
         await coordinator.refresh()
         await fixture.cleanup()
-        #expect(coordinator.monitorState.lastFailedAt == nil)
+        #expect(coordinator.monitorState.polling.lastFailedAt == nil)
     }
 }

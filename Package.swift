@@ -45,6 +45,7 @@ let package = Package(
             ],
             resources: [
                 .process("Generated/Translations/Localizable.xcstrings"),
+                .process("Resources/DemoSamples.json"),
             ],
             swiftSettings: commonSwiftSettings + [
                 // Enable @testable import for the TestRunner executable target.

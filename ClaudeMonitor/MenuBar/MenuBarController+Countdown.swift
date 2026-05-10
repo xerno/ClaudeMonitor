@@ -20,8 +20,8 @@ extension MenuBarController {
             let state = coordinator.monitorState
             StatusBarRenderer.updateIcon(
                 button: button,
-                status: state.currentStatus,
-                hasRefreshWarning: state.isAnyServiceStale
+                status: state.service.currentStatus,
+                hasRefreshWarning: state.polling.isAnyServiceStale
             )
         }
     }
@@ -71,15 +71,15 @@ extension MenuBarController {
         let state = coordinator.monitorState
         if let button = statusItem.button {
             StatusBarRenderer.updateText(
-                button: button, usage: state.currentUsage,
+                button: button, usage: state.usage.currentUsage,
                 hasCredentials: state.hasCredentials,
-                isStale: state.isAnyServiceStale || state.isUsageDataExpired,
-                windowAnalyses: state.windowAnalyses
+                isStale: state.polling.isAnyServiceStale || state.polling.isUsageDataExpired,
+                windowAnalyses: state.usage.windowAnalyses
             )
         }
         if isMenuOpen, let menu = statusItem.menu {
             MenuBuilder.refreshTimes(in: menu, cache: usageCache)
-            MenuBuilder.refreshGraph(in: menu, analyses: state.windowAnalyses)
+            MenuBuilder.refreshGraph(in: menu, analyses: state.usage.windowAnalyses)
         }
     }
 

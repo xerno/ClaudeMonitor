@@ -7,8 +7,7 @@ import AppKit
     private func status(with componentStatus: ComponentStatus) -> StatusSummary {
         StatusSummary(
             components: [StatusComponent(id: "1", name: "API", status: componentStatus)],
-            incidents: [],
-            status: PageStatus(indicator: "none", description: "")
+            incidents: []
         )
     }
 
@@ -83,8 +82,7 @@ import AppKit
                 StatusComponent(id: "2", name: "Web", status: .partialOutage),
                 StatusComponent(id: "3", name: "iOS", status: .degradedPerformance),
             ],
-            incidents: [],
-            status: PageStatus(indicator: "minor", description: "")
+            incidents: []
         )
         let icon = StatusBarRenderer.resolveIcon(status: mixed, hasRefreshWarning: false)
         #expect(icon.symbolName == "exclamationmark.circle.fill")
@@ -94,8 +92,7 @@ import AppKit
     @Test func resolveIconEmptyComponents() {
         let empty = StatusSummary(
             components: [],
-            incidents: [],
-            status: PageStatus(indicator: "none", description: "")
+            incidents: []
         )
         let icon = StatusBarRenderer.resolveIcon(status: empty, hasRefreshWarning: false)
         #expect(icon.symbolName == "checkmark.circle.fill")

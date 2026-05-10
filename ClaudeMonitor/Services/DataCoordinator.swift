@@ -3,27 +3,27 @@ import Foundation
 
 @MainActor
 final class DataCoordinator {
-    private let statusService: any StatusFetching
-    private let usageService: any UsageFetching
-    private let systemIdleProvider: any SystemIdleProviding
-    private let pathMonitor: any PathMonitoring
-    private let loadCredential: @Sendable (String) -> String?
-    private var pollTask: Task<Void, Never>?
-    private var demoRotationIndex = 0
-    private var loadedCredentials: (cookie: String, orgId: String)?
-    private let usageHistory: UsageHistory
-    private var demoFrame: DemoData.DemoFrame?
-    private var lastFailedAt: Date?
+    let statusService: any StatusFetching
+    let usageService: any UsageFetching
+    let systemIdleProvider: any SystemIdleProviding
+    let pathMonitor: any PathMonitoring
+    let loadCredential: @Sendable (String) -> String?
+    var pollTask: Task<Void, Never>?
+    var demoRotationIndex = 0
+    var loadedCredentials: (cookie: String, orgId: String)?
+    let usageHistory: UsageHistory
+    var demoFrame: DemoData.DemoFrame?
+    var lastFailedAt: Date?
 
-    private(set) var currentStatus: StatusSummary?
-    private(set) var currentUsage: UsageResponse?
-    private(set) var usageError: String?
-    private(set) var statusError: String?
-    private(set) var lastRefreshed: Date?
-    private var nextPollDate: Date?
-    private(set) var currentPollInterval: TimeInterval?
-    private(set) var scheduler = PollingScheduler()
-    private(set) var windowAnalyses: [WindowAnalysis] = []
+    var currentStatus: StatusSummary?
+    var currentUsage: UsageResponse?
+    var usageError: String?
+    var statusError: String?
+    var lastRefreshed: Date?
+    var nextPollDate: Date?
+    var currentPollInterval: TimeInterval?
+    var scheduler = PollingScheduler()
+    var windowAnalyses: [WindowAnalysis] = []
 
     var onUpdate: (() -> Void)?
     var onCriticalReset: (() -> Void)?
@@ -33,7 +33,7 @@ final class DataCoordinator {
         usageService: any UsageFetching = UsageService(),
         systemIdleProvider: any SystemIdleProviding = SystemIdleService(),
         pathMonitor: any PathMonitoring = PathMonitor(),
-        loadCredential: @escaping @Sendable (String) -> String? = { KeychainService.load(key: $0) },
+        loadCredential: @escaping @Sendable (String) -> String? = { EncryptedDefaultsService.load(key: $0) },
         usageHistory: UsageHistory = UsageHistory()
     ) {
         self.statusService = statusService
@@ -48,206 +48,6 @@ final class DataCoordinator {
             self.scheduler.resetRetryState()
             self.pollTask?.cancel()
             self.pollTask = Task { await self.pollLoop() }
-        }
-    }
-
-    var hasCredentials: Bool {
-        Constants.Demo.isActive || loadedCredentials != nil
-    }
-
-    var monitorState: MonitorState {
-        MonitorState(
-            currentUsage: currentUsage,
-            currentStatus: currentStatus,
-            usageError: usageError,
-            statusError: statusError,
-            lastRefreshed: lastRefreshed,
-            hasCredentials: hasCredentials,
-            currentPollInterval: currentPollInterval,
-            windowAnalyses: windowAnalyses,
-            isUsageDataExpired: scheduler.isUsageDataExpired,
-            isOnline: demoFrame?.isOnline ?? pathMonitor.isSatisfied,
-            hasRecentFailure: demoFrame?.hasRecentFailure ?? scheduler.hasRecentFailure,
-            lastFailedAt: demoFrame?.lastFailedAt ?? lastFailedAt,
-            isAnyServiceStale: demoFrame?.isAnyServiceStale ?? scheduler.isAnyServiceStale
-        )
-    }
-
-    func startPolling() {
-        pathMonitor.start()
-        pollTask?.cancel()
-        pollTask = Task { await pollLoop() }
-    }
-
-    private func pollLoop() async {
-        while !Task.isCancelled {
-            await refresh()
-            guard !Task.isCancelled else { break }
-            let delay = nextPollDate.map { $0.timeIntervalSinceNow } ?? Constants.Polling.baseInterval
-            guard delay > 0 else { continue }
-
-            if scheduler.isAwayMode {
-                let deadline = Date().addingTimeInterval(delay)
-                while Date() < deadline && !Task.isCancelled {
-                    let sleepTime = min(Constants.Polling.heartbeatInterval, deadline.timeIntervalSinceNow)
-                    guard sleepTime > 0 else { break }
-                    try? await Task.sleep(for: .seconds(sleepTime))
-                    if systemIdleProvider.idleTime() < Constants.Polling.awayThreshold {
-                        break
-                    }
-                }
-            } else {
-                try? await Task.sleep(for: .seconds(delay))
-            }
-        }
-    }
-
-    func restartPolling() {
-        pollTask?.cancel()
-        reloadCredentials()
-        scheduler.reset()
-        startPolling()
-    }
-
-    func refresh() async {
-        if Constants.Demo.isActive {
-            let scenario = Constants.Demo.rotationOrder[demoRotationIndex]
-            demoRotationIndex = (demoRotationIndex + 1) % Constants.Demo.rotationOrder.count
-            NSSound(named: .init(Constants.Sounds.criticalReset))?.play()
-            let frame = DemoData.scenario(scenario)
-            demoFrame = frame
-            currentUsage = frame.usage
-            currentStatus = frame.status
-            usageError = nil
-            statusError = nil
-            let now = Date()
-            windowAnalyses = frame.usage.entries.map { entry in
-                UsageHistory.analyze(entry: entry, samples: frame.samples[entry.key] ?? [], now: now)
-            }
-            commitPollState(now: now, schedulerInterval: Constants.Demo.rotationInterval)
-            currentPollInterval = frame.pollInterval
-            onUpdate?()
-            return
-        }
-        if !pathMonitor.isSatisfied {
-            scheduler.recordStatusFailure(category: .transient)
-            scheduler.recordUsageFailure(category: .transient)
-            // Don't stamp lastFailedAt for offline ticks: the "Last update failed at HH:MM" row
-            // would advance every tick despite no real attempt being made. Stale banner already
-            // signals the problem at threshold.
-            let now = Date()
-            commitPollState(now: now, schedulerInterval: scheduler.nextPollInterval(usage: currentUsage))
-            onUpdate?()
-            return
-        }
-        let usageBeforeRefresh = currentUsage
-        async let statusResult: Void = refreshStatus()
-        async let usageResult: Void = refreshUsage()
-        _ = await (statusResult, usageResult)
-        guard !Task.isCancelled else { return }
-        if scheduler.statusState.consecutiveFailures == 0 && scheduler.usageState.consecutiveFailures == 0 {
-            lastFailedAt = nil
-        }
-        if let newUsage = currentUsage {
-            let now = Date()
-            var anyReset = false
-            let previousByKey = Dictionary(uniqueKeysWithValues: usageBeforeRefresh?.entries.map { ($0.key, $0) } ?? [])
-            for entry in newUsage.entries {
-                let previousEntry = previousByKey[entry.key]
-                let didReset = await usageHistory.detectAndHandleReset(
-                    entry: entry,
-                    newResetsAt: entry.window.resetsAt,
-                    previousResetsAt: previousEntry?.window.resetsAt
-                )
-                if didReset {
-                    anyReset = true
-                }
-            }
-            if anyReset {
-                await usageHistory.pruneArchives(currentEntries: newUsage.entries)
-            }
-            usageHistory.record(entries: newUsage.entries, at: now)
-            await usageHistory.save()
-            windowAnalyses = newUsage.entries.map { entry in
-                UsageHistory.analyze(entry: entry, samples: usageHistory.samples(for: entry), now: now)
-            }
-        }
-        scheduler.adjustPollingRate(windowAnalyses: windowAnalyses, systemIdleTime: systemIdleProvider.idleTime())
-        let now = Date()
-        commitPollState(now: now, schedulerInterval: scheduler.nextPollInterval(usage: currentUsage))
-        onUpdate?()
-        if let prev = usageBeforeRefresh, let curr = currentUsage,
-           Formatting.detectCriticalReset(previous: prev, current: curr) {
-            onCriticalReset?()
-        }
-    }
-
-    // MARK: - Private
-
-    private func commitPollState(now: Date, schedulerInterval: TimeInterval) {
-        lastRefreshed = now
-        nextPollDate = now.addingTimeInterval(schedulerInterval)
-        currentPollInterval = schedulerInterval
-    }
-
-    private func refreshStatus() async {
-        guard !Task.isCancelled else { return }
-        do {
-            currentStatus = try await statusService.fetch()
-            statusError = nil
-            scheduler.recordStatusSuccess()
-        } catch {
-            if Task.isCancelled { return }
-            scheduler.recordStatusFailure(category: RetryCategory(classifying: error))
-            lastFailedAt = Date()
-            if scheduler.statusState.consecutiveFailures >= Constants.Retry.failureThreshold {
-                statusError = error.localizedDescription
-            }
-        }
-    }
-
-    private func reloadCredentials() {
-        guard !Constants.Demo.isActive,
-              let cookie = loadCredential(Constants.Keychain.cookieString),
-              let orgId = loadCredential(Constants.Keychain.organizationId),
-              !cookie.isEmpty, !orgId.isEmpty else {
-            if loadedCredentials != nil {
-                usageHistory.switchOrganization(nil)
-                windowAnalyses = []
-            }
-            loadedCredentials = nil
-            return
-        }
-        let previousOrgId = loadedCredentials?.orgId
-        loadedCredentials = (cookie, orgId)
-        if orgId != previousOrgId {
-            usageHistory.switchOrganization(orgId)
-            windowAnalyses = []
-        }
-    }
-
-    private func refreshUsage() async {
-        guard !Task.isCancelled else { return }
-        guard let credentials = loadedCredentials else {
-            usageError = String(localized: "credentials.configure", bundle: .module)
-            return
-        }
-        do {
-            currentUsage = try await usageService.fetch(organizationId: credentials.orgId, cookieString: credentials.cookie)
-            usageError = nil
-            scheduler.recordUsageSuccess()
-        } catch {
-            if Task.isCancelled { return }
-            let category = RetryCategory(classifying: error)
-            scheduler.recordUsageFailure(category: category)
-            lastFailedAt = Date()
-            if scheduler.usageState.consecutiveFailures >= Constants.Retry.failureThreshold {
-                usageError = error.localizedDescription
-            }
-            if category == .authFailure {
-                currentUsage = nil
-                windowAnalyses = []
-            }
         }
     }
 }

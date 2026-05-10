@@ -5,8 +5,7 @@ enum TestFixtures {
     static func status() -> StatusSummary {
         StatusSummary(
             components: [StatusComponent(id: "1", name: "API", status: .operational)],
-            incidents: [],
-            status: PageStatus(indicator: "none", description: "All Systems Operational")
+            incidents: []
         )
     }
 

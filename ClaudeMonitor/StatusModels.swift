@@ -3,7 +3,6 @@ import Foundation
 struct StatusSummary: Decodable, Sendable, Equatable, Hashable {
     let components: [StatusComponent]
     let incidents: [Incident]
-    let status: PageStatus
 }
 
 struct StatusComponent: Decodable, Sendable, Equatable, Hashable, Identifiable {
@@ -68,12 +67,5 @@ enum ComponentStatus: String, Decodable, Sendable, Comparable, Hashable {
 struct Incident: Decodable, Sendable, Equatable, Hashable, Identifiable {
     let id: String
     let name: String
-    let status: String
-    let impact: String
     let shortlink: String
-}
-
-struct PageStatus: Decodable, Sendable, Equatable, Hashable {
-    let indicator: String
-    let description: String
 }
