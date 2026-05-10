@@ -44,8 +44,6 @@ enum MenuBuilder {
 
     // Connectivity banner
     static let connectivityBannerTag = 50
-    static let lastFailedRowTag = 51
-
     // Separators
     static let separatorAfterUsageTag = 501
     static let separatorAfterServicesTag = 502
@@ -70,6 +68,21 @@ enum MenuBuilder {
             for item in desired { menu.addItem(item) }
         } else {
             reconcile(menu: menu, desired: desired)
+            if let graphItem = menu.item(withTag: usageGraphTag),
+               let graphView = graphItem.view as? UsageGraphView {
+                graphView.frame.size.width = 100
+            }
+            if let usageHeaderItem = menu.item(withTag: usageSectionTag) {
+                let usageTitle = String(localized: "menu.section.usage", bundle: .module)
+                usageHeaderItem.view = state.isAnyServiceStale
+                    ? nil
+                    : makeHeaderView(title: usageTitle, subtitle: "Claude Monitor")
+            }
+            if state.isAnyServiceStale,
+               let bannerItem = menu.item(withTag: connectivityBannerTag) {
+                let bannerText = bannerItem.title
+                bannerItem.view = makeHeaderView(title: bannerText, subtitle: "Claude Monitor")
+            }
         }
         refreshGraph(in: menu, analyses: state.windowAnalyses)
         return cache
@@ -112,8 +125,12 @@ enum MenuBuilder {
     }
 
     static func refreshControlTimes(in menu: NSMenu, lastRefreshed: Date?, interval: TimeInterval?) {
-        if let item = menu.item(withTag: updatedTag), let date = lastRefreshed {
-            item.title = updatedNextTitle(lastRefreshed: date, interval: interval)
+        guard let item = menu.item(withTag: updatedTag), let date = lastRefreshed else { return }
+        let title = updatedNextTitle(lastRefreshed: date, interval: interval)
+        if let controlView = item.view as? ControlRowView {
+            controlView.updateTitle(title)
+        } else {
+            item.title = title
         }
     }
 
@@ -126,21 +143,19 @@ enum MenuBuilder {
             let bannerText = state.isOnline
                 ? String(localized: "connectivity.connectionError", bundle: .module)
                 : String(localized: "connectivity.offline", bundle: .module)
-            items.append(staticItem(bannerText, tag: connectivityBannerTag))
+            let bannerItem = NSMenuItem(title: bannerText, action: nil, keyEquivalent: "")
+            bannerItem.isEnabled = false
+            bannerItem.tag = connectivityBannerTag
+            bannerItem.view = makeHeaderView(title: bannerText, subtitle: "Claude Monitor")
+            items.append(bannerItem)
             items.append(separator(tag: separatorAfterConnectivityTag))
         }
 
-        items.append(sectionHeader(String(localized: "menu.section.usage", bundle: .module), subtitle: "Claude Monitor", tag: usageSectionTag))
+        let usageSubtitle = state.isAnyServiceStale ? nil : "Claude Monitor"
+        items.append(sectionHeader(String(localized: "menu.section.usage", bundle: .module), subtitle: usageSubtitle, tag: usageSectionTag))
         let (usageMenuItems, cache) = usageItems(state: state, target: target)
         items.append(contentsOf: usageMenuItems)
 
-        // !isAnyServiceStale guard is defensive: scheduler.hasRecentFailure already excludes stale, but
-        // MonitorState can be constructed directly (demo, tests) without that invariant.
-        if state.hasRecentFailure, !state.isAnyServiceStale, let failedAt = state.lastFailedAt {
-            let timeStr = failedAt.formatted(.dateTime.hour().minute().second())
-            let text = String(format: String(localized: "connectivity.lastUpdateFailed", bundle: .module), timeStr)
-            items.append(staticItem(text, tag: lastFailedRowTag))
-        }
 
         items.append(usageGraphPlaceholder())
         items.append(separator(tag: separatorAfterUsageTag))
@@ -181,6 +196,8 @@ enum MenuBuilder {
                     } else if let existingRow = existing.view as? UsageRowView,
                               let desiredRow = desiredItem.view as? UsageRowView {
                         existingRow.updateTitle(desiredRow.currentAttributedTitle)
+                    } else if let existingControl = existing.view as? ControlRowView {
+                        existingControl.updateTitle(desiredItem.title)
                     }
                 }
                 let currentIndex = menu.index(of: existing)
@@ -243,6 +260,23 @@ enum MenuBuilder {
         view.autoresizingMask = .width
         view.addSubview(leftLabel)
         view.addSubview(rightLabel)
+        return view
+    }
+
+    static func makeBannerView(text: String) -> NSView {
+        let font = NSFont.menuFont(ofSize: 0)
+        let height: CGFloat = 22
+        let edgePadding: CGFloat = 14
+
+        let label = NSTextField(labelWithString: text)
+        label.font = font
+        label.textColor = .disabledControlTextColor
+        label.sizeToFit()
+        label.frame.origin = NSPoint(x: edgePadding, y: (height - label.frame.height) / 2)
+
+        let view = NSView(frame: NSRect(x: 0, y: 0, width: edgePadding + label.frame.width + edgePadding, height: height))
+        view.autoresizingMask = .width
+        view.addSubview(label)
         return view
     }
 

@@ -82,21 +82,22 @@ enum Formatting {
     static func formatRate(_ consumptionRate: Double) -> String {
         let perHour = consumptionRate * Constants.Time.secondsPerHour
         if perHour >= 0.5 {
-            return String(format: String(localized: "rate.per_hour", bundle: .module), Int(perHour.rounded()))
+            return "\(Int(perHour.rounded()))%/h"
         }
         let perDay = consumptionRate * Constants.Time.secondsPerDay
         if perDay >= 0.5 {
-            return String(format: String(localized: "rate.per_day", bundle: .module), Int(perDay.rounded()))
+            return "\(Int(perDay.rounded()))%/d"
         }
-        return String(localized: "rate.minimal", bundle: .module)
+        return "< 1%/d"
     }
 
     static let barImageWidth: CGFloat = 120
+    static let barImageWidthWide: CGFloat = 150
     static let barImageHeight: CGFloat = 12
 
-    static func progressBarImage(percent: Int) -> NSImage {
+    static func progressBarImage(percent: Int, width: CGFloat = barImageWidth) -> NSImage {
         let clamped = max(0, min(100, percent))
-        return NSImage(size: NSSize(width: barImageWidth, height: barImageHeight), flipped: false) { rect in
+        return NSImage(size: NSSize(width: width, height: barImageHeight), flipped: false) { rect in
             NSColor.tertiaryLabelColor.setFill()
             let bgPath = NSBezierPath(roundedRect: rect, xRadius: rect.height / 2, yRadius: rect.height / 2)
             bgPath.fill()

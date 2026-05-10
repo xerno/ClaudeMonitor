@@ -33,13 +33,13 @@ enum CredentialGuide {
             attachment.image = icon
         }
         s.append(NSAttributedString(attachment: attachment))
-        s.append(NSAttributedString(string: String(localized: "guide.step3.suffix", bundle: .module) + "\n", attributes: body))
+        s.append(NSAttributedString(string: "  " + String(localized: "guide.step3.suffix", bundle: .module) + "\n", attributes: body))
 
         s.append(NSAttributedString(string: String(localized: "guide.step4.prefix", bundle: .module) + "\n", attributes: body))
         s.append(NSAttributedString(string: "   https://claude.ai/api/organizations/", attributes: mono))
         s.append(NSAttributedString(string: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx", attributes: monoHighlight))
         s.append(NSAttributedString(string: "/usage\n", attributes: mono))
-        s.append(NSAttributedString(string: String(localized: "guide.step4.hint", bundle: .module), attributes: [
+        s.append(NSAttributedString(string: "   " + String(localized: "guide.step4.hint", bundle: .module), attributes: [
             .font: NSFont.systemFont(ofSize: 12),
             .foregroundColor: NSColor.secondaryLabelColor,
         ]))

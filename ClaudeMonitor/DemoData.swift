@@ -9,6 +9,7 @@ enum DemoData {
         let isAnyServiceStale: Bool
         let hasRecentFailure: Bool
         let lastFailedAt: Date?
+        let pollInterval: TimeInterval
     }
 
     private static let allOperationalComponents = [
@@ -152,7 +153,7 @@ enum DemoData {
             ],
             status: PageStatus(indicator: "major", description: "Major Service Outage")
         )
-        return DemoFrame(usage: usage, status: status, samples: samples, isOnline: true, isAnyServiceStale: false, hasRecentFailure: false, lastFailedAt: nil)
+        return DemoFrame(usage: usage, status: status, samples: samples, isOnline: true, isAnyServiceStale: false, hasRecentFailure: false, lastFailedAt: nil, pollInterval: 80)
     }
 
     private static func scenario2() -> DemoFrame {
@@ -175,12 +176,12 @@ enum DemoData {
             ],
             status: PageStatus(indicator: "minor", description: "Minor Service Disruption")
         )
-        return DemoFrame(usage: usage, status: status, samples: samples, isOnline: true, isAnyServiceStale: false, hasRecentFailure: false, lastFailedAt: nil)
+        return DemoFrame(usage: usage, status: status, samples: samples, isOnline: true, isAnyServiceStale: false, hasRecentFailure: false, lastFailedAt: nil, pollInterval: 60)
     }
 
     private static func scenario3() -> DemoFrame {
         let (usage, samples) = makeS3UsageAndSamples()
-        return DemoFrame(usage: usage, status: allSystemsOperationalStatus, samples: samples, isOnline: true, isAnyServiceStale: false, hasRecentFailure: false, lastFailedAt: nil)
+        return DemoFrame(usage: usage, status: allSystemsOperationalStatus, samples: samples, isOnline: true, isAnyServiceStale: false, hasRecentFailure: false, lastFailedAt: nil, pollInterval: 24)
     }
 
     private static func scenario4() -> DemoFrame {
@@ -196,7 +197,7 @@ enum DemoData {
             "seven_day": makeSamples(samples_s4_7d, resetsAt: resetsAt7d),
             "seven_day_sonnet": makeSamples(samples_s4_7d_sonnet, resetsAt: resetsAt7d),
         ]
-        return DemoFrame(usage: usage, status: allSystemsOperationalStatus, samples: samples, isOnline: true, isAnyServiceStale: false, hasRecentFailure: false, lastFailedAt: nil)
+        return DemoFrame(usage: usage, status: allSystemsOperationalStatus, samples: samples, isOnline: true, isAnyServiceStale: false, hasRecentFailure: false, lastFailedAt: nil, pollInterval: 300)
     }
 
     private static let allSystemsOperationalStatus = StatusSummary(
@@ -251,16 +252,16 @@ enum DemoData {
 
     private static func scenario5() -> DemoFrame {
         let (usage, samples) = makeS2UsageAndSamples()
-        return DemoFrame(usage: usage, status: allSystemsOperationalStatus, samples: samples, isOnline: true, isAnyServiceStale: false, hasRecentFailure: true, lastFailedAt: Date().addingTimeInterval(-90))
+        return DemoFrame(usage: usage, status: allSystemsOperationalStatus, samples: samples, isOnline: true, isAnyServiceStale: false, hasRecentFailure: true, lastFailedAt: Date().addingTimeInterval(-90), pollInterval: 53)
     }
 
     private static func scenario6() -> DemoFrame {
         let (usage, samples) = makeS3UsageAndSamples()
-        return DemoFrame(usage: usage, status: allSystemsOperationalStatus, samples: samples, isOnline: false, isAnyServiceStale: true, hasRecentFailure: false, lastFailedAt: Date().addingTimeInterval(-180))
+        return DemoFrame(usage: usage, status: allSystemsOperationalStatus, samples: samples, isOnline: false, isAnyServiceStale: true, hasRecentFailure: false, lastFailedAt: Date().addingTimeInterval(-180), pollInterval: 40)
     }
 
     private static func scenario7() -> DemoFrame {
         let (usage, samples) = makeS1UsageAndSamples()
-        return DemoFrame(usage: usage, status: allSystemsOperationalStatus, samples: samples, isOnline: true, isAnyServiceStale: true, hasRecentFailure: false, lastFailedAt: Date().addingTimeInterval(-240))
+        return DemoFrame(usage: usage, status: allSystemsOperationalStatus, samples: samples, isOnline: true, isAnyServiceStale: true, hasRecentFailure: false, lastFailedAt: Date().addingTimeInterval(-240), pollInterval: 120)
     }
 }

@@ -77,12 +77,19 @@ final class UsageRowView: NSView {
         }
     }
 
+    func ensureFrameWidth(for attributedTitle: NSAttributedString) {
+        let needed = attributedTitle.size().width + UsageRowView.leftPadding + UsageRowView.rightPadding + UsageRowView.selectionBarWidth
+        guard needed > frame.size.width else { return }
+        let extra = needed - frame.size.width
+        textField.frame.size.width += extra
+        frame.size.width = needed
+    }
+
     func updateTitle(_ attributedTitle: NSAttributedString) {
         textField.attributedStringValue = attributedTitle
         let textSize = attributedTitle.size()
-        let newWidth = textSize.width + UsageRowView.rightPadding
-        textField.frame.size.width = newWidth
-        frame.size.width = newWidth
+        textField.frame.size.width = textSize.width + UsageRowView.rightPadding
+        frame.size.width = textSize.width + UsageRowView.leftPadding + UsageRowView.rightPadding + UsageRowView.selectionBarWidth
     }
 
     /// Returns the current attributed title of the row.

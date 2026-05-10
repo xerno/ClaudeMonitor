@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 
 @MainActor
@@ -112,6 +113,7 @@ final class DataCoordinator {
         if Constants.Demo.isActive {
             let scenario = Constants.Demo.rotationOrder[demoRotationIndex]
             demoRotationIndex = (demoRotationIndex + 1) % Constants.Demo.rotationOrder.count
+            NSSound(named: .init(Constants.Sounds.criticalReset))?.play()
             let frame = DemoData.scenario(scenario)
             demoFrame = frame
             currentUsage = frame.usage
@@ -123,6 +125,7 @@ final class DataCoordinator {
                 UsageHistory.analyze(entry: entry, samples: frame.samples[entry.key] ?? [], now: now)
             }
             commitPollState(now: now, schedulerInterval: Constants.Demo.rotationInterval)
+            currentPollInterval = frame.pollInterval
             onUpdate?()
             return
         }

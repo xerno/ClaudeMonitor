@@ -98,7 +98,7 @@ enum Constants {
     }
 
     enum Sounds {
-        static let criticalReset = "Tink"
+        static let criticalReset = "Glass"
     }
 
     enum GitHub {

@@ -54,20 +54,18 @@ struct FormatRateTests {
 
     @Test func rateJustBelowDayThreshold() {
         // perDay = 0.499 → below 0.5 → minimal string
-        // String(localized:) returns the .strings value verbatim: "< 1%%/d"
         let rate = 0.499 / 86400.0
-        #expect(Formatting.formatRate(rate) == "< 1%%/d")
+        #expect(Formatting.formatRate(rate) == "< 1%/d")
     }
 
     // MARK: - Minimal branch (perDay < 0.5)
 
     @Test func rateVerySmall() {
-        // 0.001%/d → way below both thresholds → minimal string
         let rate = 0.001 / 86400.0
-        #expect(Formatting.formatRate(rate) == "< 1%%/d")
+        #expect(Formatting.formatRate(rate) == "< 1%/d")
     }
 
     @Test func rateZero() {
-        #expect(Formatting.formatRate(0) == "< 1%%/d")
+        #expect(Formatting.formatRate(0) == "< 1%/d")
     }
 }

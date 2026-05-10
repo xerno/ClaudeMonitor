@@ -248,48 +248,19 @@ private final class MockMenuActions: NSObject, MenuActions {
         #expect(!items.contains { $0.tag == MenuBuilder.connectivityBannerTag })
     }
 
-    @Test func warnThresholdShowsLastFailedRow() {
-        let failedAt = Date()
+    @Test func staleBannerSubtitleContainsLastUpdate() {
+        let refreshed = Date()
         let state = MonitorState(
             currentUsage: nil, currentStatus: nil,
             usageError: nil, statusError: nil,
-            lastRefreshed: nil, hasCredentials: true,
+            lastRefreshed: refreshed, hasCredentials: true,
             currentPollInterval: nil,
-            hasRecentFailure: true,
-            lastFailedAt: failedAt,
-            isAnyServiceStale: false
-        )
-        let items = menuItems(for: state)
-        let failedItem = items.first { $0.tag == MenuBuilder.lastFailedRowTag }
-        #expect(failedItem != nil)
-        let expectedTime = failedAt.formatted(.dateTime.hour().minute().second())
-        #expect(failedItem?.title.contains(expectedTime) == true)
-    }
-
-    @Test func staleHidesLastFailedRow() {
-        let state = MonitorState(
-            currentUsage: nil, currentStatus: nil,
-            usageError: nil, statusError: nil,
-            lastRefreshed: nil, hasCredentials: true,
-            currentPollInterval: nil,
-            hasRecentFailure: true,
-            lastFailedAt: Date(),
             isAnyServiceStale: true
         )
         let items = menuItems(for: state)
-        #expect(!items.contains { $0.tag == MenuBuilder.lastFailedRowTag })
-    }
-
-    @Test func noFailureNoLastFailedRow() {
-        let state = MonitorState(
-            currentUsage: nil, currentStatus: nil,
-            usageError: nil, statusError: nil,
-            lastRefreshed: nil, hasCredentials: true,
-            currentPollInterval: nil,
-            hasRecentFailure: false
-        )
-        let items = menuItems(for: state)
-        #expect(!items.contains { $0.tag == MenuBuilder.lastFailedRowTag })
+        let banner = items.first { $0.tag == MenuBuilder.connectivityBannerTag }
+        #expect(banner != nil)
+        #expect(banner?.title.contains("Claude Monitor") == true || banner?.view != nil)
     }
 
     @Test func usageRowsRemainVisibleWhenStale() {

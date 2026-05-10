@@ -202,7 +202,7 @@ final class AboutWindowController: NSWindowController, NSWindowDelegate {
         s.append(secondary(String(localized: "about.secondary.outpacing", bundle: .module)))
 
         heading(String(localized: "about.heading.stale_data", bundle: .module), into: s)
-        s.append(line(String(localized: "about.line.stale_prefix", bundle: .module)))
+        s.append(line("  !  " + String(localized: "about.line.stale_prefix", bundle: .module)))
 
         heading(String(localized: "about.heading.usage_graph", bundle: .module), into: s)
         s.append(secondary(String(localized: "about.secondary.usage_graph_explain", bundle: .module)))
@@ -217,12 +217,12 @@ final class AboutWindowController: NSWindowController, NSWindowDelegate {
         s.append(secondary(String(localized: "about.secondary.refresh_explain", bundle: .module)))
 
         heading(String(localized: "about.heading.status_icon", bundle: .module), into: s)
-        s.append(line("  " + String(localized: "about.line.green", bundle: .module)))
-        s.append(line("  " + String(localized: "about.line.yellow", bundle: .module)))
-        s.append(line("  " + String(localized: "about.line.orange_icon", bundle: .module)))
-        s.append(line("  " + String(localized: "about.line.red_icon", bundle: .module)))
-        s.append(line("  " + String(localized: "about.line.blue_icon", bundle: .module)))
-        s.append(line("  " + String(localized: "about.line.warning_icon", bundle: .module)))
+        s.append(line("  ✓  " + String(localized: "about.line.green", bundle: .module)))
+        s.append(line("  !   " + String(localized: "about.line.yellow", bundle: .module)))
+        s.append(line("  !   " + String(localized: "about.line.orange_icon", bundle: .module)))
+        s.append(line("  ✕  " + String(localized: "about.line.red_icon", bundle: .module)))
+        s.append(line("  🔧 " + String(localized: "about.line.blue_icon", bundle: .module)))
+        s.append(line("  ⚠  " + String(localized: "about.line.warning_icon", bundle: .module)))
 
         heading(String(localized: "about.heading.100_percent", bundle: .module), into: s)
         s.append(secondary(String(localized: "about.secondary.100_percent_explain", bundle: .module)))

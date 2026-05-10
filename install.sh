@@ -5,9 +5,11 @@ PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "${PROJECT_DIR}/BuildConfig.sh"
 
 SKIP_TESTS=false
+DEMO=false
 for arg in "$@"; do
     case "$arg" in
         --skip-tests) SKIP_TESTS=true ;;
+        --demo) DEMO=true; SKIP_TESTS=true ;;
     esac
 done
 
@@ -49,6 +51,10 @@ rm -rf "/Applications/${APP_NAME}.app"
 cp -R "${BUNDLE}" "/Applications/${APP_NAME}.app"
 
 echo "Launching ${APP_NAME}..."
-open "/Applications/${APP_NAME}.app"
+if [ "${DEMO}" = true ]; then
+    "/Applications/${APP_NAME}.app/Contents/MacOS/${APP_NAME}" --demo &
+else
+    open "/Applications/${APP_NAME}.app"
+fi
 
 echo "Done."
