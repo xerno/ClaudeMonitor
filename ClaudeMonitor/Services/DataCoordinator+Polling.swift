@@ -23,7 +23,7 @@ extension DataCoordinator {
 
             if scheduler.isAwayMode {
                 let deadline = Date().addingTimeInterval(delay)
-                while Date() < deadline && !Task.isCancelled {
+                while !Task.isCancelled {
                     let sleepTime = min(Constants.Polling.heartbeatInterval, deadline.timeIntervalSinceNow)
                     guard sleepTime > 0 else { break }
                     try? await Task.sleep(for: .seconds(sleepTime))

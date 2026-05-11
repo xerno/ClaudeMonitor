@@ -108,9 +108,8 @@ extension UsageHistory {
             let deltaUtil = Double(current.utilization - previous.utilization)
 
             if deltaUtil < 0 {
-                ema = 0
                 previous = current
-                continue
+                continue  // treat negative delta as zero-rate tick, skip EMA update
             }
 
             let instantaneous = deltaUtil / deltaTime

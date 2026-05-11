@@ -38,6 +38,27 @@ struct BlockingLimitTests {
         #expect(Formatting.blockingLimit(usage) == sevenDayReset)
     }
 
+    @Test func blockingLimitBothAt100SameResetTimeReturnsThatTime() {
+        let now = Date()
+        let tiedReset = now.addingTimeInterval(7200)
+        let usage = UsageResponse(entries: [
+            .make(key: "five_hour", utilization: 100, resetsAt: tiedReset)!,
+            .make(key: "seven_day", utilization: 100, resetsAt: tiedReset)!,
+        ])
+        #expect(Formatting.blockingLimit(usage) == tiedReset)
+    }
+
+    @Test func blockingLimitReversedOrderReturnsMax() {
+        let now = Date()
+        let fiveHourReset = now.addingTimeInterval(259200)
+        let sevenDayReset = now.addingTimeInterval(7200)
+        let usage = UsageResponse(entries: [
+            .make(key: "five_hour", utilization: 100, resetsAt: fiveHourReset)!,
+            .make(key: "seven_day", utilization: 100, resetsAt: sevenDayReset)!,
+        ])
+        #expect(Formatting.blockingLimit(usage) == fiveHourReset)
+    }
+
     // MARK: - hasBlockingGeneralWindow
 
     @Test func hasBlockingGeneralWindowFalseWhenEmpty() {

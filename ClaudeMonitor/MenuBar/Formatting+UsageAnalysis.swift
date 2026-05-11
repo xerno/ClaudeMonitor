@@ -125,14 +125,18 @@ extension Formatting {
 
     // MARK: - Unchanged functions
 
+    private static func isBlockingGeneralEntry(_ entry: WindowEntry) -> Bool {
+        entry.modelScope == nil && entry.window.utilization >= Constants.Projection.blockedUtilization
+    }
+
     static func hasBlockingGeneralWindow(_ entries: [WindowEntry]) -> Bool {
-        entries.contains { $0.modelScope == nil && $0.window.utilization >= Constants.Projection.blockedUtilization }
+        entries.contains { isBlockingGeneralEntry($0) }
     }
 
     static func blockingLimit(_ usage: UsageResponse?) -> Date? {
         guard let usage else { return nil }
         return usage.entries
-            .filter { $0.modelScope == nil && $0.window.utilization >= Constants.Projection.blockedUtilization }
+            .filter { isBlockingGeneralEntry($0) }
             .compactMap(\.window.resetsAt)
             .max()
     }

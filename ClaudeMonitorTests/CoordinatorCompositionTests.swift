@@ -2,8 +2,12 @@ import Testing
 import Foundation
 @testable import ClaudeMonitor
 
-/// Composition tests that verify cross-component wiring and data flow.
-/// These specifically target seams between components where isolated unit tests cannot catch bugs.
+/// JSON-decoded input pipeline tests: verify the full path from raw JSON strings through
+/// JSONDecoder + WindowKeyParser into DataCoordinator, UsageHistory, and MonitorState.
+/// These catch bugs that only surface when real decoding is in the path — e.g., wrong duration
+/// constants, parser regressions, or divergence between analyze() and usageStyle() code paths.
+/// Contrast with CompositionTests, which uses hand-crafted UsageResponse values and focuses
+/// on coordinator wiring (MonitorState, scheduler, callbacks, org switching).
 @MainActor struct CoordinatorCompositionTests {
 
     // MARK: - Helpers

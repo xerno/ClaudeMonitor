@@ -72,5 +72,9 @@ struct NSColorDesaturateTests {
         #expect(r.redComponent >= 0 && r.redComponent <= 1)
         #expect(r.greenComponent >= 0 && r.greenComponent <= 1)
         #expect(r.blueComponent >= 0 && r.blueComponent <= 1)
+        // Desaturation must reduce saturation — the result should not equal the original color
+        let (_, origS, _) = hsl(of: NSColor.systemRed)
+        let (_, resultS, _) = hsl(of: result)
+        #expect(resultS < origS, "systemRed desaturation must reduce saturation (orig=\(origS), result=\(resultS))")
     }
 }

@@ -40,7 +40,10 @@ import Testing
         let t2 = now.addingTimeInterval(-600)
         history.record(entries: [makeEntry(key: "five_hour", utilization: 55, resetsAt: oldResetsAt)], at: t1)
         history.record(entries: [makeEntry(key: "five_hour", utilization: 60, resetsAt: oldResetsAt)], at: t2)
-        _ = oldEntry
+
+        // Verify data was actually stored before testing filtering
+        #expect(!history.samples(for: oldEntry).isEmpty,
+                "Old window data must be stored before testing that newEntry filters it out")
 
         let newResetsAt = now.addingTimeInterval(duration)
         let newEntry = makeEntry(key: "five_hour", utilization: 60, resetsAt: newResetsAt)

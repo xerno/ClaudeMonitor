@@ -9,7 +9,7 @@ extension MenuBuilder {
             let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
             item.tag = updatedTag
             item.isEnabled = false
-            item.view = makeControlRowView(title: title)
+            item.view = ControlRowView(title: title)
             items.append(item)
         }
 
@@ -47,7 +47,4 @@ extension MenuBuilder {
         return items
     }
 
-    static func makeControlRowView(title: String) -> ControlRowView {
-        ControlRowView(title: title)
-    }
 }

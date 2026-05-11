@@ -10,12 +10,10 @@ macOS menu bar app that monitors Claude AI usage limits and Anthropic service st
 
 ## Screenshots
 
-| Active outage | High usage |
+| | |
 |:---:|:---:|
-| ![Active outage with 5h usage](docs/demo1.png) | ![High 5h and 7d usage with minor incident](docs/demo2.png) |
-| 5h window, major API outage | 5h + 7d windows, API degraded |
+| ![Demo scenario 1](docs/demo1.png) | ![Demo scenario 2](docs/demo2.png) |
+| ![Demo scenario 3](docs/demo3.png) | ![Demo scenario 4](docs/demo4.png) |
+| ![Demo scenario 5](docs/demo5.png) | ![Demo scenario 6](docs/demo6.png) |
 
-| Critical usage | 5h limit reached |
-|:---:|:---:|
-| ![Critical usage across all windows](docs/demo3.png) | ![5h window exhausted, countdown to reset](docs/demo4.png) |
-| All three windows, all systems OK | 5h window exhausted, countdown to reset |
+<p align="center"><img src="docs/demo7.png" alt="Demo scenario 7"></p>

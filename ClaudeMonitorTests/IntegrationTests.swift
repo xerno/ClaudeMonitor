@@ -53,7 +53,7 @@ struct IntegrationTests {
             let summary = try await service.fetch()
             #expect(!summary.components.isEmpty)
         } catch {
-            Issue.record("StatusService.fetch() failed: \(error)\nUnderlying: \(String(describing: (error as NSError).userInfo))")
+            #expect(Bool(false), "StatusService.fetch() failed: \(error)\nUnderlying: \(String(describing: (error as NSError).userInfo))")
         }
     }
 

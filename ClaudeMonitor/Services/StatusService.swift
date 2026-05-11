@@ -17,6 +17,8 @@ struct StatusService: StatusFetching, Sendable {
         switch http.statusCode {
         case 200:
             return try Self.decoder.decode(StatusSummary.self, from: data)
+        case 401, 403:
+            throw ServiceError.unauthorized
         case 429:
             throw ServiceError.rateLimited
         default:

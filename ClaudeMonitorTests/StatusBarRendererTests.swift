@@ -292,6 +292,48 @@ import AppKit
         #expect(font == StatusBarRenderer.boldFont)
     }
 
+    // MARK: - updateText branches
+
+    @Test func updateTextNoCredentialsShowsNoCredentialsTitle() {
+        let button = NSStatusBarButton()
+        StatusBarRenderer.updateText(
+            button: button,
+            usage: nil,
+            hasCredentials: false,
+            isStale: false
+        )
+        let expected = StatusBarRenderer.noCredentialsTitle()
+        #expect(button.attributedTitle.string == expected.string)
+    }
+
+    @Test func updateTextNilUsageShowsLoadingTitle() {
+        let button = NSStatusBarButton()
+        StatusBarRenderer.updateText(
+            button: button,
+            usage: nil,
+            hasCredentials: true,
+            isStale: false
+        )
+        let expected = StatusBarRenderer.loadingTitle()
+        #expect(button.attributedTitle.string == expected.string)
+    }
+
+    @Test func updateTextNormalUnblockedShowsUsageTitle() {
+        let usage = UsageResponse(entries: [
+            .make(key: "five_hour", utilization: 42, resetsAt: Date().addingTimeInterval(3600))!,
+        ])
+        let button = NSStatusBarButton()
+        StatusBarRenderer.updateText(
+            button: button,
+            usage: usage,
+            hasCredentials: true,
+            isStale: false
+        )
+        let expected = StatusBarRenderer.usageTitle(usage: usage, isStale: false)
+        #expect(button.attributedTitle.string == expected.string)
+        #expect(button.attributedTitle.string.contains("42%"))
+    }
+
     @Test func blockedTakesPriorityOverStale() {
         // 100% utilization → blocked; even with isStale = true, updateText must produce blockedTitle
         let blockedUntil = Date().addingTimeInterval(3600)

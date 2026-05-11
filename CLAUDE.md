@@ -26,7 +26,7 @@ Xcode 26 project uses `PBXFileSystemSynchronizedRootGroup` — new `.swift` file
 
 ### Build settings — single source of truth
 
-**`BuildConfig.sh`** is the authoritative source for shared build parameters (app name, bundle ID, version, deployment target, Swift version, default isolation, upcoming features). `build.sh` and `install.sh` source it directly. `Package.swift` and the Xcode project (`project.pbxproj`) must be kept in sync manually — when changing a build setting, update `BuildConfig.sh` first, then propagate to `Package.swift` and the Xcode project.
+**`scripts/build-config.sh`** is the authoritative source for shared build parameters (app name, bundle ID, version, deployment target, Swift version, default isolation, upcoming features). `build.sh` and `install.sh` source it directly. `Package.swift` and the Xcode project (`project.pbxproj`) must be kept in sync manually — when changing a build setting, update `scripts/build-config.sh` first, then propagate to `Package.swift` and the Xcode project.
 
 ## Architecture
 

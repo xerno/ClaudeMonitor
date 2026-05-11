@@ -2,7 +2,7 @@
 set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
-source "${PROJECT_DIR}/BuildConfig.sh"
+source "${PROJECT_DIR}/scripts/build-config.sh"
 
 SKIP_TESTS=false
 DEMO=false
@@ -31,7 +31,7 @@ fi
 
 # --- Migrate sandbox preferences
 
-## BUNDLE_ID sourced from BuildConfig.sh
+## BUNDLE_ID sourced from scripts/build-config.sh
 SANDBOX_PREFS="${HOME}/Library/Containers/${BUNDLE_ID}/Data/Library/Preferences/${BUNDLE_ID}.plist"
 REGULAR_PREFS="${HOME}/Library/Preferences/${BUNDLE_ID}.plist"
 

@@ -25,7 +25,7 @@ let testingFrameworkPath: String = {
     return "/Library/Developer/CommandLineTools/Library/Developer/Frameworks"
 }()
 
-// Keep in sync with BuildConfig.sh (single source of truth for build settings).
+// Keep in sync with scripts/build-config.sh (single source of truth for build settings).
 let commonSwiftSettings: [SwiftSetting] = [
     .swiftLanguageMode(.v6),
     .enableUpcomingFeature("MemberImportVisibility"),
@@ -60,7 +60,6 @@ let package = Package(
             path: ".",
             exclude: [
                 "build.sh",
-                "BuildConfig.sh",
                 "CLAUDE.md",
                 "ClaudeMonitor",
                 "ClaudeMonitor.xcodeproj",

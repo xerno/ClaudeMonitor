@@ -51,3 +51,55 @@ final class DataCoordinator {
         }
     }
 }
+
+extension DataCoordinator {
+    var monitorState: MonitorState {
+        MonitorState(
+            usage: UsageSnapshot(
+                currentUsage: currentUsage,
+                usageError: usageError,
+                windowAnalyses: windowAnalyses
+            ),
+            service: ServiceHealth(
+                currentStatus: currentStatus,
+                statusError: statusError
+            ),
+            polling: PollingState(
+                isOnline: demoFrame?.isOnline ?? pathMonitor.isSatisfied,
+                hasRecentFailure: demoFrame?.hasRecentFailure ?? scheduler.hasRecentFailure,
+                lastFailedAt: demoFrame?.lastFailedAt ?? lastFailedAt,
+                isAnyServiceStale: demoFrame?.isAnyServiceStale ?? scheduler.isAnyServiceStale,
+                currentPollInterval: currentPollInterval,
+                isUsageDataExpired: scheduler.isUsageDataExpired
+            ),
+            lastRefreshed: lastRefreshed,
+            hasCredentials: hasCredentials
+        )
+    }
+}
+
+extension DataCoordinator {
+    var hasCredentials: Bool {
+        Constants.Demo.isActive || loadedCredentials != nil
+    }
+
+    func reloadCredentials() {
+        guard !Constants.Demo.isActive,
+              let cookie = loadCredential(Constants.Keychain.cookieString),
+              let orgId = loadCredential(Constants.Keychain.organizationId),
+              !cookie.isEmpty, !orgId.isEmpty else {
+            if loadedCredentials != nil {
+                usageHistory.switchOrganization(nil)
+                windowAnalyses = []
+            }
+            loadedCredentials = nil
+            return
+        }
+        let previousOrgId = loadedCredentials?.orgId
+        loadedCredentials = (cookie, orgId)
+        if orgId != previousOrgId {
+            usageHistory.switchOrganization(orgId)
+            windowAnalyses = []
+        }
+    }
+}

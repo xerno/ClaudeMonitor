@@ -43,6 +43,9 @@ struct DemoDataTests {
         let frameDef = DemoData.scenario(99)
         #expect(frame1.usage.entries.count == frameDef.usage.entries.count)
         #expect(frame1.status.components.count == frameDef.status.components.count)
+        // Verify the actual data matches, not just the shape (resetsAt is excluded — it's generated from Date() at call time)
+        #expect(frame1.usage.entries.first?.window.utilization == frameDef.usage.entries.first?.window.utilization)
+        #expect(frame1.usage.entries.map(\.key) == frameDef.usage.entries.map(\.key))
     }
 
     @Test func rotationOrderCoversAllScenarios() {
@@ -64,11 +67,12 @@ struct DemoDataTests {
         let now = Date()
         for i in 1...7 {
             let frame = DemoData.scenario(i)
-            for entry in frame.usage.entries {
-                if let resetsAt = entry.window.resetsAt {
-                    #expect(resetsAt > now,
-                            "Scenario \(i): key '\(entry.key)' has past reset date")
-                }
+            let entriesWithResetDate = frame.usage.entries.filter { $0.window.resetsAt != nil }
+            #expect(!entriesWithResetDate.isEmpty,
+                    "Scenario \(i): no entries have a resetsAt date — cannot verify future reset dates")
+            for entry in entriesWithResetDate {
+                #expect(entry.window.resetsAt! > now,
+                        "Scenario \(i): key '\(entry.key)' has past reset date")
             }
         }
     }

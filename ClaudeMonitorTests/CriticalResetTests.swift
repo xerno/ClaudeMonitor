@@ -127,6 +127,25 @@ struct CriticalResetTests {
         #expect(Formatting.detectCriticalReset(previous: previous, current: current))
     }
 
+    @Test func exactBoundaryProjection120IsCritical() {
+        // utilization=60, 50% time remaining (9000s of 18000s) → projected = 60 + (60/9000)*9000 = 120.0 exactly
+        // >= 120 threshold → critical → reset should be detected
+        let now = Date()
+        let duration: TimeInterval = 18000
+        let prevReset = now.addingTimeInterval(9000)
+
+        let previous = UsageResponse(entries: [
+            WindowEntry(key: "five_hour", duration: duration, durationLabel: "5h", modelScope: nil,
+                        window: UsageWindow(utilization: 60, resetsAt: prevReset))
+        ])
+        let current = UsageResponse(entries: [
+            WindowEntry(key: "five_hour", duration: duration, durationLabel: "5h", modelScope: nil,
+                        window: UsageWindow(utilization: 5, resetsAt: prevReset.addingTimeInterval(duration)))
+        ])
+
+        #expect(Formatting.detectCriticalReset(previous: previous, current: current, now: now))
+    }
+
     @Test func emptyResponses() {
         let empty = UsageResponse(entries: [])
         let nonEmpty = UsageResponse(entries: [

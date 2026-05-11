@@ -131,22 +131,20 @@ import Testing
     @Test @MainActor func identityIsDeterministic() {
         let now = Date()
         let resetsAt = now.addingTimeInterval(3600)
-
-        for _ in 0..<100 {
-            let fiveHour = makeEntry(key: "five_hour", utilization: 42, resetsAt: resetsAt)
-            #expect(fiveHour.storageIdentity == "18000")
-        }
-
         let sevenDayResetsAt = now.addingTimeInterval(86400)
-        for _ in 0..<100 {
-            let sevenDay = makeEntry(key: "seven_day", utilization: 11, resetsAt: sevenDayResetsAt)
-            #expect(sevenDay.storageIdentity == "604800")
-        }
 
-        for _ in 0..<100 {
-            let sonnet = makeEntry(key: "seven_day_sonnet", utilization: 9, resetsAt: sevenDayResetsAt)
-            #expect(sonnet.storageIdentity == "604800_sonnet")
-        }
+        let fiveHour = makeEntry(key: "five_hour", utilization: 42, resetsAt: resetsAt)
+        #expect(fiveHour.storageIdentity == "18000")
+
+        let sevenDay = makeEntry(key: "seven_day", utilization: 11, resetsAt: sevenDayResetsAt)
+        #expect(sevenDay.storageIdentity == "604800")
+
+        let sonnet = makeEntry(key: "seven_day_sonnet", utilization: 9, resetsAt: sevenDayResetsAt)
+        #expect(sonnet.storageIdentity == "604800_sonnet")
+
+        // Verify second construction yields same identity (determinism check)
+        let fiveHour2 = makeEntry(key: "five_hour", utilization: 99, resetsAt: resetsAt)
+        #expect(fiveHour2.storageIdentity == fiveHour.storageIdentity)
     }
 
     @Test @MainActor func concurrentWindowsWithSameDurationButDifferentScopeAreIsolated() async {

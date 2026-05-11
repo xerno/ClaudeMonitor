@@ -2,7 +2,7 @@
 set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
-source "${PROJECT_DIR}/BuildConfig.sh"
+source "${PROJECT_DIR}/scripts/build-config.sh"
 SRC_DIR="${PROJECT_DIR}/${APP_NAME}"
 
 RELEASE=false
@@ -15,7 +15,7 @@ done
 BUILD_DIR="${PROJECT_DIR}/.build"
 BUNDLE="${BUILD_DIR}/${APP_NAME}.app"
 CONTENTS="${BUNDLE}/Contents"
-## BUNDLE_ID, APP_NAME, VERSION sourced from BuildConfig.sh
+## BUNDLE_ID, APP_NAME, VERSION sourced from scripts/build-config.sh
 
 # --- Prerequisites
 

@@ -45,9 +45,9 @@ extension DataCoordinator {
     }
 
     func refreshDemo() async {
+        let previousUsage = currentUsage
         let scenario = Constants.Demo.rotationOrder[demoRotationIndex]
         demoRotationIndex = (demoRotationIndex + 1) % Constants.Demo.rotationOrder.count
-        NSSound(named: .init(Constants.Sounds.criticalReset))?.play()
         let frame = DemoData.scenario(scenario)
         demoFrame = frame
         currentUsage = frame.usage
@@ -61,6 +61,10 @@ extension DataCoordinator {
         commitPollState(now: now, schedulerInterval: Constants.Demo.rotationInterval)
         currentPollInterval = frame.pollInterval
         onUpdate?()
+        if let prev = previousUsage, let curr = currentUsage,
+           Formatting.detectCriticalReset(previous: prev, current: curr) {
+            onCriticalReset?()
+        }
     }
 
     func refreshStatus() async {
@@ -72,10 +76,7 @@ extension DataCoordinator {
         } catch {
             if Task.isCancelled { return }
             scheduler.recordStatusFailure(category: RetryCategory(classifying: error))
-            lastFailedAt = Date()
-            if scheduler.statusState.consecutiveFailures >= Constants.Retry.failureThreshold {
-                statusError = error.localizedDescription
-            }
+            handleServiceFailure(error: error, consecutiveFailures: scheduler.statusState.consecutiveFailures, errorStorage: &statusError)
         }
     }
 
@@ -93,10 +94,7 @@ extension DataCoordinator {
             if Task.isCancelled { return }
             let category = RetryCategory(classifying: error)
             scheduler.recordUsageFailure(category: category)
-            lastFailedAt = Date()
-            if scheduler.usageState.consecutiveFailures >= Constants.Retry.failureThreshold {
-                usageError = error.localizedDescription
-            }
+            handleServiceFailure(error: error, consecutiveFailures: scheduler.usageState.consecutiveFailures, errorStorage: &usageError)
             if category == .authFailure {
                 currentUsage = nil
                 windowAnalyses = []
@@ -104,7 +102,14 @@ extension DataCoordinator {
         }
     }
 
-    func detectAndStoreResets(current: [WindowEntry], previous: [WindowEntry], at now: Date) async {
+    private func handleServiceFailure(error: Error, consecutiveFailures: Int, errorStorage: inout String?) {
+        lastFailedAt = Date()
+        if consecutiveFailures >= Constants.Retry.failureThreshold {
+            errorStorage = error.localizedDescription
+        }
+    }
+
+    @MainActor func detectAndStoreResets(current: [WindowEntry], previous: [WindowEntry], at now: Date) async {
         let previousByKey = Dictionary(uniqueKeysWithValues: previous.map { ($0.key, $0) })
         var anyReset = false
         for entry in current {

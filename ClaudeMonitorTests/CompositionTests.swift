@@ -3,8 +3,11 @@ import Foundation
 import AppKit
 @testable import ClaudeMonitor
 
-/// Composition tests: verify data flows correctly through the full pipeline.
-/// These catch bugs that isolated unit tests miss because they cross component boundaries.
+/// Hand-crafted mock data pipeline tests: verify that DataCoordinator wires its components
+/// (UsageHistory, PollingScheduler, StatusBarRenderer, MonitorState) correctly end-to-end.
+/// All UsageResponse inputs are constructed directly in code — no JSON decoding involved.
+/// Contrast with CoordinatorCompositionTests, which drives the pipeline from raw JSON strings
+/// to catch bugs that only appear when WindowKeyParser and JSONDecoder are in the path.
 @MainActor struct CompositionTests {
 
     private let mockStatus = MockStatusService()
@@ -75,7 +78,7 @@ import AppKit
 
     /// Tests that record() accumulates samples and analyze() computes timeSinceLastChange
     /// from real history after two refreshes with different utilization values.
-    @Test func testWindowAnalysisAccumulatesHistoryAcrossRefreshes() async {
+    @Test func testWindowAnalysisAccumulatesHistoryAcrossRefreshes() async throws {
         let resetsAt = Date().addingTimeInterval(9000)
         let firstUsage = UsageResponse(entries: [
             WindowEntry(key: "five_hour", duration: 18000, durationLabel: "5h", modelScope: nil,
@@ -109,6 +112,12 @@ import AppKit
         // computeTimeSinceLastChange walks back to find the last sample with a DIFFERENT value,
         // then returns time since the sample AFTER that — i.e., time since the 45% sample was added.
         #expect(analysis.timeSinceLastChange != nil)
+
+        // The two refreshes run back-to-back with no sleep between them, so the second sample
+        // (the 45% change point) was recorded less than 1 second ago. timeSinceLastChange
+        // measures time since that sample → it must be very small (< 1.0s).
+        let tslc = try #require(analysis.timeSinceLastChange)
+        #expect(tslc < 1.0, "timeSinceLastChange should be nearly zero (< 1s) for back-to-back refreshes; got \(tslc)s")
     }
 
     // MARK: - Test 3: monitorState.currentPollInterval reflects scheduler state

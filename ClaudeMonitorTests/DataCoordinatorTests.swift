@@ -194,14 +194,15 @@ import Foundation
 
     // MARK: - Scheduler Adjustment
 
-    @Test func schedulerNoRampUpAfterNormalUtilization() async {
+    @Test func schedulerIntervalAtLeastBaseAfterNormalUtilization() async {
         let fixture = UsageHistoryTestFixture()
         let (coordinator, _) = coordinator(fixture: fixture)
         await coordinator.refresh()
         await fixture.cleanup()
 
-        // testUsage has 42% and 18% utilization — projected well below 100%, so no ramp-up.
-        // Interval must be at or above baseInterval (may be higher due to idle cooldown, never lower).
+        // testUsage has 42% and 18% utilization — projected well below 100%, so no urgency-driven
+        // ramp-up. The interval must be >= baseInterval (never below it), but may exceed baseInterval
+        // when the idle-cooldown path elevates it — hence >= rather than ==.
         #expect(coordinator.scheduler.effectivePollingInterval >= Constants.Polling.baseInterval)
         #expect(coordinator.scheduler.isAwayMode == false)
     }
@@ -265,10 +266,15 @@ import Foundation
     }
 
     // MARK: - Away-Mode Propagation
+    // Away mode activation requires both baseCooldown >= maxIdleInterval (driven by timeSinceLastChange)
+    // AND systemIdleTime > awayThreshold. Testing activation end-to-end via refresh() is not feasible
+    // here because mock services return no real analysis data (timeSinceLastChange is nil → baseCooldown
+    // stays at baseInterval, never reaching maxIdleInterval). Scheduler-level activation is covered by
+    // PollingRateTests.awayModeActivatesAtCooldownCapAndSystemIdle.
 
-    @Test func awayModeOffWhenIdleBelowThreshold() async {
-        // Idle time below the away threshold: away mode must be off regardless.
-        mockIdleProvider.idleTimeValue = Constants.Polling.awayThreshold - 1
+    @Test func awayModeRemainsOffAfterRefreshWithNoData() async {
+        // Sanity: even with idle time above threshold, refresh() with no analysis data must not set away mode.
+        mockIdleProvider.idleTimeValue = Constants.Polling.awayThreshold + 1
         let fixture = UsageHistoryTestFixture()
         let (coordinator, _) = coordinator(fixture: fixture)
         await coordinator.refresh()

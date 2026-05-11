@@ -424,7 +424,7 @@ import Foundation
         let analysis = UsageHistory.analyze(entry: entry, samples: samples, now: now)
 
         // rate = 65/9000; projected = 65 + (65/9000)*9000 = 130
-        #expect(analysis.projectedAtReset > 120)
+        #expect(abs(analysis.projectedAtReset - 130.0) < 1.0)
         #expect(analysis.style.level == .critical)
         #expect(analysis.style.isBold)
         // timeToLimit: TTL = (100-65)/(65/9000) = 35*9000/65 ≈ 4846s < 9000s → set

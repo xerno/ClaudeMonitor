@@ -33,24 +33,25 @@ extension UsageHistory {
                 for file in existingFiles where !activeIdentities.contains(file.lastPathComponent) {
                     try? FileManager.default.removeItem(at: file)
                 }
-            } catch {}
+            } catch {
+                assertionFailure("UsageHistory.save failed: \(error)")
+            }
         }.value
     }
 
+    // Synchronous by design — called once at startup before any UI is shown,
+    // so a brief main-thread disk read is acceptable and avoids fire-and-forget races.
     func load() {
-        let liveDir = liveDirectory
-        guard FileManager.default.fileExists(atPath: liveDir.path) else { return }
+        guard FileManager.default.fileExists(atPath: liveDirectory.path) else { return }
         do {
-            let files = try FileManager.default.contentsOfDirectory(at: liveDir, includingPropertiesForKeys: nil)
+            let files = try FileManager.default.contentsOfDirectory(at: liveDirectory, includingPropertiesForKeys: nil)
             for file in files where file.pathExtension == "json" {
                 let identity = file.deletingPathExtension().lastPathComponent
                 guard let data = try? Data(contentsOf: file),
                       let samples = UsageHistory.decodeCompact(data) else { continue }
                 storage[identity] = samples
             }
-        } catch {
-            storage = [:]
-        }
+        } catch {}
     }
 
     static func migrateAndDeleteLegacyData(baseDirectory: URL = UsageHistory.defaultBaseDirectory) {
