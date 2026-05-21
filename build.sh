@@ -100,6 +100,11 @@ if [ -f "${SVG_SRC}" ]; then
     cp "${SVG_SRC}" "${CONTENTS}/Resources/RefreshUsage.svg"
 fi
 
+DEMO_SAMPLES="${SRC_DIR}/Resources/DemoSamples.json"
+if [ -f "${DEMO_SAMPLES}" ]; then
+    cp "${DEMO_SAMPLES}" "${CONTENTS}/Resources/DemoSamples.json"
+fi
+
 # --- 5. Localization
 
 echo "Generating localization from Translations/..."
