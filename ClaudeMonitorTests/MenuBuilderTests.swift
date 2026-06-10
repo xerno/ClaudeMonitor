@@ -226,4 +226,63 @@ private final class MockMenuActions: NSObject, MenuActions {
         #expect(items.contains { rowText($0).contains("5h") && rowText($0).contains("55%") })
         #expect(!items.contains { $0.tag == MenuBuilder.usagePlaceholderTag })
     }
+
+    // MARK: - Live Updates
+
+    @Test func liveUpdatePreservesMenuStructure() {
+        let menu = NSMenu()
+        let state1 = MonitorState(
+            usage: UsageSnapshot(
+                currentUsage: UsageResponse(entries: [
+                    .make(key: "test", utilization: 1000, resetsAt: nil)!
+                ])
+            ),
+            hasCredentials: true
+        )
+        _ = MenuBuilder.populate(menu: menu, state: state1, target: target)
+        let itemCountBefore = menu.numberOfItems
+
+        let state2 = MonitorState(
+            usage: UsageSnapshot(
+                currentUsage: UsageResponse(entries: [
+                    .make(key: "test", utilization: 2000, resetsAt: nil)!
+                ])
+            ),
+            hasCredentials: true
+        )
+        MenuBuilder.updateExistingItems(menu: menu, state: state2)
+
+        #expect(menu.numberOfItems == itemCountBefore)
+    }
+
+    @Test func liveUpdateChangesValues() {
+        let menu = NSMenu()
+        let state1 = MonitorState(
+            usage: UsageSnapshot(
+                currentUsage: UsageResponse(entries: [
+                    .make(key: "test", utilization: 1000, resetsAt: Date().addingTimeInterval(3600))!
+                ])
+            ),
+            hasCredentials: true
+        )
+        _ = MenuBuilder.populate(menu: menu, state: state1, target: target)
+        
+        let usageItem = menu.item(withTag: MenuBuilder.usageBaseTag)
+        let titleBefore = usageItem?.attributedTitle?.string
+        #expect(titleBefore?.contains("1,000") == true)
+
+        let state2 = MonitorState(
+            usage: UsageSnapshot(
+                currentUsage: UsageResponse(entries: [
+                    .make(key: "test", utilization: 2345, resetsAt: Date().addingTimeInterval(3600))!
+                ])
+            ),
+            hasCredentials: true
+        )
+        MenuBuilder.updateExistingItems(menu: menu, state: state2)
+
+        let titleAfter = usageItem?.attributedTitle?.string
+        #expect(titleAfter?.contains("2,345") == true)
+        #expect(titleAfter?.contains("1,000") == false)
+    }
 }

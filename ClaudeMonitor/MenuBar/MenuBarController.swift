@@ -66,7 +66,13 @@ final class MenuBarController: NSObject, MenuActions {
             )
         }
         if let menu = statusItem.menu {
-            usageCache = MenuBuilder.populate(menu: menu, state: state, target: self)
+            if isMenuOpen {
+                // Lightweight update — only values, no structural changes
+                MenuBuilder.updateExistingItems(menu: menu, state: state)
+            } else {
+                // Full rebuild — can add/remove items, reorder, etc.
+                usageCache = MenuBuilder.populate(menu: menu, state: state, target: self)
+            }
         }
         updateCountdownState()
     }

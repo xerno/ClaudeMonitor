@@ -77,7 +77,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 0453709D2F76C378005EB99C /* Build configuration list for PBXNativeTarget "ClaudeMonitor" */;
 			buildPhases = (
-				AA0003002F76C376005EB99C /* Generate Localizable.xcstrings */,
+				AA0003002F76C376005EB99C /* Generate Build Files */,
 				0453708E2F76C376005EB99C /* Sources */,
 				0453708F2F76C376005EB99C /* Frameworks */,
 				045370902F76C376005EB99C /* Resources */,
@@ -169,8 +169,8 @@
 				tr,
 				uk,
 				vi,
-				zh-Hans,
-				zh-Hant,
+				"zh-Hans",
+				"zh-Hant",
 			);
 			mainGroup = 045370892F76C376005EB99C;
 			minimizedProjectReferenceProxies = 1;
@@ -196,12 +196,16 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		AA0003002F76C376005EB99C /* Generate Localizable.xcstrings */ = {
+		AA0003002F76C376005EB99C /* Generate Build Files */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
+			inputPaths = (
+			);
 			name = "Generate Build Files";
+			outputPaths = (
+			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/bash;
 			shellScript = "swift \"${SRCROOT}/scripts/generate-xcstrings.swift\"\nbash \"${SRCROOT}/scripts/generate-build-info.sh\"\n";
