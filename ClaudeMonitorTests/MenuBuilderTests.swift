@@ -234,7 +234,7 @@ private final class MockMenuActions: NSObject, MenuActions {
         let state1 = MonitorState(
             usage: UsageSnapshot(
                 currentUsage: UsageResponse(entries: [
-                    .make(key: "test", utilization: 1000, resetsAt: nil)!
+                    .make(key: "five_hour", utilization: 100, resetsAt: nil)!
                 ])
             ),
             hasCredentials: true
@@ -245,7 +245,7 @@ private final class MockMenuActions: NSObject, MenuActions {
         let state2 = MonitorState(
             usage: UsageSnapshot(
                 currentUsage: UsageResponse(entries: [
-                    .make(key: "test", utilization: 2000, resetsAt: nil)!
+                    .make(key: "five_hour", utilization: 100, resetsAt: nil)!
                 ])
             ),
             hasCredentials: true
@@ -260,29 +260,32 @@ private final class MockMenuActions: NSObject, MenuActions {
         let state1 = MonitorState(
             usage: UsageSnapshot(
                 currentUsage: UsageResponse(entries: [
-                    .make(key: "test", utilization: 1000, resetsAt: Date().addingTimeInterval(3600))!
+                    .make(key: "five_hour", utilization: 50, resetsAt: Date().addingTimeInterval(3600))!
                 ])
             ),
             hasCredentials: true
         )
         _ = MenuBuilder.populate(menu: menu, state: state1, target: target)
-        
+
         let usageItem = menu.item(withTag: MenuBuilder.usageBaseTag)
-        let titleBefore = usageItem?.attributedTitle?.string
-        #expect(titleBefore?.contains("1,000") == true)
+        func rowText(_ item: NSMenuItem?) -> String {
+            guard let item else { return "" }
+            if let row = item.view as? UsageRowView { return row.textContent }
+            return item.attributedTitle?.string ?? item.title
+        }
+        #expect(rowText(usageItem).contains("50%"))
 
         let state2 = MonitorState(
             usage: UsageSnapshot(
                 currentUsage: UsageResponse(entries: [
-                    .make(key: "test", utilization: 2345, resetsAt: Date().addingTimeInterval(3600))!
+                    .make(key: "five_hour", utilization: 75, resetsAt: Date().addingTimeInterval(3600))!
                 ])
             ),
             hasCredentials: true
         )
         MenuBuilder.updateExistingItems(menu: menu, state: state2)
 
-        let titleAfter = usageItem?.attributedTitle?.string
-        #expect(titleAfter?.contains("2,345") == true)
-        #expect(titleAfter?.contains("1,000") == false)
+        #expect(rowText(usageItem).contains("75%"))
+        #expect(!rowText(usageItem).contains("50%"))
     }
 }
