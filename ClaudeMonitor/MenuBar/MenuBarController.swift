@@ -58,10 +58,6 @@ final class MenuBarController: NSObject, MenuActions {
                 button: button, status: state.service.currentStatus,
                 hasRefreshWarning: state.polling.isAnyServiceStale
             )
-            // Freeze the status-item TEXT (and therefore its width) while the menu is open: the menu
-            // is anchored to the status item, so letting the title change width — e.g. switching to
-            // an account whose percentages are wider/narrower — would slide the open dropdown
-            // sideways. The title catches up on `menuDidClose`.
             if !isMenuOpen {
                 StatusBarRenderer.updateText(
                     button: button, usage: state.usage.currentUsage,
@@ -73,8 +69,8 @@ final class MenuBarController: NSObject, MenuActions {
         }
         if let menu = statusItem.menu {
             if isMenuOpen {
-                // Lightweight update — only values, no structural changes
-                MenuBuilder.updateExistingItems(menu: menu, state: state)
+                // Lightweight update — only values, no structural changes outside the usage rows
+                usageCache = MenuBuilder.updateExistingItems(menu: menu, state: state, target: self)
             } else {
                 // Full rebuild — can add/remove items, reorder, etc.
                 usageCache = MenuBuilder.populate(menu: menu, state: state, target: self)
@@ -102,8 +98,7 @@ final class MenuBarController: NSObject, MenuActions {
 
     @objc func didSelectSentinel() {}
 
-    @objc func didSelectProfile(_ sender: NSMenuItem) {
-        guard let id = sender.representedObject as? String else { return }
+    @objc func didSelectProfile(id: String) {
         coordinator.switchToProfile(id: id)
         applyUIUpdates()
     }
@@ -129,8 +124,10 @@ final class MenuBarController: NSObject, MenuActions {
         openWindow(&preferencesController) {
             PreferencesWindowController(
                 usageHistory: coordinator.usageHistory,
-                profileStore: coordinator.profileStore
-            ) { [weak self] in self?.coordinator.restartPolling() }
+                profileStore: coordinator.profileStore,
+                onDisplaySettingsChanged: { [weak self] in self?.applyUIUpdates() },
+                onSave: { [weak self] in self?.coordinator.restartPolling() }
+            )
         }
     }
 
@@ -153,13 +150,12 @@ extension MenuBarController: NSMenuDelegate {
 
     func menuDidClose(_ menu: NSMenu) {
         isMenuOpen = false
-        // The status-item text was frozen while the menu was open (see applyUIUpdates); catch it up
-        // now that resizing it can no longer move an open dropdown.
         applyUIUpdates()
         // Not merely defensive: closing the menu after clicking a row is a path where AppKit
         // never reports the highlight going away, so the row would stay lit until it is hovered
         // and left again — the views outlive the menu session.
         MenuBuilder.syncHighlight(in: menu, highlighted: nil)
+        MenuBuilder.resetFooterHover(in: menu)
         updateCountdownState()
     }
 }

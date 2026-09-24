@@ -2,18 +2,23 @@ import AppKit
 
 @MainActor
 final class CredentialFormView: NSView {
+    enum Mode {
+        case edit(profileId: String)
+        case add
+        case setup
+    }
+
     private let nameField = NSTextField()
     private let orgIdField = NSTextField()
     private let cookieTextView = NSTextView()
     private let cookieScrollView = NSScrollView()
 
     private let profileStore: ProfileStore
-    /// The profile this form edits, or `nil` for the add form (creates a new profile).
-    private let profileId: String?
+    private let mode: Mode
 
-    init(profileStore: ProfileStore, profileId: String? = nil) {
+    init(profileStore: ProfileStore, mode: Mode) {
         self.profileStore = profileStore
-        self.profileId = profileId
+        self.mode = mode
         super.init(frame: .zero)
         translatesAutoresizingMaskIntoConstraints = false
         setupSubviews()
@@ -22,14 +27,21 @@ final class CredentialFormView: NSView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
-    /// The profile this form edits — resolved from `profileId`; `nil` means add mode.
-    private var editingProfile: Profile? {
-        guard let profileId else { return nil }
+    var displayedName: String { nameField.stringValue }
+
+    func simulateEntry(name: String, organizationId: String, cookie: String) {
+        nameField.stringValue = name
+        orgIdField.stringValue = organizationId
+        cookieTextView.string = cookie
+    }
+
+    private var editedProfile: Profile? {
+        guard case .edit(let profileId) = mode else { return nil }
         return profileStore.profiles.first { $0.id == profileId }
     }
 
     func loadSavedValues() {
-        if let profile = editingProfile {
+        if let profile = editedProfile {
             nameField.stringValue = profile.name
             orgIdField.stringValue = profile.organizationId
             cookieTextView.string = profileStore.cookie(for: profile) ?? ""
@@ -40,8 +52,10 @@ final class CredentialFormView: NSView {
         }
     }
 
-    /// Validates and persists the form. Returns the saved profile's id on success (the existing id
-    /// when editing, the newly-created id when adding), or `nil` on any validation/save failure.
+    func clearCookie() {
+        cookieTextView.string = ""
+    }
+
     @discardableResult
     func validateAndSave(in window: NSWindow) -> String? {
         guard let fields = validatedFields(in: window) else { return nil }
@@ -50,59 +64,91 @@ final class CredentialFormView: NSView {
 
     private typealias Fields = (name: String, orgId: String, cookie: String)
 
-    /// Trimmed, non-empty values with a parseable organization ID — or nil, after telling the user
-    /// which part is wrong.
     private func validatedFields(in window: NSWindow) -> Fields? {
         let name = nameField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         let cookie = cookieTextView.string.trimmingCharacters(in: .whitespacesAndNewlines)
         let orgId = orgIdField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
 
         guard !name.isEmpty, !cookie.isEmpty, !orgId.isEmpty else {
-            showAlert(in: window, keys: "credentials.alert.missing", style: .warning)
+            showAlert(
+                in: window,
+                title: String(localized: "credentials.alert.missing.title", bundle: .module),
+                message: String(localized: "credentials.alert.missing.message", bundle: .module),
+                style: .warning
+            )
             return nil
         }
         guard UUID(uuidString: orgId) != nil else {
-            showAlert(in: window, keys: "credentials.alert.invalid_org", style: .warning)
+            showAlert(
+                in: window,
+                title: String(localized: "credentials.alert.invalid_org.title", bundle: .module),
+                message: String(localized: "credentials.alert.invalid_org.message", bundle: .module),
+                style: .warning
+            )
             return nil
         }
         return (name, orgId, cookie)
     }
 
-    /// The id of the profile written, or nil after reporting why it could not be.
     private func persist(_ fields: Fields, in window: NSWindow) -> String? {
         do {
-            if let profile = editingProfile {
+            if let profile = profileToUpdate(organizationId: fields.orgId) {
                 try profileStore.updateProfile(
                     id: profile.id, name: fields.name,
                     organizationId: fields.orgId, cookie: fields.cookie
                 )
+                if case .setup = mode {
+                    activateIfActiveCookieUnreadable(profileId: profile.id)
+                }
                 return profile.id
             }
             let created = try profileStore.addProfile(
                 name: fields.name, organizationId: fields.orgId, cookie: fields.cookie
             )
-            // The first-ever profile must become active, or nothing would be monitored.
-            if profileStore.activeProfile == nil {
-                profileStore.setActive(id: created.id)
-            }
+            activateIfActiveCookieUnreadable(profileId: created.id)
             return created.id
         } catch ProfileStoreError.duplicateOrganization {
-            showAlert(in: window, keys: "credentials.alert.duplicate_org", style: .warning)
+            showAlert(
+                in: window,
+                title: String(localized: "credentials.alert.duplicate_org.title", bundle: .module),
+                message: String(localized: "credentials.alert.duplicate_org.message", bundle: .module),
+                style: .warning
+            )
+            return nil
+        } catch ProfileStoreError.limitReached {
+            showAlert(
+                in: window,
+                title: String(localized: "credentials.alert.limit_reached.title", bundle: .module),
+                message: String(localized: "credentials.alert.limit_reached.message", bundle: .module),
+                style: .warning
+            )
             return nil
         } catch {
-            showAlert(in: window, keys: "credentials.alert.save_failed", style: .critical)
+            showAlert(
+                in: window,
+                title: String(localized: "credentials.alert.save_failed.title", bundle: .module),
+                message: String(localized: "credentials.alert.save_failed.message", bundle: .module),
+                style: .critical
+            )
             return nil
         }
     }
 
-    /// The four alerts this form can raise differ only in their key prefix and their severity.
-    private func showAlert(in window: NSWindow, keys prefix: String, style: NSAlert.Style) {
-        showAlert(
-            in: window,
-            title: String(localized: String.LocalizationValue("\(prefix).title"), bundle: .module),
-            message: String(localized: String.LocalizationValue("\(prefix).message"), bundle: .module),
-            style: style
-        )
+    private func profileToUpdate(organizationId: String) -> Profile? {
+        switch mode {
+        case .edit:
+            return editedProfile
+        case .add:
+            return nil
+        case .setup:
+            let organization = UUID(uuidString: organizationId)
+            return profileStore.profiles.first { UUID(uuidString: $0.organizationId) == organization }
+        }
+    }
+
+    private func activateIfActiveCookieUnreadable(profileId: String) {
+        guard profileStore.activeCookie?.isEmpty ?? true else { return }
+        profileStore.setActive(id: profileId)
     }
 
     private func showAlert(in window: NSWindow, title: String, message: String, style: NSAlert.Style) {
@@ -145,6 +191,12 @@ final class CredentialFormView: NSView {
         cookieTextView.isAutomaticQuoteSubstitutionEnabled = false
         cookieTextView.isAutomaticDashSubstitutionEnabled = false
         cookieTextView.isAutomaticTextReplacementEnabled = false
+        cookieTextView.isAutomaticSpellingCorrectionEnabled = false
+        cookieTextView.isAutomaticLinkDetectionEnabled = false
+        cookieTextView.isAutomaticDataDetectionEnabled = false
+        cookieTextView.isAutomaticTextCompletionEnabled = false
+        cookieTextView.isContinuousSpellCheckingEnabled = false
+        cookieTextView.isGrammarCheckingEnabled = false
         cookieTextView.textContainer?.widthTracksTextView = true
         cookieTextView.autoresizingMask = [.width]
         cookieScrollView.documentView = cookieTextView

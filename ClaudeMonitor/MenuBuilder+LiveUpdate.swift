@@ -1,54 +1,82 @@
 import AppKit
 
 /// Lightweight menu updates for when menu is open.
-/// Updates only values of existing items without changing structure.
+/// Updates only values of existing items without changing structure outside the usage rows.
 extension MenuBuilder {
     
-    /// Update existing menu items without structural changes.
+    /// Update existing menu items without structural changes outside the usage rows.
     /// - Parameters:
     ///   - menu: The menu to update
     ///   - state: Current monitor state
     ///
     /// Use this when the menu is open to avoid visual glitches from rebuilding.
     /// This updates only the values/content of existing items.
-    static func updateExistingItems(menu: NSMenu, state: MonitorState) {
-        updateUsageRows(in: menu, state: state)
+    @discardableResult
+    static func updateExistingItems(menu: NSMenu, state: MonitorState, target: (any MenuActions)? = nil) -> UsageCache {
+        let cache = updateUsageRows(in: menu, state: state, target: target)
         updateServiceRows(in: menu, state: state)
         updateControlRows(in: menu, state: state)
         updateConnectivityBanner(in: menu, state: state)
         refreshGraph(in: menu, analyses: state.usage.windowAnalyses)
+        return cache
     }
 }
 
 // MARK: - Private Update Helpers
 
 private extension MenuBuilder {
-    
-    static func updateUsageRows(in menu: NSMenu, state: MonitorState) {
-        guard let usage = state.usage.currentUsage else { return }
-        
-        let labels = usageLabels(usage: usage)
-        let barWidth = usage.hasAnyModelSpecific 
-            ? Formatting.barImageWidth 
-            : Formatting.barImageWidthWide
-        let style = usageParagraphStyle(
-            labelColumnWidth: maxLabelWidth(labels: labels.map(\.label)),
-            barWidth: barWidth
-        )
-        
-        for (tag, label, window) in labels {
+
+    static func updateUsageRows(in menu: NSMenu, state: MonitorState, target: (any MenuActions)?) -> UsageCache {
+        let hasPlaceholder = menu.item(withTag: usagePlaceholderTag) != nil
+        guard state.hasCredentials, let usage = state.usage.currentUsage else {
+            if !hasPlaceholder {
+                replaceUsageRows(in: menu, state: state, target: target)
+            }
+            return UsageCache()
+        }
+        if hasPlaceholder {
+            return replaceUsageRows(in: menu, state: state, target: target)
+        }
+
+        let cache = usageCache(for: usage)
+        let barWidth = usageBarWidth(for: usage)
+        removeVanishedUsageRows(in: menu, cache: cache)
+
+        for (tag, label, window) in cache.labels {
             guard let window else { continue }
             updateUsageItem(
                 in: menu,
                 tag: tag,
                 label: label,
                 window: window,
-                style: style,
+                style: cache.style,
                 barWidth: barWidth
             )
         }
+        return cache
     }
-    
+
+    @discardableResult
+    static func replaceUsageRows(in menu: NSMenu, state: MonitorState, target: (any MenuActions)?) -> UsageCache {
+        let isUsageRow: (NSMenuItem) -> Bool = { $0.tag >= usageBaseTag && $0.tag <= usagePlaceholderTag }
+        guard let insertionIndex = menu.items.firstIndex(where: isUsageRow) else { return UsageCache() }
+        for item in menu.items where isUsageRow(item) {
+            menu.removeItem(item)
+        }
+        let (items, cache) = usageItems(state: state, target: target)
+        for (offset, item) in items.filter(isUsageRow).enumerated() {
+            menu.insertItem(item, at: insertionIndex + offset)
+        }
+        return cache
+    }
+
+    static func removeVanishedUsageRows(in menu: NSMenu, cache: UsageCache) {
+        let windowTags = Set(cache.labels.filter { $0.window != nil }.map(\.tag))
+        for item in menu.items where item.tag >= usageBaseTag && item.tag < usagePlaceholderTag && !windowTags.contains(item.tag) {
+            menu.removeItem(item)
+        }
+    }
+
     static func updateUsageItem(
         in menu: NSMenu,
         tag: Int,
@@ -74,10 +102,7 @@ private extension MenuBuilder {
     }
     
     static func updateServiceRows(in menu: NSMenu, state: MonitorState) {
-        guard let components = state.service.currentStatus?.components else { return }
-        
-        let sorted = components.sorted(by: { $0.name < $1.name })
-        for (index, component) in sorted.enumerated() {
+        for (index, component) in displayedComponents(state: state).enumerated() {
             updateServiceItem(in: menu, index: index, component: component)
         }
     }
@@ -129,7 +154,7 @@ private extension MenuBuilder {
         if bannerItem.title != bannerText {
             bannerItem.title = bannerText
             if state.polling.isAnyServiceStale {
-                bannerItem.view = makeHeaderView(title: bannerText, subtitle: "Claude Monitor")
+                bannerItem.view = makeHeaderView(title: bannerText, subtitle: Constants.Menu.appTitle)
             }
         }
     }

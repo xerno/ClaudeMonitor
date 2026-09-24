@@ -73,8 +73,6 @@ struct HistoryHealth: Sendable, Equatable {
     }
 }
 
-/// The set of configured accounts and which one is active, mirrored into the value-type state
-/// pipeline so the menu can render the account switcher without reaching into `ProfileStore`.
 struct ProfileSnapshot: Sendable, Equatable {
     let profiles: [Profile]
     let activeId: String?
@@ -82,11 +80,6 @@ struct ProfileSnapshot: Sendable, Equatable {
     init(profiles: [Profile] = [], activeId: String? = nil) {
         self.profiles = profiles
         self.activeId = activeId
-    }
-
-    var activeProfile: Profile? {
-        guard let activeId else { return nil }
-        return profiles.first { $0.id == activeId }
     }
 }
 

@@ -119,13 +119,8 @@
   "credentials.field.name_placeholder": "Personal",
   "credentials.alert.duplicate_org.title": "Cuenta duplicada",
   "credentials.alert.duplicate_org.message": "Otro perfil ya usa este ID de organización.",
-  "menu.account.current": "Cuenta: %@",
-  "menu.account.add": "Añadir cuenta…",
-  "menu.account.remove": "Eliminar «%@»…",
-  "menu.more": "Más",
-  "addaccount.window.title": "Añadir cuenta",
-  "addaccount.button.add": "Añadir",
-  "addaccount.button.cancel": "Cancelar",
+  "credentials.alert.limit_reached.title": "Se alcanzó el límite de cuentas",
+  "credentials.alert.limit_reached.message": "Elimina una cuenta existente antes de añadir otra.",
   "account.remove.confirm.title": "¿Eliminar cuenta?",
   "account.remove.confirm.message": "Esto elimina «%@» y sus credenciales de ClaudeMonitor. Su historial de uso en el disco se conserva.",
   "account.remove.confirm.remove": "Eliminar",
@@ -133,8 +128,9 @@
   "prefs.tab.general": "General",
   "prefs.tab.add": "Añadir cuenta",
   "prefs.button.add_account": "Añadir cuenta",
-  "prefs.button.delete_account": "Eliminar cuenta",
+  "prefs.button.remove_account": "Eliminar cuenta",
   "prefs.show_graph": "Mostrar gráfico de uso",
   "prefs.compact_services": "Lista de servicios compacta",
-  "services.all_operational": "Todos los sistemas operativos"
+  "profiles.migrated_default_name": "Cuenta 1",
+  "services.all_operational": "Todos los sistemas funcionan correctamente"
 }

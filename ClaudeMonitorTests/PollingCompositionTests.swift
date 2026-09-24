@@ -112,8 +112,8 @@ import Foundation
     /// Tests that switching to a different organization ID clears the coordinator's
     /// windowAnalyses, preventing stale analyses from a previous org from leaking.
     ///
-    /// Strategy: use a mutable-credentials closure so we can simulate a credential
-    /// swap inside restartPolling() without touching real Keychain.
+    /// Strategy: edit the active profile's organization in an isolated ProfileStore so we can
+    /// simulate a credential swap inside restartPolling() without touching real Keychain.
     ///
     /// The path under test:
     ///   restartPolling() → reloadCredentials() → orgId changed →
@@ -123,10 +123,10 @@ import Foundation
         let mockUsage = MockUsageService()
         let mockIdleProvider = MockSystemIdleProvider()
 
-        // Editing the active profile's org and restarting polling is the real switch path.
         let orgAlpha = "org-alpha-\(UUID().uuidString)"
         let orgBeta = "org-beta-\(UUID().uuidString)"
-        let store = makeTestProfileStore(secrets: InMemorySecrets())
+        let defaults = makeTestDefaults("polling-composition")
+        let store = makeTestProfileStore(secrets: InMemorySecrets(), defaults: defaults)
         let profile = try store.addProfile(name: "Acct", organizationId: orgAlpha, cookie: "test-cookie")
         store.setActive(id: profile.id)
         let fixture = UsageHistoryTestFixture()
@@ -135,6 +135,7 @@ import Foundation
             usageService: mockUsage,
             systemIdleProvider: mockIdleProvider,
             profileStore: store,
+            defaults: defaults,
             usageHistory: fixture.history
         )
 
@@ -218,29 +219,6 @@ import Foundation
 
     // MARK: - Test 6: cross-organisation data bleed when a fetch is in flight during an org switch
 
-    /// A single-waiter, single-signaller rendezvous used to deterministically suspend a
-    /// mock fetch until the test explicitly releases it, and to let the test wait until the
-    /// fetch has genuinely started (and is suspended inside it) before proceeding. No
-    /// `Task.sleep`/`Task.yield` polling anywhere — both transitions are driven by
-    /// `CheckedContinuation`, so the test is deterministic under load.
-    private actor Gate {
-        private var isOpen = false
-        private var waiter: CheckedContinuation<Void, Never>?
-
-        func open() {
-            isOpen = true
-            waiter?.resume()
-            waiter = nil
-        }
-
-        func wait() async {
-            if isOpen { return }
-            await withCheckedContinuation { continuation in
-                waiter = continuation
-            }
-        }
-    }
-
     /// Constructs the cross-organisation data bleed race: a usage fetch starts under org A,
     /// suspends mid-flight (via `MockUsageService.beforeReturn`), the test switches the live
     /// coordinator to org B while that fetch is still suspended, then releases the fetch so
@@ -268,7 +246,8 @@ import Foundation
 
         let orgA = "org-a-\(UUID().uuidString)"
         let orgB = "org-b-\(UUID().uuidString)"
-        let store = makeTestProfileStore(secrets: InMemorySecrets())
+        let defaults = makeTestDefaults("polling-composition")
+        let store = makeTestProfileStore(secrets: InMemorySecrets(), defaults: defaults)
         let profile = try store.addProfile(name: "Acct", organizationId: orgA, cookie: "test-cookie")
         store.setActive(id: profile.id)
         let fixture = UsageHistoryTestFixture()
@@ -277,6 +256,7 @@ import Foundation
             usageService: mockUsage,
             systemIdleProvider: mockIdleProvider,
             profileStore: store,
+            defaults: defaults,
             usageHistory: fixture.history
         )
 

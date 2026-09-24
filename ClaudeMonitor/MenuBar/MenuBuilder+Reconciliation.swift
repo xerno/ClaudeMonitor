@@ -42,11 +42,6 @@ extension MenuBuilder {
         if let rep = desired.representedObject as? String {
             existing.representedObject = rep
         }
-        // Account switcher: the submenu is rebuilt each pass (active checkmark, account list), so
-        // replace it wholesale rather than trying to diff its rows.
-        if desired.submenu != nil {
-            existing.submenu = desired.submenu
-        }
     }
 
     /// Pushes AppKit's highlight decision into the view-based usage rows: at most one row is

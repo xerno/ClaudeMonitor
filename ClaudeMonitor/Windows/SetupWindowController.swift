@@ -6,7 +6,7 @@ final class SetupWindowController: NSWindowController, NSWindowDelegate {
     private let onComplete: () -> Void
 
     init(profileStore: ProfileStore, onComplete: @escaping () -> Void) {
-        self.credentialForm = CredentialFormView(profileStore: profileStore, profileId: nil)
+        self.credentialForm = CredentialFormView(profileStore: profileStore, mode: .setup)
         self.onComplete = onComplete
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 660, height: 480),

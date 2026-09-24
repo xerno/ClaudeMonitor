@@ -9,25 +9,12 @@ extension MenuBuilder {
         } else {
             reconcile(menu: menu, desired: desired)
             if let usageHeaderItem = menu.item(withTag: usageSectionTag) {
-                let usageTitle = String(localized: "menu.section.usage", bundle: .module)
-                let switcher = accountSwitcher(state: state, target: target)
-                if state.polling.isAnyServiceStale {
-                    if usageHeaderItem.view != nil { usageHeaderItem.view = nil }
-                } else if let toggle = findAccountToggle(in: usageHeaderItem.view),
-                          let switcher, toggle.currentLabels == switcher.names {
-                    // Same accounts, only the active one may have changed — update the selection in
-                    // place. Rebuilding the header view here would re-measure and shift the open menu.
-                    toggle.configure(names: switcher.names, selectedIndex: switcher.activeIndex)
-                } else {
-                    usageHeaderItem.view = makeHeaderView(title: usageTitle, subtitle: "Claude Monitor", switcher: switcher)
-                }
+                updateUsageHeader(usageHeaderItem, state: state, target: target)
             }
             if let servicesHeaderItem = menu.item(withTag: servicesSectionTag) {
                 let servicesTitle = String(localized: "menu.section.services", bundle: .module)
-                let comps = state.service.currentStatus?.components ?? []
-                let allOp = !comps.isEmpty && comps.allSatisfy { $0.status == .operational }
-                if state.compactServices && allOp {
-                    servicesHeaderItem.view = makeHeaderView(title: servicesTitle, subtitle: String(localized: "services.all_operational", bundle: .module))
+                if let subtitle = servicesSubtitle(state: state) {
+                    servicesHeaderItem.view = makeHeaderView(title: servicesTitle, subtitle: subtitle)
                 } else if servicesHeaderItem.view != nil {
                     servicesHeaderItem.view = nil
                 }
@@ -35,7 +22,7 @@ extension MenuBuilder {
             if state.polling.isAnyServiceStale,
                let bannerItem = menu.item(withTag: connectivityBannerTag) {
                 let bannerText = bannerItem.title
-                bannerItem.view = makeHeaderView(title: bannerText, subtitle: "Claude Monitor")
+                bannerItem.view = makeHeaderView(title: bannerText, subtitle: Constants.Menu.appTitle)
             }
         }
         refreshGraph(in: menu, analyses: state.usage.windowAnalyses)
@@ -52,15 +39,14 @@ extension MenuBuilder {
             let bannerItem = NSMenuItem(title: bannerText, action: nil, keyEquivalent: "")
             bannerItem.isEnabled = false
             bannerItem.tag = connectivityBannerTag
-            bannerItem.view = makeHeaderView(title: bannerText, subtitle: "Claude Monitor")
+            bannerItem.view = makeHeaderView(title: bannerText, subtitle: Constants.Menu.appTitle)
             items.append(bannerItem)
             items.append(separator(tag: separatorAfterConnectivityTag))
         }
 
-        let usageSubtitle = state.polling.isAnyServiceStale ? nil : "Claude Monitor"
         items.append(sectionHeader(
             String(localized: "menu.section.usage", bundle: .module),
-            subtitle: usageSubtitle,
+            subtitle: usageSubtitle(state: state),
             tag: usageSectionTag,
             switcher: accountSwitcher(state: state, target: target)
         ))
@@ -73,11 +59,7 @@ extension MenuBuilder {
         }
         items.append(separator(tag: separatorAfterUsageTag))
 
-        let components = state.service.currentStatus?.components ?? []
-        let allOperational = !components.isEmpty && components.allSatisfy { $0.status == .operational }
-        let servicesSubtitle = (state.compactServices && allOperational)
-            ? String(localized: "services.all_operational", bundle: .module) : nil
-        items.append(sectionHeader(String(localized: "menu.section.services", bundle: .module), subtitle: servicesSubtitle, tag: servicesSectionTag))
+        items.append(sectionHeader(String(localized: "menu.section.services", bundle: .module), subtitle: servicesSubtitle(state: state), tag: servicesSectionTag))
         items.append(contentsOf: serviceItems(state: state))
 
         if let incidents = state.service.currentStatus?.incidents, !incidents.isEmpty {
@@ -90,12 +72,9 @@ extension MenuBuilder {
 
         items.append(separator(tag: separatorAfterServicesTag))
         items.append(contentsOf: controlItems(state: state))
-
-        // The action items (Refresh / Preferences / About / Quit) live in a native submenu behind a
-        // "⋯" row — a status-bar dropdown reliably expands a submenu item, unlike a button popping
-        // its own menu from inside the tracking menu.
         items.append(separator(tag: separatorControlsTag))
         items.append(footerActionsItem(target: target))
+        items.append(contentsOf: shortcutItems(target: target))
 
         return (items, cache)
     }
@@ -121,14 +100,25 @@ extension MenuBuilder {
         }
     }
 
+    static func displayedComponents(state: MonitorState) -> [StatusComponent] {
+        let components = state.service.currentStatus?.components ?? []
+        let shown = state.compactServices ? components.filter { $0.status != .operational } : components
+        return shown.sorted(by: { $0.name < $1.name })
+    }
+
+    static func servicesSubtitle(state: MonitorState) -> String? {
+        let components = state.service.currentStatus?.components ?? []
+        guard state.compactServices,
+              !components.isEmpty,
+              components.allSatisfy({ $0.status == .operational }) else { return nil }
+        return String(localized: "services.all_operational", bundle: .module)
+    }
+
     static func serviceItems(state: MonitorState) -> [NSMenuItem] {
-        guard let components = state.service.currentStatus?.components else {
+        guard state.service.currentStatus?.components != nil else {
             return [staticItem("  " + String(localized: "menu.loading", bundle: .module), tag: servicesPlaceholderTag)]
         }
-        // Full mode: every component, a row each. Compact mode: nothing when all healthy (the
-        // section header carries an "all operational" subtitle) and only the affected ones otherwise.
-        let rows = state.compactServices ? components.filter { $0.status != .operational } : components
-        return rows.sorted(by: { $0.name < $1.name }).enumerated().map { index, component in
+        return displayedComponents(state: state).enumerated().map { index, component in
             let name = truncatedName(component.name)
             return staticItem("  \(component.status.dot)  \(name)  –  \(component.status.label)",
                               tag: serviceBaseTag + index)
@@ -143,5 +133,23 @@ extension MenuBuilder {
         item.target = target
         item.representedObject = incident.shortlink
         return item
+    }
+
+    private static func usageSubtitle(state: MonitorState) -> String? {
+        state.polling.isAnyServiceStale ? nil : Constants.Menu.appTitle
+    }
+
+    private static func updateUsageHeader(_ item: NSMenuItem, state: MonitorState, target: any MenuActions) {
+        let subtitle = usageSubtitle(state: state)
+        let switcher = accountSwitcher(state: state, target: target)
+        if let switcher,
+           let toggle = findAccountToggle(in: item.view),
+           toggle.currentSegments == switcher.segments,
+           headerSubtitle(in: item.view) == subtitle {
+            toggle.configure(with: switcher)
+        } else {
+            let title = String(localized: "menu.section.usage", bundle: .module)
+            item.view = headerView(title: title, subtitle: subtitle, switcher: switcher)
+        }
     }
 }

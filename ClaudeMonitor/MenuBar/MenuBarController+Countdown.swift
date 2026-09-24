@@ -69,9 +69,6 @@ extension MenuBarController {
 
     private func updateCountdownDisplays() {
         let state = coordinator.monitorState
-        // Skip the status-item text while the menu is open so its width — and thus the anchored
-        // dropdown's position — stays put (see MenuBarController.applyUIUpdates). The ticking reset
-        // countdown is still visible in the open dropdown via refreshTimes below.
         if let button = statusItem.button, !isMenuOpen {
             StatusBarRenderer.updateText(
                 button: button, usage: state.usage.currentUsage,

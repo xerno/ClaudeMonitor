@@ -1,9 +1,6 @@
 import AppKit
 
 extension MenuBuilder {
-    /// The remaining dropdown footer: the "Updated / Next poll" line and the history-health status.
-    /// The action items (Refresh / Preferences / About / Quit) now live behind the header's "⋯"
-    /// button — see `makeOverflowMenu`.
     static func controlItems(state: MonitorState) -> [NSMenuItem] {
         var items: [NSMenuItem] = []
 
@@ -23,103 +20,95 @@ extension MenuBuilder {
         return items
     }
 
-    /// The compact account switcher embedded in the Usage header, or `nil` with fewer than two
-    /// accounts — there is nothing to toggle between. Selecting a segment drives `didSelectProfile`.
-    static func accountSwitcher(state: MonitorState, target: any MenuActions) -> HeaderAccountSwitcher? {
-        let profiles = state.profiles.profiles
-        guard profiles.count >= 2 else { return nil }
-        return HeaderAccountSwitcher(
-            names: profiles.map { truncatedSwitcherName($0.name) },
-            activeIndex: profiles.firstIndex { $0.id == state.profiles.activeId } ?? 0,
-            onSelect: { [weak target] index in
-                guard profiles.indices.contains(index) else { return }
-                let sender = NSMenuItem()
-                sender.representedObject = profiles[index].id
-                target?.didSelectProfile(sender)
-            }
-        )
-    }
-
-    /// The dropdown's footer action bar: four evenly-spaced icon buttons — Refresh, Preferences,
-    /// About, Quit — each firing its action directly on click.
     static func footerActionsItem(target: any MenuActions) -> NSMenuItem {
-        let refresh = FooterIconButton(symbol: "arrow.clockwise", help: String(localized: "menu.refresh", bundle: .module))
-        refresh.onClick = { [weak target] in target?.didSelectRefresh() }
-        let prefs = FooterIconButton(symbol: "gearshape", help: String(localized: "menu.preferences", bundle: .module))
-        prefs.onClick = { [weak target] in target?.didSelectPreferences() }
-        let about = FooterIconButton(symbol: "info.circle", help: String(localized: "menu.about", bundle: .module))
-        about.onClick = { [weak target] in target?.didSelectAbout() }
-        let quit = FooterIconButton(symbol: "power", help: String(localized: "menu.quit", bundle: .module))
-        quit.onClick = { NSApplication.shared.terminate(nil) }
+        let buttons = [
+            FooterIconButton(
+                symbol: Constants.Menu.Symbol.refresh,
+                help: String(localized: "menu.refresh", bundle: .module),
+                closesMenu: false
+            ) { [weak target] in target?.didSelectRefresh() },
+            FooterIconButton(
+                symbol: Constants.Menu.Symbol.preferences,
+                help: String(localized: "menu.preferences", bundle: .module),
+                closesMenu: true
+            ) { [weak target] in target?.didSelectPreferences() },
+            FooterIconButton(
+                symbol: Constants.Menu.Symbol.about,
+                help: String(localized: "menu.about", bundle: .module),
+                closesMenu: true
+            ) { [weak target] in target?.didSelectAbout() },
+            FooterIconButton(
+                symbol: Constants.Menu.Symbol.quit,
+                help: String(localized: "menu.quit", bundle: .module),
+                closesMenu: true
+            ) { _ = NSApplication.shared.sendAction(#selector(NSApplication.terminate(_:)), to: nil, from: nil) },
+        ]
 
-        let stack = NSStackView(views: [refresh, prefs, about, quit])
+        let stack = NSStackView(views: buttons)
         stack.orientation = .horizontal
         stack.distribution = .fillEqually
         stack.translatesAutoresizingMaskIntoConstraints = false
 
-        let container = NSView(frame: NSRect(x: 0, y: 0, width: 320, height: 32))
+        let edgePadding = Constants.Menu.edgePadding
+        let width = CGFloat(buttons.count) * Constants.Menu.footerButtonSize.width + 2 * edgePadding
+        let container = NSView(frame: NSRect(x: 0, y: 0, width: width, height: Constants.Menu.footerHeight))
         container.autoresizingMask = .width
         container.addSubview(stack)
         NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 14),
-            stack.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -14),
+            stack.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: edgePadding),
+            stack.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -edgePadding),
             stack.topAnchor.constraint(equalTo: container.topAnchor),
             stack.bottomAnchor.constraint(equalTo: container.bottomAnchor),
         ])
 
         let item = NSMenuItem()
-        item.tag = moreTag
+        item.tag = footerActionsTag
         item.view = container
         return item
     }
 
-    /// The overflow menu of the control actions — retained for wiring/documentation and tests.
-    static func makeOverflowMenu(target: any MenuActions) -> NSMenu {
-        let menu = NSMenu()
-
-        let refresh = NSMenuItem(title: String(localized: "menu.refresh", bundle: .module),
-                                 action: #selector(MenuActions.didSelectRefresh), keyEquivalent: "r")
-        refresh.tag = refreshTag
-        refresh.target = target
-        menu.addItem(refresh)
-
-        let prefs = NSMenuItem(title: String(localized: "menu.preferences", bundle: .module),
-                               action: #selector(MenuActions.didSelectPreferences), keyEquivalent: ",")
-        prefs.tag = preferencesTag
-        prefs.target = target
-        menu.addItem(prefs)
-
-        let about = NSMenuItem(title: String(localized: "menu.about", bundle: .module),
-                               action: #selector(MenuActions.didSelectAbout), keyEquivalent: "")
-        about.tag = aboutTag
-        about.target = target
-        menu.addItem(about)
-
-        menu.addItem(.separator())
-
-        let quit = NSMenuItem(title: String(localized: "menu.quit", bundle: .module),
-                              action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
-        quit.tag = quitTag
-        menu.addItem(quit)
-
-        return menu
+    static func footerButtons(in menu: NSMenu) -> [FooterIconButton] {
+        let stack = menu.item(withTag: footerActionsTag)?.view?.subviews.first { $0 is NSStackView } as? NSStackView
+        return stack?.arrangedSubviews.compactMap { $0 as? FooterIconButton } ?? []
     }
 
-    /// Finds the account toggle nested inside a header view, if present, so the reconciler can
-    /// update its selection in place instead of rebuilding the whole header.
-    static func findAccountToggle(in view: NSView?) -> AccountToggleView? {
-        guard let view else { return nil }
-        if let toggle = view as? AccountToggleView { return toggle }
-        for subview in view.subviews {
-            if let toggle = findAccountToggle(in: subview) { return toggle }
-        }
-        return nil
+    static func resetFooterHover(in menu: NSMenu) {
+        footerButtons(in: menu).forEach { $0.resetHover() }
     }
 
-    private static func truncatedSwitcherName(_ name: String) -> String {
-        name.count > switcherNameMaxLength
-            ? String(name.prefix(switcherNameMaxLength - 1)).trimmingCharacters(in: .whitespaces) + "…"
-            : name
+    static func shortcutItems(target: any MenuActions) -> [NSMenuItem] {
+        [
+            shortcutItem(
+                title: String(localized: "menu.refresh", bundle: .module),
+                action: #selector(MenuActions.didSelectRefresh),
+                keyEquivalent: Constants.Menu.KeyEquivalent.refresh,
+                tag: refreshTag,
+                target: target
+            ),
+            shortcutItem(
+                title: String(localized: "menu.preferences", bundle: .module),
+                action: #selector(MenuActions.didSelectPreferences),
+                keyEquivalent: Constants.Menu.KeyEquivalent.preferences,
+                tag: preferencesTag,
+                target: target
+            ),
+            shortcutItem(
+                title: String(localized: "menu.quit", bundle: .module),
+                action: #selector(NSApplication.terminate(_:)),
+                keyEquivalent: Constants.Menu.KeyEquivalent.quit,
+                tag: quitTag,
+                target: nil
+            ),
+        ]
+    }
+
+    private static func shortcutItem(title: String, action: Selector, keyEquivalent: String, tag: Int, target: AnyObject?) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: keyEquivalent)
+        item.tag = tag
+        item.target = target
+        item.isHidden = true
+        item.allowsKeyEquivalentWhenHidden = true
+        return item
     }
 
     /// Status line reporting `UsageHistory`'s persistence-failure/quarantine state — `nil` when

@@ -267,15 +267,14 @@ import Foundation
     ///   - clears windowAnalyses
     ///   - switches the history to the new org (samples from the old org are gone)
     ///
-    /// Uses a mutable credentials store (reference type) to simulate the credential change
-    /// without violating Sendable requirements on the closure capture.
+    /// Edits the active profile's organization in an isolated ProfileStore to simulate the
+    /// credential change.
     @Test func reloadCredentialsWithNewOrgClearsWindowAnalyses() async throws {
         let orgA = "test-org-a-\(UUID().uuidString)"
         let orgB = "test-org-b-\(UUID().uuidString)"
 
-        // Changing the active profile's org (as the credential form does when the user edits it)
-        // and restarting polling exercises the real org-switch path.
-        let store = makeTestProfileStore(secrets: InMemorySecrets())
+        let defaults = makeTestDefaults("coord-composition")
+        let store = makeTestProfileStore(secrets: InMemorySecrets(), defaults: defaults)
         let profile = try store.addProfile(name: "Acct", organizationId: orgA, cookie: "test-cookie")
         store.setActive(id: profile.id)
 
@@ -287,6 +286,7 @@ import Foundation
             usageService: mockUsage,
             systemIdleProvider: MockSystemIdleProvider(),
             profileStore: store,
+            defaults: defaults,
             usageHistory: fixture.history
         )
 

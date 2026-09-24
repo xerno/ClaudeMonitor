@@ -122,12 +122,8 @@
   "credentials.field.name_placeholder": "Osobní",
   "credentials.alert.duplicate_org.title": "Duplicitní účet",
   "credentials.alert.duplicate_org.message": "Toto ID organizace už používá jiný profil.",
-  "menu.account.current": "Účet: %@",
-  "menu.account.add": "Přidat účet…",
-  "menu.account.remove": "Odebrat „%@“…",
-  "addaccount.window.title": "Přidat účet",
-  "addaccount.button.add": "Přidat",
-  "addaccount.button.cancel": "Zrušit",
+  "credentials.alert.limit_reached.title": "Dosažen limit účtů",
+  "credentials.alert.limit_reached.message": "Před přidáním dalšího účtu odeberte existující účet.",
   "account.remove.confirm.title": "Odebrat účet?",
   "account.remove.confirm.message": "Odebere „%@“ a jeho přihlašovací údaje z ClaudeMonitoru. Historie využití na disku zůstane.",
   "account.remove.confirm.remove": "Odebrat",
@@ -135,9 +131,9 @@
   "prefs.tab.general": "Obecné",
   "prefs.tab.add": "Přidat účet",
   "prefs.button.add_account": "Přidat účet",
-  "prefs.button.delete_account": "Smazat účet",
+  "prefs.button.remove_account": "Odebrat účet",
   "prefs.show_graph": "Zobrazit graf využití",
-  "menu.more": "Více",
   "services.all_operational": "Vše funguje normálně",
-  "prefs.compact_services": "Kompaktní seznam služeb"
+  "prefs.compact_services": "Kompaktní seznam služeb",
+  "profiles.migrated_default_name": "Účet 1"
 }

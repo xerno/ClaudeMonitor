@@ -1,16 +1,23 @@
 import AppKit
 
-/// Compact segmented account switcher embedded in the middle of the Usage section header, one
-/// segment per account, active pre-selected. Selecting a segment reports the chosen index via
-/// `onSelect`; the menu builder maps that back to a profile id and drives the switch. Deliberately
-/// small (`.small` control size) so it sits inside the header row without disturbing the layout.
+struct AccountSegment: Equatable, Sendable {
+    let id: String
+    let label: String
+    let toolTip: String
+}
+
+@MainActor
+struct HeaderAccountSwitcher {
+    let segments: [AccountSegment]
+    let activeIndex: Int
+    let onSelect: (String) -> Void
+}
+
 @MainActor
 final class AccountToggleView: NSView {
     private let segmented = NSSegmentedControl()
-    var onSelect: ((Int) -> Void)?
-    /// The segment labels currently installed — lets the reconciler tell "same accounts, only the
-    /// selection changed" (update in place) from "the account set changed" (rebuild the header).
-    private(set) var currentLabels: [String] = []
+    private var onSelect: ((String) -> Void)?
+    private(set) var currentSegments: [AccountSegment] = []
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -33,20 +40,24 @@ final class AccountToggleView: NSView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError() }
 
-    func configure(names: [String], selectedIndex: Int) {
-        if currentLabels != names {
-            segmented.segmentCount = names.count
-            for (index, name) in names.enumerated() {
-                segmented.setLabel(name, forSegment: index)
+    func configure(with switcher: HeaderAccountSwitcher) {
+        if currentSegments != switcher.segments {
+            segmented.segmentCount = switcher.segments.count
+            for (index, segment) in switcher.segments.enumerated() {
+                segmented.setLabel(segment.label, forSegment: index)
+                segmented.setToolTip(segment.toolTip, forSegment: index)
             }
-            currentLabels = names
+            currentSegments = switcher.segments
         }
-        if names.indices.contains(selectedIndex) {
-            segmented.selectedSegment = selectedIndex
+        if currentSegments.indices.contains(switcher.activeIndex) {
+            segmented.selectedSegment = switcher.activeIndex
         }
+        onSelect = switcher.onSelect
     }
 
     @objc private func segmentChanged() {
-        onSelect?(segmented.selectedSegment)
+        let index = segmented.selectedSegment
+        guard currentSegments.indices.contains(index) else { return }
+        onSelect?(currentSegments[index].id)
     }
 }

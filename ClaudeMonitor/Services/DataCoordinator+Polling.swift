@@ -14,19 +14,8 @@ extension DataCoordinator {
         startPolling()
     }
 
-    /// Switches the active account: persists the selection, then restarts polling —
-    /// `restartPolling()` resets the scheduler (clearing any backoff/stale state carried over from
-    /// the old account) and reloads credentials for the newly active profile, which fetches the new
-    /// account's usage on the next poll. No-op for an unknown id.
-    ///
-    /// Deliberately does NOT clear `currentUsage`: while the dropdown is open, dropping to the
-    /// "Loading" state would remove the usage rows and graph, shrinking the menu and making it jump.
-    /// Keeping the previous values in place until the new poll updates them keeps the item count —
-    /// and therefore the menu's position — stable through the switch.
     func switchToProfile(id: String) {
-        guard profileStore.activeProfile?.id != id else { return }
-        profileStore.setActive(id: id)
-        guard profileStore.activeProfile?.id == id else { return }
+        guard profileStore.activeId != id, profileStore.setActive(id: id) else { return }
         restartPolling()
     }
 
