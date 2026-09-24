@@ -12,7 +12,10 @@ import Testing
         let b: Profile
     }
 
-    private func makeTwoProfileSetup(usage: MockUsageService) throws -> TwoProfileSetup {
+    private func makeTwoProfileSetup(
+        usage: MockUsageService,
+        status: MockStatusService = MockStatusService()
+    ) throws -> TwoProfileSetup {
         let defaults = makeTestDefaults("switch")
         let store = makeTestProfileStore(secrets: InMemorySecrets(), defaults: defaults)
         let a = try store.addProfile(name: "A", organizationId: UUID().uuidString, cookie: "cookie-a")
@@ -20,7 +23,7 @@ import Testing
         store.setActive(id: a.id)
         let fixture = UsageHistoryTestFixture()
         let coordinator = DataCoordinator(
-            statusService: MockStatusService(),
+            statusService: status,
             usageService: usage,
             systemIdleProvider: MockSystemIdleProvider(),
             pathMonitor: MockPathMonitor(),
@@ -145,6 +148,50 @@ import Testing
         #expect(coordinator.currentUsage == nil)
         #expect(coordinator.windowAnalyses.isEmpty)
         #expect(!setup.fixture.history.samples(for: entryA).contains { $0.utilization == 91 })
+    }
+
+    @Test func switchWhileStatusFetchSuspendedDoesNotRecordPreviousAccount() async throws {
+        let mockUsage = MockUsageService()
+        let mockStatus = MockStatusService()
+        let setup = try makeTwoProfileSetup(usage: mockUsage, status: mockStatus)
+        let coordinator = setup.coordinator
+
+        let entryA = WindowEntry(
+            key: "five_hour", duration: 18000, durationLabel: "5h", modelScope: nil,
+            window: UsageWindow(utilization: 91, resetsAt: Date().addingTimeInterval(3600))
+        )
+        mockUsage.result = .success(UsageResponse(entries: [entryA]))
+
+        let usageFetchReturning = Gate()
+        let statusFetchSuspended = Gate()
+        let releaseStatusFetch = Gate()
+        mockUsage.beforeReturn = {
+            await usageFetchReturning.open()
+        }
+        mockStatus.beforeReturn = {
+            await usageFetchReturning.wait()
+            await statusFetchSuspended.open()
+            await releaseStatusFetch.wait()
+        }
+
+        let refreshTask = Task { await coordinator.refresh() }
+        await statusFetchSuspended.wait()
+        while coordinator.currentUsage == nil {
+            await Task.yield()
+        }
+        #expect(coordinator.currentUsage?.entries.contains { $0.window.utilization == 91 } == true)
+
+        coordinator.switchToProfile(id: setup.b.id)
+        coordinator.pollTask?.cancel()
+
+        await releaseStatusFetch.open()
+        await refreshTask.value
+
+        #expect(setup.fixture.history.usageDirectory.lastPathComponent == setup.b.organizationId)
+        #expect(!setup.fixture.history.samples(for: entryA).contains { $0.utilization == 91 })
+        #expect(!(coordinator.currentUsage?.entries.contains { $0.window.utilization == 91 } ?? false))
+        #expect(!coordinator.windowAnalyses.contains { $0.entry.window.utilization == 91 })
+        #expect(mockUsage.lastOrgId == setup.a.organizationId)
     }
 
     @Test func removingLastProfileClearsCredentials() async throws {
