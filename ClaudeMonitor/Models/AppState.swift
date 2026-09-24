@@ -73,28 +73,47 @@ struct HistoryHealth: Sendable, Equatable {
     }
 }
 
+struct ProfileSnapshot: Sendable, Equatable {
+    let profiles: [Profile]
+    let activeId: String?
+
+    init(profiles: [Profile] = [], activeId: String? = nil) {
+        self.profiles = profiles
+        self.activeId = activeId
+    }
+}
+
 struct MonitorState: Sendable, Equatable {
     let usage: UsageSnapshot
     let service: ServiceHealth
     let polling: PollingState
     let history: HistoryHealth
+    let profiles: ProfileSnapshot
     let lastRefreshed: Date?
     let hasCredentials: Bool
+    let showGraph: Bool
+    let compactServices: Bool
 
     init(
         usage: UsageSnapshot = UsageSnapshot(),
         service: ServiceHealth = ServiceHealth(),
         polling: PollingState = PollingState(),
         history: HistoryHealth = HistoryHealth(),
+        profiles: ProfileSnapshot = ProfileSnapshot(),
         lastRefreshed: Date? = nil,
-        hasCredentials: Bool = false
+        hasCredentials: Bool = false,
+        showGraph: Bool = true,
+        compactServices: Bool = true
     ) {
         self.usage = usage
         self.service = service
         self.polling = polling
         self.history = history
+        self.profiles = profiles
         self.lastRefreshed = lastRefreshed
         self.hasCredentials = hasCredentials
+        self.showGraph = showGraph
+        self.compactServices = compactServices
     }
 }
 

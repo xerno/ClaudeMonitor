@@ -120,5 +120,23 @@
     "few": "%1$ld файли історії на карантині",
     "many": "%1$ld файлів історії на карантині",
     "other": "%1$ld файлу історії на карантині"
-  }
+  },
+  "credentials.field.name": "Ім’я профілю:",
+  "credentials.field.name_placeholder": "Особистий",
+  "credentials.alert.duplicate_org.title": "Дублікат облікового запису",
+  "credentials.alert.duplicate_org.message": "Інший профіль уже використовує цей ідентифікатор організації.",
+  "credentials.alert.limit_reached.title": "Досягнуто ліміту облікових записів",
+  "credentials.alert.limit_reached.message": "Видаліть наявний обліковий запис, перш ніж додавати новий.",
+  "account.remove.confirm.title": "Видалити обліковий запис?",
+  "account.remove.confirm.message": "Це видалить «%@» та його облікові дані з ClaudeMonitor. Історія використання на диску збережеться.",
+  "account.remove.confirm.remove": "Видалити",
+  "account.remove.confirm.cancel": "Скасувати",
+  "prefs.tab.general": "Загальні",
+  "prefs.tab.add": "Додати обліковий запис",
+  "prefs.button.add_account": "Додати обліковий запис",
+  "prefs.button.remove_account": "Видалити обліковий запис",
+  "prefs.show_graph": "Показувати графік використання",
+  "prefs.compact_services": "Компактний список служб",
+  "profiles.migrated_default_name": "Обліковий запис 1",
+  "services.all_operational": "Усі системи працюють"
 }

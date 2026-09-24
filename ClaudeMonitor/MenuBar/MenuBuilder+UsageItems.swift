@@ -25,21 +25,30 @@ extension MenuBuilder {
         guard let usage = state.usage.currentUsage else {
             return ([staticItem("  " + String(localized: "menu.loading", bundle: .module), tag: usagePlaceholderTag)], UsageCache())
         }
-        let labels = usageLabels(usage: usage)
-        let barWidth = usage.hasAnyModelSpecific ? Formatting.barImageWidth : Formatting.barImageWidthWide
-        let style = usageParagraphStyle(labelColumnWidth: maxLabelWidth(labels: labels.map(\.label)), barWidth: barWidth)
-        let prefixes = buildPrefixes(labels: labels, style: style, barWidth: barWidth)
-        let cache = UsageCache(labels: labels, style: style, prefixes: prefixes)
+        let cache = usageCache(for: usage)
+        let barWidth = usageBarWidth(for: usage)
 
         var items: [NSMenuItem] = []
         if let target {
             items.append(usageSentinelItem(target: target))
         }
-        for (tag, label, window) in labels {
+        for (tag, label, window) in cache.labels {
             guard let window else { continue }
-            items.append(usageItem(label: label, window: window, tag: tag, style: style, barWidth: barWidth, target: target))
+            items.append(usageItem(label: label, window: window, tag: tag, style: cache.style, barWidth: barWidth, target: target))
         }
         return (items, cache)
+    }
+
+    static func usageCache(for usage: UsageResponse) -> UsageCache {
+        let labels = usageLabels(usage: usage)
+        let barWidth = usageBarWidth(for: usage)
+        let style = usageParagraphStyle(labelColumnWidth: maxLabelWidth(labels: labels.map(\.label)), barWidth: barWidth)
+        let prefixes = buildPrefixes(labels: labels, style: style, barWidth: barWidth)
+        return UsageCache(labels: labels, style: style, prefixes: prefixes)
+    }
+
+    static func usageBarWidth(for usage: UsageResponse) -> CGFloat {
+        usage.hasAnyModelSpecific ? Formatting.barImageWidth : Formatting.barImageWidthWide
     }
 
     static func usageItem(label: String, window: UsageWindow, tag: Int, style: NSParagraphStyle, barWidth: CGFloat = Formatting.barImageWidth, target: (any MenuActions)? = nil) -> NSMenuItem {

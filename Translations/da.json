@@ -111,5 +111,23 @@
   "menu.history.quarantinedCount": {
     "one": "%1$ld karantænesat historikfil",
     "other": "%1$ld karantænesatte historikfiler"
-  }
+  },
+  "credentials.field.name": "Profilnavn:",
+  "credentials.field.name_placeholder": "Personlig",
+  "credentials.alert.duplicate_org.title": "Dublet-konto",
+  "credentials.alert.duplicate_org.message": "En anden profil bruger allerede dette organisations-id.",
+  "credentials.alert.limit_reached.title": "Kontogrænsen er nået",
+  "credentials.alert.limit_reached.message": "Fjern en eksisterende konto, før du tilføjer en anden.",
+  "account.remove.confirm.title": "Fjern konto?",
+  "account.remove.confirm.message": "Dette fjerner “%@” og dens loginoplysninger fra ClaudeMonitor. Brugshistorikken på disken bevares.",
+  "account.remove.confirm.remove": "Fjern",
+  "account.remove.confirm.cancel": "Annuller",
+  "prefs.tab.general": "Generelt",
+  "prefs.tab.add": "Tilføj konto",
+  "prefs.button.add_account": "Tilføj konto",
+  "prefs.button.remove_account": "Fjern konto",
+  "prefs.show_graph": "Vis forbrugsgraf",
+  "prefs.compact_services": "Kompakt tjenesteliste",
+  "profiles.migrated_default_name": "Konto 1",
+  "services.all_operational": "Alle systemer kører"
 }

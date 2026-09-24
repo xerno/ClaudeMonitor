@@ -2,10 +2,11 @@ import AppKit
 
 @MainActor
 final class SetupWindowController: NSWindowController, NSWindowDelegate {
-    private let credentialForm = CredentialFormView()
+    private let credentialForm: CredentialFormView
     private let onComplete: () -> Void
 
-    init(onComplete: @escaping () -> Void) {
+    init(profileStore: ProfileStore, onComplete: @escaping () -> Void) {
+        self.credentialForm = CredentialFormView(profileStore: profileStore, mode: .setup)
         self.onComplete = onComplete
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 660, height: 480),
@@ -63,7 +64,7 @@ final class SetupWindowController: NSWindowController, NSWindowDelegate {
 
     @objc private func didTapStart() {
         guard let window else { return }
-        guard credentialForm.validateAndSave(in: window) else { return }
+        guard credentialForm.validateAndSave(in: window) != nil else { return }
         close()
         onComplete()
     }

@@ -17,6 +17,7 @@ extension DataCoordinator {
             return
         }
         let previousAnalyses = windowAnalyses
+        let generationAtStart = usageHistory.generation
         async let statusResult: Void = refreshStatus()
         async let usageOutcome: UsageFetchOutcome = refreshUsage()
         _ = await statusResult
@@ -31,13 +32,17 @@ extension DataCoordinator {
         // still display stale data (via `monitorState`/`currentUsage`), but stale data must
         // never be re-recorded as if it were a fresh, confirmed-unchanged observation.
         if case .fresh(let newUsage) = outcome {
+            guard isRefreshCurrent(generation: generationAtStart) else { return }
             let genuineBoundaryKeys = await detectAndStoreResets(current: newUsage.entries, at: now)
+            guard isRefreshCurrent(generation: generationAtStart) else { return }
             usageHistory.record(entries: newUsage.entries, at: now)
             await usageHistory.archiveMissingWindows(
                 currentIdentities: Set(newUsage.entries.map { $0.storageIdentity }),
                 at: now
             )
+            guard isRefreshCurrent(generation: generationAtStart) else { return }
             await usageHistory.save()
+            guard isRefreshCurrent(generation: generationAtStart) else { return }
             windowAnalyses = newUsage.entries.map { entry in
                 UsageHistory.analyze(
                     entry: entry,
@@ -53,6 +58,10 @@ extension DataCoordinator {
         scheduler.adjustPollingRate(windowAnalyses: windowAnalyses, systemIdleTime: systemIdleProvider.idleTime())
         commitPollState(now: Date(), schedulerInterval: scheduler.nextPollInterval(usage: currentUsage))
         onUpdate?()
+    }
+
+    private func isRefreshCurrent(generation: Int) -> Bool {
+        usageHistory.generation == generation
     }
 
     func refreshDemo() async {

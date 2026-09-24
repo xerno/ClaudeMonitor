@@ -9,6 +9,18 @@ enum Constants {
         static let fallbackUUIDAccount = "fallbackUUID"
     }
 
+    enum Profiles {
+        static let registryKey = "profiles"
+        static let corruptRegistryKeyPrefix = "profiles.corrupt."
+        static let activeIdKey = "activeProfileId"
+        static let maxCount = 5
+        private static let cookieKeyPrefix = "cookieString."
+
+        static func cookieKey(profileId: String) -> String {
+            cookieKeyPrefix + profileId
+        }
+    }
+
     enum IOKit {
         static let hidSystemServiceName = "IOHIDSystem"
         static let hidIdleTimeKey = "HIDIdleTime"
@@ -96,10 +108,42 @@ enum Constants {
     enum Preferences {
         static let resetSoundEnabled = "resetSoundEnabled"
         static let historyRetentionYears = "historyRetentionYears"
+        static let showUsageGraph = "showUsageGraph"
+        static let compactServices = "compactServices"
+
+        static func isUsageGraphEnabled(in defaults: UserDefaults) -> Bool {
+            (defaults.object(forKey: showUsageGraph) as? Bool) ?? true
+        }
+
+        static func isServicesCompact(in defaults: UserDefaults) -> Bool {
+            (defaults.object(forKey: compactServices) as? Bool) ?? true
+        }
     }
 
     enum Sounds {
         static let criticalReset = "Glass"
+    }
+
+    enum Menu {
+        static let appTitle = "Claude Monitor"
+        static let ellipsis = "…"
+        static let edgePadding: CGFloat = 14
+        static let headerElementSpacing: CGFloat = 20
+        static let footerHeight: CGFloat = 32
+        static let footerButtonSize = NSSize(width: 44, height: 26)
+
+        enum Symbol {
+            static let refresh = "arrow.clockwise"
+            static let preferences = "gearshape"
+            static let about = "info.circle"
+            static let quit = "power"
+        }
+
+        enum KeyEquivalent {
+            static let refresh = "r"
+            static let preferences = ","
+            static let quit = "q"
+        }
     }
 
     enum GitHub {

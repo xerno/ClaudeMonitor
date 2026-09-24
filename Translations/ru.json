@@ -120,5 +120,23 @@
     "few": "%1$ld файла истории на карантине",
     "many": "%1$ld файлов истории на карантине",
     "other": "%1$ld файла истории на карантине"
-  }
+  },
+  "credentials.field.name": "Имя профиля:",
+  "credentials.field.name_placeholder": "Личный",
+  "credentials.alert.duplicate_org.title": "Дубликат аккаунта",
+  "credentials.alert.duplicate_org.message": "Другой профиль уже использует этот идентификатор организации.",
+  "credentials.alert.limit_reached.title": "Достигнут лимит аккаунтов",
+  "credentials.alert.limit_reached.message": "Удалите существующий аккаунт, прежде чем добавлять новый.",
+  "account.remove.confirm.title": "Удалить аккаунт?",
+  "account.remove.confirm.message": "Это удалит «%@» и его учётные данные из ClaudeMonitor. История использования на диске сохранится.",
+  "account.remove.confirm.remove": "Удалить",
+  "account.remove.confirm.cancel": "Отмена",
+  "prefs.tab.general": "Основные",
+  "prefs.tab.add": "Добавить аккаунт",
+  "prefs.button.add_account": "Добавить аккаунт",
+  "prefs.button.remove_account": "Удалить аккаунт",
+  "prefs.show_graph": "Показывать график использования",
+  "prefs.compact_services": "Компактный список служб",
+  "profiles.migrated_default_name": "Аккаунт 1",
+  "services.all_operational": "Все системы работают"
 }

@@ -7,7 +7,8 @@ final class DataCoordinator {
     let usageService: any UsageFetching
     let systemIdleProvider: any SystemIdleProviding
     let pathMonitor: any PathMonitoring
-    let loadCredential: @Sendable (String) -> String?
+    let profileStore: ProfileStore
+    private let defaults: UserDefaults
     var pollTask: Task<Void, Never>?
     var demoRotationIndex = 0
     var loadedCredentials: (cookie: String, orgId: String)?
@@ -44,14 +45,16 @@ final class DataCoordinator {
         usageService: any UsageFetching = UsageService(),
         systemIdleProvider: any SystemIdleProviding = SystemIdleService(),
         pathMonitor: any PathMonitoring = PathMonitor(),
-        loadCredential: @escaping @Sendable (String) -> String? = { EncryptedDefaultsService.load(key: $0) },
+        profileStore: ProfileStore = .production(),
+        defaults: UserDefaults = .standard,
         usageHistory: UsageHistory = UsageHistory(baseDirectory: UsageHistory.productionBaseDirectory)
     ) {
         self.statusService = statusService
         self.usageService = usageService
         self.systemIdleProvider = systemIdleProvider
         self.pathMonitor = pathMonitor
-        self.loadCredential = loadCredential
+        self.profileStore = profileStore
+        self.defaults = defaults
         self.usageHistory = usageHistory
         reloadCredentials()
         historyMaintenanceTask = Task { [weak self, usageHistory] in
@@ -109,8 +112,11 @@ extension DataCoordinator {
                 persistenceFailingSince: usageHistory.persistenceFailingSince,
                 quarantinedFileCount: quarantinedFileCount
             ),
+            profiles: ProfileSnapshot(profiles: profileStore.profiles, activeId: profileStore.activeId),
             lastRefreshed: lastRefreshed,
-            hasCredentials: hasCredentials
+            hasCredentials: hasCredentials,
+            showGraph: Constants.Preferences.isUsageGraphEnabled(in: defaults),
+            compactServices: Constants.Preferences.isServicesCompact(in: defaults)
         )
     }
 }
@@ -122,12 +128,12 @@ extension DataCoordinator {
 
     func reloadCredentials() {
         guard !Constants.Demo.isActive,
-              let cookie = loadCredential(Constants.Keychain.cookieString),
-              let orgId = loadCredential(Constants.Keychain.organizationId),
+              let orgId = profileStore.activeProfile?.organizationId,
+              let cookie = profileStore.activeCookie,
               !cookie.isEmpty, !orgId.isEmpty else {
             if loadedCredentials != nil {
                 usageHistory.switchOrganization(nil)
-                windowAnalyses = []
+                clearDisplayedUsage()
             }
             loadedCredentials = nil
             return
@@ -136,7 +142,7 @@ extension DataCoordinator {
         loadedCredentials = (cookie, orgId)
         if orgId != previousOrgId {
             usageHistory.switchOrganization(orgId)
-            windowAnalyses = []
+            clearDisplayedUsage()
             // Defect 5: `historyMaintenanceTask` only ever migrates the ORIGINAL organization
             // present at `init` — if the user switches to a different organization later (here,
             // `previousOrgId != nil` means this is a genuine later switch, not that initial
@@ -151,6 +157,12 @@ extension DataCoordinator {
                 }
             }
         }
+    }
+
+    private func clearDisplayedUsage() {
+        currentUsage = nil
+        windowAnalyses = []
+        usageError = nil
     }
 
     /// Migrates this organization's legacy archives, prunes retention-expired archives and

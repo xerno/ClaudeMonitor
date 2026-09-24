@@ -42,7 +42,8 @@ ClaudeMonitor/
 │   └── NSColor+Desaturate.swift
 ├── Generated/BuildInfo.swift            — GENERATED from scripts/build-config.sh (incl. the under-test env var name)
 ├── Models/
-│   ├── AppState.swift                   — MonitorState, UsageSnapshot, ServiceHealth, HistoryHealth
+│   ├── AppState.swift                   — MonitorState, UsageSnapshot, ServiceHealth, HistoryHealth, ProfileSnapshot
+│   ├── Profile.swift                    — Profile (id, name, organizationId); cookie lives in the encrypted store
 │   ├── StatusModels.swift               — StatusSummary, StatusComponent, ComponentStatus, Incident, PageStatus
 │   ├── UsageModels.swift                — UsageResponse, UsageWindow, WindowEntry, WindowKeyParser
 │   ├── UsageHistory.swift               — WindowInstance, UsageEvent, record(), boundary detection, partitionEvents
@@ -55,7 +56,9 @@ ClaudeMonitor/
 ├── Services/
 │   ├── DataCoordinator.swift            — orchestration, polling lifecycle, history maintenance task
 │   ├── DataCoordinator+Refresh.swift    — refresh cycle, UsageFetchOutcome (fresh vs stale)
-│   ├── DataCoordinator+Polling.swift    — poll loop (weak self, scoped per iteration)
+│   ├── DataCoordinator+Polling.swift    — poll loop (weak self, scoped per iteration), switchToProfile
+│   ├── ProfileStore.swift               — profile registry, active profile, per-profile cookies, registry quarantine
+│   ├── ProfileStore+LegacyMigration.swift — one-time single-account → profile migration
 │   ├── StatusService.swift              — fetches status.claude.com/api/v2/summary.json
 │   ├── UsageService.swift               — fetches claude.ai/api/organizations/{orgId}/usage
 │   ├── PollingScheduler.swift           — adaptive polling intervals
@@ -67,22 +70,25 @@ ClaudeMonitor/
 │   ├── MenuBarController.swift          — status bar item, UI coordination
 │   ├── MenuBarController+Countdown.swift — countdown timer, critical reset animation
 │   ├── MenuBuilder.swift                — MenuActions protocol + NSMenu construction
-│   ├── MenuBuilder+ControlItems.swift   — controls + historyHealthItem status line
+│   ├── MenuBuilder+ControlItems.swift   — footer icon bar, hidden ⌘R/⌘,/⌘Q shortcut items, historyHealthItem
+│   ├── MenuBuilder+AccountSwitcher.swift — header account switcher (shown with ≥2 profiles)
 │   ├── MenuBuilder+State.swift          — state → menu reconciliation, refreshGraph
 │   ├── MenuBuilder+{Reconciliation,UsageFormatting,UsageItems,ViewLayout}.swift
 │   ├── GraphDrawer.swift                — usage graph rendering
 │   ├── GraphDrawer+Credits.swift        — credit-event markers (dashed line + step + dot)
 │   ├── GraphDrawer+{Background,Decorations,Projection,Segments}.swift
 │   ├── UsageGraphView.swift, UsageRowView.swift, ControlRowView.swift
+│   ├── AccountToggleView.swift          — segmented account switcher view (HeaderAccountSwitcher, AccountSegment)
+│   ├── FooterIconButton.swift           — accessible icon button for the footer bar
 │   ├── StatusBarRenderer{,+IconRendering,+TitleRendering}.swift
 │   ├── Formatting.swift                 — timeUntil(), progressBar(), displayLabel(), creditDescription()
 │   └── Formatting+UsageAnalysis.swift   — usageStyle(), shouldShowInMenuBar(), blockingLimit(), detectCriticalReset()
 └── Windows/
     ├── AboutWindowController.swift      — about window
     ├── SetupWindowController.swift      — first-run setup window
-    ├── PreferencesWindowController.swift — preferences (injectable `defaults:`), retention stepper
+    ├── PreferencesWindowController.swift — NSTabView: one tab per account, General (applies immediately), Add Account
     ├── RetentionChangeDecision.swift    — pure retention-change decision logic (AppKit-free, tested)
-    ├── CredentialFormView.swift          — reusable NSView with org ID + cookie fields
+    ├── CredentialFormView.swift          — reusable NSView with name + org ID + cookie fields; modes .edit/.add/.setup
     ├── CredentialGuide.swift             — NSAttributedString instructions for credentials
     └── WindowManager.swift              — activation policy + window focus management
 ```
@@ -91,7 +97,8 @@ Key patterns:
 - **Constants enum** — all magic strings/numbers centralized in `Constants.*`
 - **MenuActions protocol** — `@objc` protocol decoupling menu actions from `MenuBarController`. MenuBuilder uses `#selector(MenuActions.*)` for type-safe target-action.
 - **MonitorState** — shared value type used by `MenuBuilder.build()` and `StatusBarRenderer`, eliminating parameter duplication.
-- **CredentialFormView** — reusable NSView encapsulating credential fields, UUID validation, and keychain save logic. Used by both Setup and Preferences windows.
+- **CredentialFormView** — reusable NSView encapsulating credential fields, UUID validation, and saving through `ProfileStore`. Used by both Setup and Preferences windows.
+- **ProfileStore** — the only owner of profiles and their cookies. Built in production only via `ProfileStore.production()`; `init` has no defaults and traps on `UserDefaults.standard` under the test env var.
 - **WindowManager** — centralized activation policy management for `.accessory` ↔ `.regular` transitions.
 - **DataCoordinator** — owns services, state, and polling lifecycle. Notifies `MenuBarController` via `onUpdate` callback. Pure data orchestration with no UI dependencies.
 - **Async polling** — `DataCoordinator` uses `Task` + `Task.sleep(for:)` instead of `Timer`, with dynamic retry intervals via `PollingScheduler`.
@@ -107,7 +114,7 @@ Key patterns:
 
 **Tooltip** — single shared tooltip on the entire status item with usage details, time until reset, service status, and last refresh time.
 
-**Dropdown menu** — usage bars, service component list, active incidents with links, refresh button, preferences.
+**Dropdown menu** — account switcher in the Usage header (two or more profiles), usage bars, usage graph (optional), service component list (compact by default: one line while all operational, otherwise only affected components), active incidents with links, footer icon bar (refresh, preferences, about, quit).
 
 ### UX rules for usage text styling
 
@@ -131,7 +138,16 @@ Window durations are parsed from API key names by `WindowKeyParser` (e.g., `five
 
 Both APIs are polled together. Adaptive polling based on projection: approaching limit (<10min to limit) → scales down to 24s; critical projection (≥120%) → 30s; warning/active → 60s base; idle → gradually extends to 300s cap. Exponential backoff on failures (10s→300s cap).
 
-Authentication: user provides session cookie string and organization ID via Preferences, stored in Keychain.
+Authentication: per account profile, the user provides a session cookie and organization ID via Setup or Preferences. The profile registry (ids, names, org IDs) is plaintext in `UserDefaults`; each cookie is stored encrypted under `cookieString.<profileId>`.
+
+## Account profiles
+
+- **History stays keyed by organization ID**, not by profile. Two profiles with the same org (compared as UUIDs, case-insensitively) are rejected — they would share one history directory.
+- **Switching** goes through `restartPolling()` so the scheduler's backoff never carries over, and changing the organization clears the displayed usage. The previous account's numbers must never appear under the new one — the open menu swaps its usage rows for a loading placeholder.
+- **A late response never crosses accounts.** `refresh()` captures `usageHistory.generation` before fetching and re-checks it after every `await` before recording, archiving or saving.
+- **Migration** from the single-account keys runs once: the registry key's presence is the marker. It is written only when there was nothing to migrate or the new cookie saved; a failed save retries next launch. The legacy keys are removed after a successful migration.
+- **A corrupt registry is quarantined** (`profiles.corrupt.<epoch>`), never overwritten; entries with a non-UUID org ID are dropped in memory and the original is quarantined.
+- At most `Constants.Profiles.maxCount` profiles; the Add tab hides at the limit.
 
 ## Localization
 
@@ -177,13 +193,16 @@ Unit tests in `ClaudeMonitorTests/`:
 - **DataCoordinatorTests** — success/failure paths, auth failure, credential handling, scheduler integration, onUpdate callback, mixed service results (uses mock services via `StatusFetching`/`UsageFetching` protocols)
 - **FormattingTests** — `timeUntil`, `progressBar`, `usageStyle` (dual-rule thresholds, edge cases)
 - **ModelsTests** — JSON decoding (dynamic windows, unknown keys), `WindowKeyParser` (basic/compound numbers, model scopes, unknown formats), `WindowEntry` sorting, `displayLabel` (disambiguation vs no-disambiguation), `ComponentStatus` severity/`Comparable` ordering, `Equatable` conformance, fractional-seconds fallback
-- **MenuBuilderTests** — menu structure, section content, incident links, sorted components, controls
+- **MenuBuilderTests** — menu structure, section content, incident links, sorted components, compact services (build and live update), footer buttons and hidden shortcuts, account switcher identity and staleness, live usage-row swapping after an account switch
+- **ProfileStoreTests** — registry CRUD, duplicate orgs, max count, migration (success, save failure, partial/invalid legacy data, idempotence), registry quarantine
+- **ProfileSwitchTests** — switching uses the new credentials, clears the previous account's usage, discards in-flight responses of the previous account
+- **PreferencesWindowControllerTests** — retention confirmation, immediate General settings, no lost edits across re-show/add/remove, Add tab at the limit, setup recovery
 
 - **StatusBarRendererTests** — icon resolution (status → symbol/color mapping, refresh warning, worst-severity), title methods (no credentials, loading, blocked countdown, usage with styled percentages), `nsColor` mapping
 - **DemoDataTests** — all scenarios produce valid data, rotation order covers all scenarios, default fallback
 - **CredentialGuideTests** — `parseBoldMarkdown` (plain text, single/nested markers, unclosed markers, adjacent markers, empty bold)
 
-All formatting, model, data coordination, rendering logic, and menu-building logic is tested. Services and window UI are not unit-tested (they hit real APIs / AppKit).
+All formatting, model, data coordination, profile storage, rendering logic, and menu-building logic is tested. Network services are not unit-tested (they hit real APIs); window controllers are tested through injected `defaults:`/`ProfileStore` and read-only test seams, without showing windows.
 
 ### CRITICAL: tests must never contaminate production state
 

@@ -107,5 +107,23 @@
   "menu.history.saveFailing": "A előzmények mentése sikertelen (%@ óta)",
   "menu.history.quarantinedCount": {
     "other": "%1$ld karanténba helyezett előzményfájl"
-  }
+  },
+  "credentials.field.name": "Profil neve:",
+  "credentials.field.name_placeholder": "Személyes",
+  "credentials.alert.duplicate_org.title": "Ismétlődő fiók",
+  "credentials.alert.duplicate_org.message": "Egy másik profil már használja ezt a szervezetazonosítót.",
+  "credentials.alert.limit_reached.title": "Elérte a fiókok számának korlátját",
+  "credentials.alert.limit_reached.message": "Távolítson el egy meglévő fiókot, mielőtt hozzáad egy újat.",
+  "account.remove.confirm.title": "Eltávolítja a fiókot?",
+  "account.remove.confirm.message": "Ez eltávolítja a(z) „%@” fiókot és hitelesítő adatait a ClaudeMonitorból. A lemezen tárolt használati előzmények megmaradnak.",
+  "account.remove.confirm.remove": "Eltávolítás",
+  "account.remove.confirm.cancel": "Mégse",
+  "prefs.tab.general": "Általános",
+  "prefs.tab.add": "Fiók hozzáadása",
+  "prefs.button.add_account": "Fiók hozzáadása",
+  "prefs.button.remove_account": "Fiók eltávolítása",
+  "prefs.show_graph": "Használati grafikon megjelenítése",
+  "prefs.compact_services": "Kompakt szolgáltatáslista",
+  "profiles.migrated_default_name": "Fiók 1",
+  "services.all_operational": "Minden rendszer működik"
 }

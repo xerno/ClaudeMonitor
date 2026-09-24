@@ -126,5 +126,23 @@
     "few": "%1$ld ملفات سجل معزولة",
     "many": "%1$ld ملف سجل معزول",
     "other": "%1$ld ملف سجل معزول"
-  }
+  },
+  "credentials.field.name": "اسم الملف الشخصي:",
+  "credentials.field.name_placeholder": "شخصي",
+  "credentials.alert.duplicate_org.title": "حساب مكرر",
+  "credentials.alert.duplicate_org.message": "هناك ملف شخصي آخر يستخدم معرّف المؤسسة هذا بالفعل.",
+  "credentials.alert.limit_reached.title": "تم الوصول إلى حد الحسابات",
+  "credentials.alert.limit_reached.message": "أزل حسابًا حاليًا قبل إضافة حساب آخر.",
+  "account.remove.confirm.title": "إزالة الحساب؟",
+  "account.remove.confirm.message": "يؤدي هذا إلى إزالة “%@” وبيانات اعتماده من ClaudeMonitor. يُحتفظ بسجل الاستخدام على القرص.",
+  "account.remove.confirm.remove": "إزالة",
+  "account.remove.confirm.cancel": "إلغاء",
+  "prefs.tab.general": "عام",
+  "prefs.tab.add": "إضافة حساب",
+  "prefs.button.add_account": "إضافة حساب",
+  "prefs.button.remove_account": "إزالة الحساب",
+  "prefs.show_graph": "إظهار الرسم البياني للاستخدام",
+  "prefs.compact_services": "قائمة خدمات مختصرة",
+  "profiles.migrated_default_name": "حساب 1",
+  "services.all_operational": "جميع الأنظمة تعمل"
 }

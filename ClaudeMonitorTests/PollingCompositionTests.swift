@@ -112,35 +112,30 @@ import Foundation
     /// Tests that switching to a different organization ID clears the coordinator's
     /// windowAnalyses, preventing stale analyses from a previous org from leaking.
     ///
-    /// Strategy: use a mutable-credentials closure so we can simulate a credential
-    /// swap inside restartPolling() without touching real Keychain.
+    /// Strategy: edit the active profile's organization in an isolated ProfileStore so we can
+    /// simulate a credential swap inside restartPolling() without touching real Keychain.
     ///
     /// The path under test:
     ///   restartPolling() → reloadCredentials() → orgId changed →
     ///   usageHistory.switchOrganization(newOrgId) → windowAnalyses = []
-    @Test func credentialSwapClearsWindowAnalyses() async {
+    @Test func credentialSwapClearsWindowAnalyses() async throws {
         let mockStatus = MockStatusService()
         let mockUsage = MockUsageService()
         let mockIdleProvider = MockSystemIdleProvider()
 
-        // Credentials are read via a @Sendable closure — use a class wrapper so we can
-        // mutate the orgId from the test body without a Sendable capture violation.
         let orgAlpha = "org-alpha-\(UUID().uuidString)"
         let orgBeta = "org-beta-\(UUID().uuidString)"
-        final class OrgIdBox: @unchecked Sendable { var value: String; init(_ v: String) { value = v } }
-        let orgIdBox = OrgIdBox(orgAlpha)
+        let defaults = makeTestDefaults("polling-composition")
+        let store = makeTestProfileStore(secrets: InMemorySecrets(), defaults: defaults)
+        let profile = try store.addProfile(name: "Acct", organizationId: orgAlpha, cookie: "test-cookie")
+        store.setActive(id: profile.id)
         let fixture = UsageHistoryTestFixture()
         let coordinator = DataCoordinator(
             statusService: mockStatus,
             usageService: mockUsage,
             systemIdleProvider: mockIdleProvider,
-            loadCredential: { key in
-                switch key {
-                case Constants.Keychain.cookieString: return "test-cookie"
-                case Constants.Keychain.organizationId: return orgIdBox.value
-                default: return nil
-                }
-            },
+            profileStore: store,
+            defaults: defaults,
             usageHistory: fixture.history
         )
 
@@ -157,7 +152,7 @@ import Foundation
                 "windowAnalyses must be non-empty after a successful refresh")
 
         // Swap to a different org ID and restart polling (which calls reloadCredentials()).
-        orgIdBox.value = orgBeta
+        try store.updateProfile(id: profile.id, name: "Acct", organizationId: orgBeta, cookie: "test-cookie")
         coordinator.restartPolling()
 
         // After restartPolling() with a different org ID, reloadCredentials() detects the
@@ -224,29 +219,6 @@ import Foundation
 
     // MARK: - Test 6: cross-organisation data bleed when a fetch is in flight during an org switch
 
-    /// A single-waiter, single-signaller rendezvous used to deterministically suspend a
-    /// mock fetch until the test explicitly releases it, and to let the test wait until the
-    /// fetch has genuinely started (and is suspended inside it) before proceeding. No
-    /// `Task.sleep`/`Task.yield` polling anywhere — both transitions are driven by
-    /// `CheckedContinuation`, so the test is deterministic under load.
-    private actor Gate {
-        private var isOpen = false
-        private var waiter: CheckedContinuation<Void, Never>?
-
-        func open() {
-            isOpen = true
-            waiter?.resume()
-            waiter = nil
-        }
-
-        func wait() async {
-            if isOpen { return }
-            await withCheckedContinuation { continuation in
-                waiter = continuation
-            }
-        }
-    }
-
     /// Constructs the cross-organisation data bleed race: a usage fetch starts under org A,
     /// suspends mid-flight (via `MockUsageService.beforeReturn`), the test switches the live
     /// coordinator to org B while that fetch is still suspended, then releases the fetch so
@@ -274,20 +246,17 @@ import Foundation
 
         let orgA = "org-a-\(UUID().uuidString)"
         let orgB = "org-b-\(UUID().uuidString)"
-        final class OrgIdBox: @unchecked Sendable { var value: String; init(_ v: String) { value = v } }
-        let orgIdBox = OrgIdBox(orgA)
+        let defaults = makeTestDefaults("polling-composition")
+        let store = makeTestProfileStore(secrets: InMemorySecrets(), defaults: defaults)
+        let profile = try store.addProfile(name: "Acct", organizationId: orgA, cookie: "test-cookie")
+        store.setActive(id: profile.id)
         let fixture = UsageHistoryTestFixture()
         let coordinator = DataCoordinator(
             statusService: mockStatus,
             usageService: mockUsage,
             systemIdleProvider: mockIdleProvider,
-            loadCredential: { key in
-                switch key {
-                case Constants.Keychain.cookieString: return "test-cookie"
-                case Constants.Keychain.organizationId: return orgIdBox.value
-                default: return nil
-                }
-            },
+            profileStore: store,
+            defaults: defaults,
             usageHistory: fixture.history
         )
 
@@ -317,7 +286,7 @@ import Foundation
         // Switch the live coordinator to org B while org A's fetch is still suspended, via the
         // production org-switch path (reloadCredentials(), called synchronously by
         // restartPolling()).
-        orgIdBox.value = orgB
+        try store.updateProfile(id: profile.id, name: "Acct", organizationId: orgB, cookie: "test-cookie")
         coordinator.restartPolling()
         // restartPolling() also spawns a new poll task; cancel it immediately so it doesn't
         // perform its own concurrent refresh() and confound this test's single controlled race.

@@ -117,5 +117,23 @@
     "one": "%1$ld karantenirana datoteka povijesti",
     "few": "%1$ld karantenirane datoteke povijesti",
     "other": "%1$ld karanteniranih datoteka povijesti"
-  }
+  },
+  "credentials.field.name": "Naziv profila:",
+  "credentials.field.name_placeholder": "Osobno",
+  "credentials.alert.duplicate_org.title": "Dvostruki račun",
+  "credentials.alert.duplicate_org.message": "Drugi profil već koristi ovaj ID organizacije.",
+  "credentials.alert.limit_reached.title": "Dosegnut je limit računa",
+  "credentials.alert.limit_reached.message": "Uklonite postojeći račun prije dodavanja drugog.",
+  "account.remove.confirm.title": "Ukloniti račun?",
+  "account.remove.confirm.message": "Time se „%@” i njegovi podaci za prijavu uklanjaju iz ClaudeMonitora. Povijest upotrebe na disku zadržava se.",
+  "account.remove.confirm.remove": "Ukloni",
+  "account.remove.confirm.cancel": "Odustani",
+  "prefs.tab.general": "Općenito",
+  "prefs.tab.add": "Dodaj račun",
+  "prefs.button.add_account": "Dodaj račun",
+  "prefs.button.remove_account": "Ukloni račun",
+  "prefs.show_graph": "Prikaži grafikon upotrebe",
+  "prefs.compact_services": "Kompaktni popis usluga",
+  "profiles.migrated_default_name": "Račun 1",
+  "services.all_operational": "Svi sustavi rade"
 }

@@ -9,15 +9,20 @@ extension MenuBuilder {
         } else {
             reconcile(menu: menu, desired: desired)
             if let usageHeaderItem = menu.item(withTag: usageSectionTag) {
-                let usageTitle = String(localized: "menu.section.usage", bundle: .module)
-                usageHeaderItem.view = state.polling.isAnyServiceStale
-                    ? nil
-                    : makeHeaderView(title: usageTitle, subtitle: "Claude Monitor")
+                updateUsageHeader(usageHeaderItem, state: state, target: target)
+            }
+            if let servicesHeaderItem = menu.item(withTag: servicesSectionTag) {
+                let servicesTitle = String(localized: "menu.section.services", bundle: .module)
+                if let subtitle = servicesSubtitle(state: state) {
+                    servicesHeaderItem.view = makeHeaderView(title: servicesTitle, subtitle: subtitle)
+                } else if servicesHeaderItem.view != nil {
+                    servicesHeaderItem.view = nil
+                }
             }
             if state.polling.isAnyServiceStale,
                let bannerItem = menu.item(withTag: connectivityBannerTag) {
                 let bannerText = bannerItem.title
-                bannerItem.view = makeHeaderView(title: bannerText, subtitle: "Claude Monitor")
+                bannerItem.view = makeHeaderView(title: bannerText, subtitle: Constants.Menu.appTitle)
             }
         }
         refreshGraph(in: menu, analyses: state.usage.windowAnalyses)
@@ -34,21 +39,27 @@ extension MenuBuilder {
             let bannerItem = NSMenuItem(title: bannerText, action: nil, keyEquivalent: "")
             bannerItem.isEnabled = false
             bannerItem.tag = connectivityBannerTag
-            bannerItem.view = makeHeaderView(title: bannerText, subtitle: "Claude Monitor")
+            bannerItem.view = makeHeaderView(title: bannerText, subtitle: Constants.Menu.appTitle)
             items.append(bannerItem)
             items.append(separator(tag: separatorAfterConnectivityTag))
         }
 
-        let usageSubtitle = state.polling.isAnyServiceStale ? nil : "Claude Monitor"
-        items.append(sectionHeader(String(localized: "menu.section.usage", bundle: .module), subtitle: usageSubtitle, tag: usageSectionTag))
+        items.append(sectionHeader(
+            String(localized: "menu.section.usage", bundle: .module),
+            subtitle: usageSubtitle(state: state),
+            tag: usageSectionTag,
+            switcher: accountSwitcher(state: state, target: target)
+        ))
         let (usageMenuItems, cache) = usageItems(state: state, target: target)
         items.append(contentsOf: usageMenuItems)
 
 
-        items.append(usageGraphPlaceholder())
+        if state.showGraph {
+            items.append(usageGraphPlaceholder())
+        }
         items.append(separator(tag: separatorAfterUsageTag))
 
-        items.append(sectionHeader(String(localized: "menu.section.services", bundle: .module), tag: servicesSectionTag))
+        items.append(sectionHeader(String(localized: "menu.section.services", bundle: .module), subtitle: servicesSubtitle(state: state), tag: servicesSectionTag))
         items.append(contentsOf: serviceItems(state: state))
 
         if let incidents = state.service.currentStatus?.incidents, !incidents.isEmpty {
@@ -60,7 +71,10 @@ extension MenuBuilder {
         }
 
         items.append(separator(tag: separatorAfterServicesTag))
-        items.append(contentsOf: controlItems(state: state, target: target))
+        items.append(contentsOf: controlItems(state: state))
+        items.append(separator(tag: separatorControlsTag))
+        items.append(footerActionsItem(target: target))
+        items.append(contentsOf: shortcutItems(target: target))
 
         return (items, cache)
     }
@@ -86,11 +100,25 @@ extension MenuBuilder {
         }
     }
 
+    static func displayedComponents(state: MonitorState) -> [StatusComponent] {
+        let components = state.service.currentStatus?.components ?? []
+        let shown = state.compactServices ? components.filter { $0.status != .operational } : components
+        return shown.sorted(by: { $0.name < $1.name })
+    }
+
+    static func servicesSubtitle(state: MonitorState) -> String? {
+        let components = state.service.currentStatus?.components ?? []
+        guard state.compactServices,
+              !components.isEmpty,
+              components.allSatisfy({ $0.status == .operational }) else { return nil }
+        return String(localized: "services.all_operational", bundle: .module)
+    }
+
     static func serviceItems(state: MonitorState) -> [NSMenuItem] {
-        guard let components = state.service.currentStatus?.components else {
+        guard state.service.currentStatus?.components != nil else {
             return [staticItem("  " + String(localized: "menu.loading", bundle: .module), tag: servicesPlaceholderTag)]
         }
-        return components.sorted(by: { $0.name < $1.name }).enumerated().map { index, component in
+        return displayedComponents(state: state).enumerated().map { index, component in
             let name = truncatedName(component.name)
             return staticItem("  \(component.status.dot)  \(name)  –  \(component.status.label)",
                               tag: serviceBaseTag + index)
@@ -105,5 +133,23 @@ extension MenuBuilder {
         item.target = target
         item.representedObject = incident.shortlink
         return item
+    }
+
+    private static func usageSubtitle(state: MonitorState) -> String? {
+        state.polling.isAnyServiceStale ? nil : Constants.Menu.appTitle
+    }
+
+    private static func updateUsageHeader(_ item: NSMenuItem, state: MonitorState, target: any MenuActions) {
+        let subtitle = usageSubtitle(state: state)
+        let switcher = accountSwitcher(state: state, target: target)
+        if let switcher,
+           let toggle = findAccountToggle(in: item.view),
+           toggle.currentSegments == switcher.segments,
+           headerSubtitle(in: item.view) == subtitle {
+            toggle.configure(with: switcher)
+        } else {
+            let title = String(localized: "menu.section.usage", bundle: .module)
+            item.view = headerView(title: title, subtitle: subtitle, switcher: switcher)
+        }
     }
 }

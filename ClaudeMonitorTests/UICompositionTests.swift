@@ -29,6 +29,7 @@ struct UICompositionTests {
         @objc func didSelectAbout() {}
         @objc func didSelectUsageWindow(_ sender: NSMenuItem) {}
         @objc func didSelectSentinel() {}
+        @objc func didSelectProfile(id: String) {}
     }
 
     // MARK: - Test 1: usageTitle reads style from WindowAnalysis (analysisByKey lookup path)

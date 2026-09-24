@@ -107,5 +107,23 @@
   "menu.history.saveFailing": "履歴の保存に失敗しています（%@から）",
   "menu.history.quarantinedCount": {
     "other": "隔離された履歴ファイル %1$ld 件"
-  }
+  },
+  "credentials.field.name": "プロファイル名：",
+  "credentials.field.name_placeholder": "個人用",
+  "credentials.alert.duplicate_org.title": "アカウントの重複",
+  "credentials.alert.duplicate_org.message": "別のプロファイルがこの組織IDをすでに使用しています。",
+  "credentials.alert.limit_reached.title": "アカウント数の上限に達しました",
+  "credentials.alert.limit_reached.message": "別のアカウントを追加する前に、既存のアカウントを削除してください。",
+  "account.remove.confirm.title": "アカウントを削除しますか？",
+  "account.remove.confirm.message": "「%@」とその認証情報をClaudeMonitorから削除します。ディスク上の使用履歴は保持されます。",
+  "account.remove.confirm.remove": "削除",
+  "account.remove.confirm.cancel": "キャンセル",
+  "prefs.tab.general": "一般",
+  "prefs.tab.add": "アカウントを追加",
+  "prefs.button.add_account": "アカウントを追加",
+  "prefs.button.remove_account": "アカウントを削除",
+  "prefs.show_graph": "使用状況グラフを表示",
+  "prefs.compact_services": "サービス一覧をコンパクト表示",
+  "profiles.migrated_default_name": "アカウント 1",
+  "services.all_operational": "すべてのシステムが正常です"
 }

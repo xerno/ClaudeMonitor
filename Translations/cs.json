@@ -117,5 +117,23 @@
     "one": "%1$ld karanténní soubor historie",
     "few": "%1$ld karanténní soubory historie",
     "other": "%1$ld karanténních souborů historie"
-  }
+  },
+  "credentials.field.name": "Název profilu:",
+  "credentials.field.name_placeholder": "Osobní",
+  "credentials.alert.duplicate_org.title": "Duplicitní účet",
+  "credentials.alert.duplicate_org.message": "Toto ID organizace už používá jiný profil.",
+  "credentials.alert.limit_reached.title": "Dosažen limit účtů",
+  "credentials.alert.limit_reached.message": "Před přidáním dalšího účtu odeberte existující účet.",
+  "account.remove.confirm.title": "Odebrat účet?",
+  "account.remove.confirm.message": "Odebere „%@“ a jeho přihlašovací údaje z ClaudeMonitoru. Historie využití na disku zůstane.",
+  "account.remove.confirm.remove": "Odebrat",
+  "account.remove.confirm.cancel": "Zrušit",
+  "prefs.tab.general": "Obecné",
+  "prefs.tab.add": "Přidat účet",
+  "prefs.button.add_account": "Přidat účet",
+  "prefs.button.remove_account": "Odebrat účet",
+  "prefs.show_graph": "Zobrazit graf využití",
+  "services.all_operational": "Vše funguje normálně",
+  "prefs.compact_services": "Kompaktní seznam služeb",
+  "profiles.migrated_default_name": "Účet 1"
 }

@@ -107,5 +107,23 @@
   "menu.history.saveFailing": "历史记录保存失败（自 %@ 起）",
   "menu.history.quarantinedCount": {
     "other": "%1$ld 个已隔离的历史记录文件"
-  }
+  },
+  "credentials.field.name": "配置文件名称：",
+  "credentials.field.name_placeholder": "个人",
+  "credentials.alert.duplicate_org.title": "重复的账户",
+  "credentials.alert.duplicate_org.message": "另一个配置文件已在使用此组织 ID。",
+  "credentials.alert.limit_reached.title": "已达到账户数量上限",
+  "credentials.alert.limit_reached.message": "请先移除现有账户，再添加新账户。",
+  "account.remove.confirm.title": "移除账户？",
+  "account.remove.confirm.message": "这会将“%@”及其凭据从 ClaudeMonitor 中移除。磁盘上的使用历史记录会保留。",
+  "account.remove.confirm.remove": "移除",
+  "account.remove.confirm.cancel": "取消",
+  "prefs.tab.general": "通用",
+  "prefs.tab.add": "添加账户",
+  "prefs.button.add_account": "添加账户",
+  "prefs.button.remove_account": "移除账户",
+  "prefs.show_graph": "显示用量图表",
+  "prefs.compact_services": "精简服务列表",
+  "profiles.migrated_default_name": "账户 1",
+  "services.all_operational": "所有系统正常"
 }

@@ -47,6 +47,12 @@
   "credentials.configure": "Configure credentials in Preferences",
   "credentials.field.cookie": "Cookie header value:",
   "credentials.field.org_id": "Organization ID:",
+  "credentials.alert.duplicate_org.message": "Another profile already uses this Organization ID.",
+  "credentials.alert.duplicate_org.title": "Duplicate account",
+  "credentials.alert.limit_reached.title": "Account limit reached",
+  "credentials.alert.limit_reached.message": "Remove an existing account before adding another.",
+  "credentials.field.name": "Profile name:",
+  "credentials.field.name_placeholder": "Personal",
   "error.rate_limited": "Rate limited – too many requests",
   "error.unauthorized": "Session expired – update cookie in Preferences",
   "error.unexpected_status": "Unexpected HTTP %1$ld",
@@ -99,6 +105,12 @@
   "prefs.retention.confirm.delete_button": "Delete",
   "prefs.retention.confirm.cancel_button": "Cancel",
   "prefs.window.title": "Claude Monitor – Preferences",
+  "prefs.compact_services": "Compact service list",
+  "prefs.show_graph": "Show usage graph",
+  "prefs.button.add_account": "Add Account",
+  "prefs.button.remove_account": "Remove Account",
+  "prefs.tab.add": "Add Account",
+  "prefs.tab.general": "General",
   "setup.button.skip": "Skip",
   "setup.button.start": "Get Started",
   "setup.welcome": "Welcome to Claude Monitor",
@@ -114,5 +126,11 @@
   "menu.history.quarantinedCount": {
     "one": "%1$ld quarantined history file",
     "other": "%1$ld quarantined history files"
-  }
+  },
+  "account.remove.confirm.cancel": "Cancel",
+  "account.remove.confirm.remove": "Remove",
+  "account.remove.confirm.title": "Remove account?",
+  "account.remove.confirm.message": "This removes “%@” and its credentials from ClaudeMonitor. Usage history on disk is kept.",
+  "profiles.migrated_default_name": "Account 1",
+  "services.all_operational": "All systems operational"
 }

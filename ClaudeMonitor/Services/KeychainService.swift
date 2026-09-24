@@ -34,6 +34,10 @@ nonisolated enum EncryptedDefaultsService {
         }
     }
 
+    static func remove(key: String) {
+        defaults.removeObject(forKey: key)
+    }
+
     private static let cachedEncryptionKey: SymmetricKey = {
         let material = hardwareUUID() + Constants.Keychain.keySalt
         let hash = SHA256.hash(data: Data(material.utf8))

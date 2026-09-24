@@ -114,5 +114,23 @@
   "menu.history.quarantinedCount": {
     "one": "%1$ld unter Quarantäne gestellte Verlaufsdatei",
     "other": "%1$ld unter Quarantäne gestellte Verlaufsdateien"
-  }
+  },
+  "credentials.field.name": "Profilname:",
+  "credentials.field.name_placeholder": "Persönlich",
+  "credentials.alert.duplicate_org.title": "Doppeltes Konto",
+  "credentials.alert.duplicate_org.message": "Ein anderes Profil verwendet bereits diese Organisations-ID.",
+  "credentials.alert.limit_reached.title": "Kontolimit erreicht",
+  "credentials.alert.limit_reached.message": "Entfernen Sie ein vorhandenes Konto, bevor Sie ein weiteres hinzufügen.",
+  "account.remove.confirm.title": "Konto entfernen?",
+  "account.remove.confirm.message": "Entfernt „%@“ und dessen Anmeldedaten aus ClaudeMonitor. Der Nutzungsverlauf auf der Festplatte bleibt erhalten.",
+  "account.remove.confirm.remove": "Entfernen",
+  "account.remove.confirm.cancel": "Abbrechen",
+  "prefs.tab.general": "Allgemein",
+  "prefs.tab.add": "Konto hinzufügen",
+  "prefs.button.add_account": "Konto hinzufügen",
+  "prefs.button.remove_account": "Konto entfernen",
+  "prefs.show_graph": "Nutzungsdiagramm anzeigen",
+  "prefs.compact_services": "Kompakte Diensteliste",
+  "profiles.migrated_default_name": "Konto 1",
+  "services.all_operational": "Alle Systeme betriebsbereit"
 }

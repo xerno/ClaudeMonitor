@@ -147,6 +147,29 @@ import Foundation
         #expect(state.usage.currentUsage == nil)
     }
 
+    @Test func monitorStateReflectsPreferences() {
+        let fixture = UsageHistoryTestFixture()
+        let defaults = makeTestDefaults("monitor-state-prefs")
+        let coordinator = DataCoordinator(
+            statusService: mockStatus,
+            usageService: mockUsage,
+            systemIdleProvider: mockIdleProvider,
+            pathMonitor: mockPath,
+            profileStore: makeTestProfileStore(secrets: InMemorySecrets(), defaults: defaults),
+            defaults: defaults,
+            usageHistory: fixture.history
+        )
+
+        #expect(coordinator.monitorState.showGraph)
+        #expect(coordinator.monitorState.compactServices)
+
+        defaults.set(false, forKey: Constants.Preferences.showUsageGraph)
+        defaults.set(false, forKey: Constants.Preferences.compactServices)
+
+        #expect(!coordinator.monitorState.showGraph)
+        #expect(!coordinator.monitorState.compactServices)
+    }
+
     // MARK: - Restart
 
     @Test func restartResetsScheduler() async {

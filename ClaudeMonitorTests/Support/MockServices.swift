@@ -22,9 +22,13 @@ enum TestFixtures {
 final class MockStatusService: StatusFetching, @unchecked Sendable {
     var result: Result<StatusSummary, Error> = .success(TestFixtures.status())
     var fetchCount = 0
+    var beforeReturn: (@Sendable () async -> Void)?
 
     func fetch() async throws -> StatusSummary {
         fetchCount += 1
+        if let beforeReturn {
+            await beforeReturn()
+        }
         return try result.get()
     }
 }

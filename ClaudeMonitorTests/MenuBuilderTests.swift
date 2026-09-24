@@ -4,12 +4,16 @@ import AppKit
 
 @MainActor
 private final class MockMenuActions: NSObject, MenuActions {
-    @objc func didSelectRefresh() {}
+    private(set) var refreshCount = 0
+    private(set) var selectedProfileIds: [String] = []
+
+    @objc func didSelectRefresh() { refreshCount += 1 }
     @objc func openIncident(_ sender: NSMenuItem) {}
     @objc func didSelectPreferences() {}
     @objc func didSelectAbout() {}
     @objc func didSelectUsageWindow(_ sender: NSMenuItem) {}
     @objc func didSelectSentinel() {}
+    @objc func didSelectProfile(id: String) { selectedProfileIds.append(id) }
 }
 
 @MainActor struct MenuBuilderTests {
@@ -60,20 +64,94 @@ private final class MockMenuActions: NSObject, MenuActions {
 
     // MARK: - Services Section
 
-    @Test func componentsAreSortedByName() {
+    @Test func affectedComponentsAreSortedByName() {
         let status = StatusSummary(
             components: [
-                StatusComponent(id: "1", name: "Console", status: .operational),
-                StatusComponent(id: "2", name: "API", status: .operational),
+                StatusComponent(id: "1", name: "Console", status: .partialOutage),
+                StatusComponent(id: "2", name: "API", status: .majorOutage),
             ],
             incidents: []
         )
-        let state = MonitorState(service: ServiceHealth(currentStatus: status))
-        let items = menuItems(for: state)
-        let serviceItems = items.filter { $0.title.contains("Operational") }
+        let items = menuItems(for: MonitorState(service: ServiceHealth(currentStatus: status)))
+        let serviceItems = items.filter { $0.tag >= MenuBuilder.serviceBaseTag && $0.tag < MenuBuilder.servicesPlaceholderTag }
         #expect(serviceItems.count == 2)
         #expect(serviceItems[0].title.contains("API"))
         #expect(serviceItems[1].title.contains("Console"))
+    }
+
+    @Test func allOperationalCollapsesToOneLine() {
+        let status = StatusSummary(
+            components: [
+                StatusComponent(id: "1", name: "API", status: .operational),
+                StatusComponent(id: "2", name: "Console", status: .operational),
+            ],
+            incidents: []
+        )
+        let items = menuItems(for: MonitorState(service: ServiceHealth(currentStatus: status)))
+        #expect(!items.contains { $0.tag >= MenuBuilder.serviceBaseTag && $0.tag < MenuBuilder.servicesPlaceholderTag })
+    }
+
+    private func mixedServicesState(compact: Bool) -> MonitorState {
+        let status = StatusSummary(
+            components: [
+                StatusComponent(id: "1", name: "Console", status: .majorOutage),
+                StatusComponent(id: "2", name: "Billing", status: .operational),
+                StatusComponent(id: "3", name: "APIs", status: .partialOutage),
+            ],
+            incidents: []
+        )
+        return MonitorState(service: ServiceHealth(currentStatus: status), compactServices: compact)
+    }
+
+    private func serviceRowTitles(in menu: NSMenu) -> [String] {
+        menu.items
+            .filter { $0.tag >= MenuBuilder.serviceBaseTag && $0.tag < MenuBuilder.servicesPlaceholderTag }
+            .map(\.title)
+    }
+
+    @Test func compactModeShowsOnlyAffectedComponents() {
+        let menu = MenuBuilder.build(state: mixedServicesState(compact: true), target: target)
+        let titles = serviceRowTitles(in: menu)
+        #expect(titles.count == 2)
+        #expect(titles.first?.contains("APIs") == true)
+        #expect(titles.last?.contains("Console") == true)
+        #expect(!titles.contains { $0.contains("Billing") })
+    }
+
+    @Test func fullModeListsAllComponents() throws {
+        let menu = MenuBuilder.build(state: mixedServicesState(compact: false), target: target)
+        let titles = serviceRowTitles(in: menu)
+        try #require(titles.count == 3)
+        #expect(titles[0].contains("APIs"))
+        #expect(titles[1].contains("Billing"))
+        #expect(titles[2].contains("Console"))
+    }
+
+    @Test func liveUpdateInCompactModeKeepsAffectedRowsAligned() throws {
+        let state = mixedServicesState(compact: true)
+        let menu = MenuBuilder.build(state: state, target: target)
+
+        MenuBuilder.updateExistingItems(menu: menu, state: state)
+
+        let first = try #require(menu.item(withTag: MenuBuilder.serviceBaseTag))
+        let second = try #require(menu.item(withTag: MenuBuilder.serviceBaseTag + 1))
+        #expect(first.title.contains("APIs"))
+        #expect(second.title.contains("Console"))
+        #expect(menu.item(withTag: MenuBuilder.serviceBaseTag + 2) == nil)
+        #expect(!serviceRowTitles(in: menu).contains { $0.contains("Billing") })
+    }
+
+    @Test func liveUpdateInFullModeKeepsSortedNamesInPlace() throws {
+        let state = mixedServicesState(compact: false)
+        let menu = MenuBuilder.build(state: state, target: target)
+
+        MenuBuilder.updateExistingItems(menu: menu, state: state)
+
+        let names = ["APIs", "Billing", "Console"]
+        for (index, name) in names.enumerated() {
+            let item = try #require(menu.item(withTag: MenuBuilder.serviceBaseTag + index))
+            #expect(item.title.contains(name))
+        }
     }
 
     // MARK: - Incidents Section
@@ -103,13 +181,38 @@ private final class MockMenuActions: NSObject, MenuActions {
 
     // MARK: - Controls Section
 
-    @Test func controlsIncludeRefreshAndPreferences() {
-        let state = MonitorState(lastRefreshed: Date())
-        let items = menuItems(for: state)
-        #expect(items.contains { $0.title == "Refresh Now" })
-        #expect(items.contains { $0.title == "Preferences" })
-        #expect(items.contains { $0.title == "About" })
-        #expect(items.contains { $0.title == "Quit" })
+    @Test func footerActionBarPresentWithFourButtons() {
+        let menu = MenuBuilder.build(state: MonitorState(lastRefreshed: Date()), target: target)
+        let buttons = MenuBuilder.footerButtons(in: menu)
+        let expected = ["Refresh Now", "Preferences", "About", "Quit"]
+        #expect(buttons.count == 4)
+        #expect(buttons.map { $0.toolTip ?? "" } == expected)
+        #expect(buttons.map { $0.accessibilityLabel() ?? "" } == expected)
+        #expect(buttons.allSatisfy { $0.isAccessibilityElement() && $0.accessibilityRole() == .button })
+    }
+
+    @Test func footerRefreshButtonInvokesTarget() throws {
+        let menu = MenuBuilder.build(state: MonitorState(lastRefreshed: Date()), target: target)
+        let refresh = try #require(MenuBuilder.footerButtons(in: menu).first)
+        #expect(refresh.accessibilityPerformPress())
+        #expect(target.refreshCount == 1)
+    }
+
+    @Test func hiddenShortcutItemsCarryKeyEquivalents() throws {
+        let menu = MenuBuilder.build(state: MonitorState(lastRefreshed: Date()), target: target)
+        let shortcuts: [(tag: Int, key: String, action: Selector)] = [
+            (MenuBuilder.refreshTag, "r", #selector(MenuActions.didSelectRefresh)),
+            (MenuBuilder.preferencesTag, ",", #selector(MenuActions.didSelectPreferences)),
+            (MenuBuilder.quitTag, "q", #selector(NSApplication.terminate(_:))),
+        ]
+        for shortcut in shortcuts {
+            let item = try #require(menu.item(withTag: shortcut.tag))
+            #expect(item.isHidden)
+            #expect(item.allowsKeyEquivalentWhenHidden)
+            #expect(item.keyEquivalent == shortcut.key)
+            #expect(item.keyEquivalentModifierMask == .command)
+            #expect(item.action == shortcut.action)
+        }
     }
 
     @Test func lastRefreshedTimestamp() {
@@ -289,6 +392,68 @@ private final class MockMenuActions: NSObject, MenuActions {
         #expect(!rowText(usageItem).contains("50%"))
     }
 
+    @Test func liveUpdateCacheKeepsCountdownOnNewDataAndDropsVanishedRows() throws {
+        let menu = NSMenu()
+        let resetsAt = Date().addingTimeInterval(3600)
+        let before = MonitorState(
+            usage: UsageSnapshot(currentUsage: UsageResponse(entries: [
+                .make(key: "five_hour", utilization: 50, resetsAt: resetsAt)!,
+                .make(key: "seven_day", utilization: 20, resetsAt: resetsAt.addingTimeInterval(86400))!,
+            ])),
+            hasCredentials: true
+        )
+        MenuBuilder.populate(menu: menu, state: before, target: target)
+        #expect(menu.item(withTag: MenuBuilder.usageBaseTag + 1) != nil)
+
+        let after = MonitorState(
+            usage: UsageSnapshot(currentUsage: UsageResponse(entries: [
+                .make(key: "five_hour", utilization: 75, resetsAt: resetsAt)!,
+            ])),
+            hasCredentials: true
+        )
+        let cache = MenuBuilder.updateExistingItems(menu: menu, state: after)
+        MenuBuilder.refreshTimes(in: menu, cache: cache)
+
+        let row = try #require(menu.item(withTag: MenuBuilder.usageBaseTag)?.view as? UsageRowView)
+        #expect(row.textContent.contains("75%"))
+        #expect(!row.textContent.contains("50%"))
+        #expect(menu.item(withTag: MenuBuilder.usageBaseTag + 1) == nil)
+    }
+
+    @Test func liveUpdateSwapsPreviousAccountRowsForLoadingAndBack() throws {
+        let menu = NSMenu()
+        let resetsAt = Date().addingTimeInterval(3600)
+        let previousAccount = MonitorState(
+            usage: UsageSnapshot(currentUsage: UsageResponse(entries: [
+                .make(key: "five_hour", utilization: 50, resetsAt: resetsAt)!,
+                .make(key: "seven_day", utilization: 20, resetsAt: resetsAt.addingTimeInterval(86400))!,
+            ])),
+            hasCredentials: true
+        )
+        MenuBuilder.populate(menu: menu, state: previousAccount, target: target)
+
+        let switched = MonitorState(usage: UsageSnapshot(currentUsage: nil), hasCredentials: true)
+        let loadingCache = MenuBuilder.updateExistingItems(menu: menu, state: switched, target: target)
+
+        #expect(loadingCache.labels.isEmpty)
+        #expect(menu.item(withTag: MenuBuilder.usageBaseTag) == nil)
+        #expect(menu.item(withTag: MenuBuilder.usageBaseTag + 1) == nil)
+        #expect(menu.item(withTag: MenuBuilder.usagePlaceholderTag) != nil)
+
+        let newAccount = MonitorState(
+            usage: UsageSnapshot(currentUsage: UsageResponse(entries: [
+                .make(key: "five_hour", utilization: 75, resetsAt: resetsAt)!,
+            ])),
+            hasCredentials: true
+        )
+        let freshCache = MenuBuilder.updateExistingItems(menu: menu, state: newAccount, target: target)
+
+        #expect(freshCache.labels.count == 1)
+        #expect(menu.item(withTag: MenuBuilder.usagePlaceholderTag) == nil)
+        let row = try #require(menu.item(withTag: MenuBuilder.usageBaseTag)?.view as? UsageRowView)
+        #expect(row.textContent.contains("75%"))
+    }
+
     // MARK: - Row highlighting
 
     private func highlightMenu() -> NSMenu {
@@ -350,5 +515,120 @@ private final class MockMenuActions: NSObject, MenuActions {
     @Test func noHistoryHealthItemWhenNothingToReport() {
         let state = MonitorState(history: HistoryHealth())
         #expect(MenuBuilder.historyHealthItem(state: state) == nil)
+    }
+
+    private static let personalAndWork = [
+        Profile(id: "a", name: "Personal", organizationId: "org-a"),
+        Profile(id: "b", name: "Work", organizationId: "org-b"),
+    ]
+
+    private func stateWithProfiles(
+        _ profiles: [Profile] = personalAndWork,
+        activeId: String = "b",
+        isStale: Bool = false
+    ) -> MonitorState {
+        MonitorState(
+            polling: PollingState(isAnyServiceStale: isStale),
+            profiles: ProfileSnapshot(profiles: profiles, activeId: activeId),
+            hasCredentials: true
+        )
+    }
+
+    private func usageHeaderToggle(in menu: NSMenu) -> AccountToggleView? {
+        MenuBuilder.findAccountToggle(in: menu.item(withTag: MenuBuilder.usageSectionTag)?.view)
+    }
+
+    private func segmentedControl(in toggle: AccountToggleView) throws -> NSSegmentedControl {
+        try #require(toggle.subviews.compactMap { $0 as? NSSegmentedControl }.first)
+    }
+
+    @Test func accountToggleAbsentWithSingleProfile() {
+        let state = stateWithProfiles([Profile(id: "a", name: "Personal", organizationId: "org-a")], activeId: "a")
+        let menu = MenuBuilder.build(state: state, target: target)
+        #expect(usageHeaderToggle(in: menu) == nil)
+    }
+
+    @Test func accountTogglePresentInUsageHeaderWithTwoProfiles() {
+        let menu = MenuBuilder.build(state: stateWithProfiles(), target: target)
+        #expect(usageHeaderToggle(in: menu) != nil)
+    }
+
+    @Test func switcherSelectsActiveProfileIndex() throws {
+        let menu = MenuBuilder.build(state: stateWithProfiles(activeId: "b"), target: target)
+        let toggle = try #require(usageHeaderToggle(in: menu))
+        #expect(try segmentedControl(in: toggle).selectedSegment == 1)
+    }
+
+    @Test func populateUpdatesToggleSelectionInPlace() throws {
+        let menu = NSMenu()
+        MenuBuilder.populate(menu: menu, state: stateWithProfiles(activeId: "b"), target: target)
+        let original = try #require(usageHeaderToggle(in: menu))
+
+        MenuBuilder.populate(menu: menu, state: stateWithProfiles(activeId: "a"), target: target)
+
+        let updated = try #require(usageHeaderToggle(in: menu))
+        #expect(updated === original)
+        #expect(try segmentedControl(in: updated).selectedSegment == 0)
+    }
+
+    @Test func switcherReplacedWhenIdsChangeEvenIfLabelsEqual() throws {
+        let menu = NSMenu()
+        MenuBuilder.populate(menu: menu, state: stateWithProfiles(activeId: "a"), target: target)
+        let original = try #require(usageHeaderToggle(in: menu))
+
+        let renumbered = [
+            Profile(id: "c", name: "Personal", organizationId: "org-c"),
+            Profile(id: "d", name: "Work", organizationId: "org-d"),
+        ]
+        MenuBuilder.populate(menu: menu, state: stateWithProfiles(renumbered, activeId: "c"), target: target)
+
+        let replaced = try #require(usageHeaderToggle(in: menu))
+        #expect(replaced !== original)
+        #expect(replaced.currentSegments.map(\.id) == ["c", "d"])
+
+        let control = try segmentedControl(in: replaced)
+        control.selectedSegment = 1
+        let action = try #require(control.action)
+        _ = (control.target as? NSObject)?.perform(action)
+        #expect(target.selectedProfileIds == ["d"])
+    }
+
+    @Test func switcherPresentWhenServiceStale() {
+        let built = MenuBuilder.build(state: stateWithProfiles(isStale: true), target: target)
+        #expect(usageHeaderToggle(in: built) != nil)
+
+        let menu = NSMenu()
+        MenuBuilder.populate(menu: menu, state: stateWithProfiles(), target: target)
+        MenuBuilder.populate(menu: menu, state: stateWithProfiles(isStale: true), target: target)
+        #expect(usageHeaderToggle(in: menu) != nil)
+        #expect(MenuBuilder.headerSubtitle(in: menu.item(withTag: MenuBuilder.usageSectionTag)?.view) == nil)
+    }
+
+    @Test func switcherTruncatesLongNames() throws {
+        let longName = "Personal Account With A Long Name"
+        let profiles = [
+            Profile(id: "a", name: longName, organizationId: "org-a"),
+            Profile(id: "b", name: "Work", organizationId: "org-b"),
+        ]
+        let menu = MenuBuilder.build(state: stateWithProfiles(profiles), target: target)
+        let control = try segmentedControl(in: try #require(usageHeaderToggle(in: menu)))
+
+        let label = try #require(control.label(forSegment: 0))
+        #expect(label.count == MenuBuilder.switcherNameMaxLength)
+        #expect(label.hasSuffix("…"))
+        #expect(longName.hasPrefix(String(label.dropLast())))
+        #expect(control.label(forSegment: 1) == "Work")
+        #expect(control.toolTip(forSegment: 0) == longName)
+        #expect(control.toolTip(forSegment: 1) == "Work")
+    }
+
+    @Test func graphShownByDefault() {
+        let state = MonitorState(usage: UsageSnapshot(currentUsage: UsageResponse(entries: [])), hasCredentials: true)
+        #expect(menuItems(for: state).contains { $0.tag == MenuBuilder.usageGraphTag })
+    }
+
+    @Test func graphHiddenWhenDisabled() {
+        let state = MonitorState(usage: UsageSnapshot(currentUsage: UsageResponse(entries: [])), hasCredentials: true, showGraph: false)
+        #expect(!menuItems(for: state).contains { $0.tag == MenuBuilder.usageGraphTag })
     }
 }

@@ -120,5 +120,23 @@
     "few": "%1$ld skwarantannowane pliki historii",
     "many": "%1$ld skwarantannowanych plików historii",
     "other": "%1$ld skwarantannowanego pliku historii"
-  }
+  },
+  "credentials.field.name": "Nazwa profilu:",
+  "credentials.field.name_placeholder": "Osobiste",
+  "credentials.alert.duplicate_org.title": "Zduplikowane konto",
+  "credentials.alert.duplicate_org.message": "Inny profil już używa tego ID organizacji.",
+  "credentials.alert.limit_reached.title": "Osiągnięto limit kont",
+  "credentials.alert.limit_reached.message": "Usuń istniejące konto przed dodaniem kolejnego.",
+  "account.remove.confirm.title": "Usunąć konto?",
+  "account.remove.confirm.message": "Spowoduje to usunięcie „%@” i jego danych logowania z ClaudeMonitor. Historia użycia na dysku zostanie zachowana.",
+  "account.remove.confirm.remove": "Usuń",
+  "account.remove.confirm.cancel": "Anuluj",
+  "prefs.tab.general": "Ogólne",
+  "prefs.tab.add": "Dodaj konto",
+  "prefs.button.add_account": "Dodaj konto",
+  "prefs.button.remove_account": "Usuń konto",
+  "prefs.show_graph": "Pokaż wykres użycia",
+  "prefs.compact_services": "Kompaktowa lista usług",
+  "profiles.migrated_default_name": "Konto 1",
+  "services.all_operational": "Wszystkie systemy działają"
 }

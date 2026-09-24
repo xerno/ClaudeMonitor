@@ -69,7 +69,7 @@ extension MenuBarController {
 
     private func updateCountdownDisplays() {
         let state = coordinator.monitorState
-        if let button = statusItem.button {
+        if let button = statusItem.button, !isMenuOpen {
             StatusBarRenderer.updateText(
                 button: button, usage: state.usage.currentUsage,
                 hasCredentials: state.hasCredentials,

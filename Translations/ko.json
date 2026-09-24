@@ -107,5 +107,23 @@
   "menu.history.saveFailing": "기록 저장에 실패하고 있습니다 (%@부터)",
   "menu.history.quarantinedCount": {
     "other": "격리된 기록 파일 %1$ld개"
-  }
+  },
+  "credentials.field.name": "프로필 이름:",
+  "credentials.field.name_placeholder": "개인용",
+  "credentials.alert.duplicate_org.title": "중복 계정",
+  "credentials.alert.duplicate_org.message": "다른 프로필이 이미 이 조직 ID를 사용하고 있습니다.",
+  "credentials.alert.limit_reached.title": "계정 한도에 도달했습니다",
+  "credentials.alert.limit_reached.message": "다른 계정을 추가하기 전에 기존 계정을 제거하세요.",
+  "account.remove.confirm.title": "계정을 제거하시겠습니까?",
+  "account.remove.confirm.message": "“%@”과(와) 해당 자격 증명을 ClaudeMonitor에서 제거합니다. 디스크의 사용 기록은 유지됩니다.",
+  "account.remove.confirm.remove": "제거",
+  "account.remove.confirm.cancel": "취소",
+  "prefs.tab.general": "일반",
+  "prefs.tab.add": "계정 추가",
+  "prefs.button.add_account": "계정 추가",
+  "prefs.button.remove_account": "계정 제거",
+  "prefs.show_graph": "사용량 그래프 표시",
+  "prefs.compact_services": "서비스 목록 간략히",
+  "profiles.migrated_default_name": "계정 1",
+  "services.all_operational": "모든 시스템 정상"
 }

@@ -107,5 +107,23 @@
   "menu.history.saveFailing": "Penyimpanan sejarah gagal (sejak %@)",
   "menu.history.quarantinedCount": {
     "other": "%1$ld fail sejarah yang dikuarantin"
-  }
+  },
+  "credentials.field.name": "Nama profil:",
+  "credentials.field.name_placeholder": "Peribadi",
+  "credentials.alert.duplicate_org.title": "Akaun pendua",
+  "credentials.alert.duplicate_org.message": "Profil lain sudah menggunakan ID Organisasi ini.",
+  "credentials.alert.limit_reached.title": "Had akaun telah dicapai",
+  "credentials.alert.limit_reached.message": "Alih keluar akaun sedia ada sebelum menambah satu lagi.",
+  "account.remove.confirm.title": "Alih keluar akaun?",
+  "account.remove.confirm.message": "Ini mengalih keluar “%@” dan kelayakannya daripada ClaudeMonitor. Sejarah penggunaan pada cakera dikekalkan.",
+  "account.remove.confirm.remove": "Alih keluar",
+  "account.remove.confirm.cancel": "Batal",
+  "prefs.tab.general": "Umum",
+  "prefs.tab.add": "Tambah akaun",
+  "prefs.button.add_account": "Tambah akaun",
+  "prefs.button.remove_account": "Alih keluar akaun",
+  "prefs.show_graph": "Tunjukkan graf penggunaan",
+  "prefs.compact_services": "Senarai perkhidmatan ringkas",
+  "profiles.migrated_default_name": "Akaun 1",
+  "services.all_operational": "Semua sistem beroperasi"
 }

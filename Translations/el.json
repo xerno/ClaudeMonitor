@@ -114,5 +114,23 @@
   "menu.history.quarantinedCount": {
     "one": "%1$ld αρχείο ιστορικού σε καραντίνα",
     "other": "%1$ld αρχεία ιστορικού σε καραντίνα"
-  }
+  },
+  "credentials.field.name": "Όνομα προφίλ:",
+  "credentials.field.name_placeholder": "Προσωπικό",
+  "credentials.alert.duplicate_org.title": "Διπλότυπος λογαριασμός",
+  "credentials.alert.duplicate_org.message": "Ένα άλλο προφίλ χρησιμοποιεί ήδη αυτό το αναγνωριστικό οργανισμού.",
+  "credentials.alert.limit_reached.title": "Το όριο λογαριασμών έχει συμπληρωθεί",
+  "credentials.alert.limit_reached.message": "Καταργήστε έναν υπάρχοντα λογαριασμό πριν προσθέσετε άλλον.",
+  "account.remove.confirm.title": "Κατάργηση λογαριασμού;",
+  "account.remove.confirm.message": "Αυτό καταργεί τον «%@» και τα διαπιστευτήριά του από το ClaudeMonitor. Το ιστορικό χρήσης στον δίσκο διατηρείται.",
+  "account.remove.confirm.remove": "Κατάργηση",
+  "account.remove.confirm.cancel": "Άκυρο",
+  "prefs.tab.general": "Γενικά",
+  "prefs.tab.add": "Προσθήκη λογαριασμού",
+  "prefs.button.add_account": "Προσθήκη λογαριασμού",
+  "prefs.button.remove_account": "Κατάργηση λογαριασμού",
+  "prefs.show_graph": "Εμφάνιση γραφήματος χρήσης",
+  "prefs.compact_services": "Συμπτυγμένη λίστα υπηρεσιών",
+  "profiles.migrated_default_name": "Λογαριασμός 1",
+  "services.all_operational": "Όλα τα συστήματα λειτουργούν"
 }

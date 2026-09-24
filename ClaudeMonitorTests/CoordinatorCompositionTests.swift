@@ -267,21 +267,16 @@ import Foundation
     ///   - clears windowAnalyses
     ///   - switches the history to the new org (samples from the old org are gone)
     ///
-    /// Uses a mutable credentials store (reference type) to simulate the credential change
-    /// without violating Sendable requirements on the closure capture.
-    @Test func reloadCredentialsWithNewOrgClearsWindowAnalyses() async {
-        // Reference-type credential store so the @Sendable closure can capture it safely.
-        final class CredentialStore: @unchecked Sendable {
-            var dict: [String: String]
-            init(_ dict: [String: String]) { self.dict = dict }
-        }
+    /// Edits the active profile's organization in an isolated ProfileStore to simulate the
+    /// credential change.
+    @Test func reloadCredentialsWithNewOrgClearsWindowAnalyses() async throws {
         let orgA = "test-org-a-\(UUID().uuidString)"
         let orgB = "test-org-b-\(UUID().uuidString)"
 
-        let store = CredentialStore([
-            Constants.Keychain.cookieString: "test-cookie",
-            Constants.Keychain.organizationId: orgA,
-        ])
+        let defaults = makeTestDefaults("coord-composition")
+        let store = makeTestProfileStore(secrets: InMemorySecrets(), defaults: defaults)
+        let profile = try store.addProfile(name: "Acct", organizationId: orgA, cookie: "test-cookie")
+        store.setActive(id: profile.id)
 
         let mockUsage = MockUsageService()
         mockUsage.result = .success(testUsage)
@@ -290,7 +285,8 @@ import Foundation
             statusService: MockStatusService(),
             usageService: mockUsage,
             systemIdleProvider: MockSystemIdleProvider(),
-            loadCredential: { store.dict[$0] },
+            profileStore: store,
+            defaults: defaults,
             usageHistory: fixture.history
         )
 
@@ -300,7 +296,7 @@ import Foundation
                 "windowAnalyses must be populated after a successful refresh")
 
         // Switch to orgB and call restartPolling() which calls reloadCredentials() internally.
-        store.dict[Constants.Keychain.organizationId] = orgB
+        try store.updateProfile(id: profile.id, name: "Acct", organizationId: orgB, cookie: "test-cookie")
         coordinator.restartPolling()
 
         // After reloadCredentials detects a different org ID, windowAnalyses must be cleared.

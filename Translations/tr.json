@@ -107,5 +107,23 @@
   "menu.history.saveFailing": "Geçmiş kaydetme başarısız oluyor (%@ itibarıyla)",
   "menu.history.quarantinedCount": {
     "other": "%1$ld karantinaya alınmış geçmiş dosyası"
-  }
+  },
+  "credentials.field.name": "Profil adı:",
+  "credentials.field.name_placeholder": "Kişisel",
+  "credentials.alert.duplicate_org.title": "Yinelenen hesap",
+  "credentials.alert.duplicate_org.message": "Başka bir profil bu Kuruluş kimliğini zaten kullanıyor.",
+  "credentials.alert.limit_reached.title": "Hesap sınırına ulaşıldı",
+  "credentials.alert.limit_reached.message": "Başka bir hesap eklemeden önce mevcut bir hesabı kaldırın.",
+  "account.remove.confirm.title": "Hesap kaldırılsın mı?",
+  "account.remove.confirm.message": "Bu, “%@” hesabını ve kimlik bilgilerini ClaudeMonitor’dan kaldırır. Diskteki kullanım geçmişi korunur.",
+  "account.remove.confirm.remove": "Kaldır",
+  "account.remove.confirm.cancel": "İptal",
+  "prefs.tab.general": "Genel",
+  "prefs.tab.add": "Hesap ekle",
+  "prefs.button.add_account": "Hesap ekle",
+  "prefs.button.remove_account": "Hesabı kaldır",
+  "prefs.show_graph": "Kullanım grafiğini göster",
+  "prefs.compact_services": "Kompakt hizmet listesi",
+  "profiles.migrated_default_name": "Hesap 1",
+  "services.all_operational": "Tüm sistemler çalışıyor"
 }

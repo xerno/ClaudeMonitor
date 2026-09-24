@@ -114,5 +114,23 @@
   "menu.history.quarantinedCount": {
     "one": "%1$ld fichier d'historique mis en quarantaine",
     "other": "%1$ld fichiers d'historique mis en quarantaine"
-  }
+  },
+  "credentials.field.name": "Nom du profil :",
+  "credentials.field.name_placeholder": "Personnel",
+  "credentials.alert.duplicate_org.title": "Compte en double",
+  "credentials.alert.duplicate_org.message": "Un autre profil utilise déjà cet identifiant d’organisation.",
+  "credentials.alert.limit_reached.title": "Limite de comptes atteinte",
+  "credentials.alert.limit_reached.message": "Supprimez un compte existant avant d’en ajouter un autre.",
+  "account.remove.confirm.title": "Supprimer le compte ?",
+  "account.remove.confirm.message": "Cela supprime « %@ » et ses identifiants de ClaudeMonitor. Son historique d’utilisation sur le disque est conservé.",
+  "account.remove.confirm.remove": "Supprimer",
+  "account.remove.confirm.cancel": "Annuler",
+  "prefs.tab.general": "Général",
+  "prefs.tab.add": "Ajouter un compte",
+  "prefs.button.add_account": "Ajouter un compte",
+  "prefs.button.remove_account": "Supprimer le compte",
+  "prefs.show_graph": "Afficher le graphique d’utilisation",
+  "prefs.compact_services": "Liste compacte des services",
+  "profiles.migrated_default_name": "Compte 1",
+  "services.all_operational": "Tous les systèmes opérationnels"
 }

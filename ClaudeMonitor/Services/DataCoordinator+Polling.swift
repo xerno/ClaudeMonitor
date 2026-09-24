@@ -14,6 +14,11 @@ extension DataCoordinator {
         startPolling()
     }
 
+    func switchToProfile(id: String) {
+        guard profileStore.activeId != id, profileStore.setActive(id: id) else { return }
+        restartPolling()
+    }
+
     // Builds the infinitely-looping poll task with only a *weak* capture of self at the
     // Task-closure level. `pollLoop()` used to be an ordinary instance method called as
     // `self.pollLoop()`; because that call binds `self` strongly for the entire (never
