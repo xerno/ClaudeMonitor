@@ -4,7 +4,7 @@ import Testing
 
 @MainActor
 @Suite struct ProfileSwitchTests {
-    private struct TwoProfileSetup {
+    @MainActor private struct TwoProfileSetup {
         let coordinator: DataCoordinator
         let store: ProfileStore
         let fixture: UsageHistoryTestFixture

@@ -134,7 +134,7 @@ extension DataCoordinator {
 }
 
 extension DataCoordinator {
-    static func monitorKey(organizationId: String) -> String {
+    nonisolated static func monitorKey(organizationId: String) -> String {
         organizationId.lowercased()
     }
 
