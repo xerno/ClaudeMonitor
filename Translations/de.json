@@ -22,7 +22,7 @@
   "about.line.shows_usage": "Die Menüleiste zeigt Ihre Claude-Nutzung als Prozentwerte.",
   "about.line.stale_prefix": "Fettes Ausrufezeichen — letzte Aktualisierungen fehlgeschlagen; Werte sind abgeblendet und möglicherweise veraltet.",
   "about.line.yellow": "Gelb      — eingeschränkte Leistung",
-  "about.secondary.100_percent_explain": "Wenn ein Nutzungsfenster 100 % erreicht, zeigt Claude Monitor ein 🛑 Stopp-Symbol an und ersetzt die Prozentwerte durch einen Countdown bis zur Aufhebung des Limits. Ein Ton wird abgespielt, wenn ein kritisches Limit zurückgesetzt wird (konfigurierbar in Einstellungen).",
+  "about.secondary.100_percent_explain": "Wenn ein Nutzungsfenster 100 % erreicht, zeigt Claude Monitor ein 🛑 Stoppsymbol und ersetzt die Prozentwerte durch einen Countdown bis zum Zurücksetzen — dieser Countdown lässt sich in den Einstellungen abschalten, sodass nur das Symbol bleibt. Beim Zurücksetzen eines kritischen Limits wird ein Ton abgespielt (in den Einstellungen konfigurierbar).",
   "about.secondary.additional_explain": "Längere Zeitfenster und modellspezifische Limits werden nur angezeigt, wenn die Nutzung erheblich ist und die verbleibende Zeit überschreitet. Wenn ein modellspezifisches Limit greift, wird zur Einordnung auch das entsprechende Limit für alle Modelle angezeigt.",
   "about.secondary.outpacing": "„Projektion beim Zurücksetzen\" bedeutet Ihre aktuelle Durchschnittsrate × verbleibende Zeit — eine Vorhersage, wo die Nutzung beim Zurücksetzen des Fensters liegen wird.",
   "about.secondary.refresh_explain": "Claude Monitor passt die Aktualisierungsfrequenz an die Aktivität an. Bei sich ändernder Nutzung wird häufig geprüft, bei stabiler Nutzung seltener und bei inaktivem Mac nur minimal. Verwenden Sie „Jetzt aktualisieren\" (⌘R) für eine sofortige Abfrage.",
@@ -82,7 +82,7 @@
   "menu.resets.prefix": "wird zurückgesetzt in ",
   "menu.section.incidents": "Aktive Vorfälle",
   "menu.section.services": "Dienste",
-  "menu.section.usage": "Nutzung",
+  "menu.badge.rate_limited": "Limit erreicht",
   "menu.updated": "Aktualisiert: %1$@",
   "prefs.button.save": "Sichern",
   "prefs.launch_at_login": "Beim Anmelden starten",
@@ -134,5 +134,6 @@
   "prefs.show_graph": "Nutzungsdiagramm anzeigen",
   "prefs.compact_services": "Kompakte Diensteliste",
   "profiles.migrated_default_name": "Konto 1",
+  "prefs.show_blocked_countdown": "Countdown bis zum Zurücksetzen in der Menüleiste anzeigen",
   "services.all_operational": "Alle Systeme betriebsbereit"
 }

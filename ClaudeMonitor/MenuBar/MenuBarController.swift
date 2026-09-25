@@ -41,7 +41,8 @@ final class MenuBarController: NSObject, MenuActions {
         StatusBarRenderer.updateText(
             button: button, usage: state.usage.currentUsage,
             hasCredentials: state.hasCredentials,
-            isStale: state.polling.isAnyServiceStale || state.polling.isUsageDataExpired
+            isStale: state.polling.isAnyServiceStale || state.polling.isUsageDataExpired,
+            showBlockedCountdown: state.showBlockedCountdown
         )
         let menu = NSMenu()
         menu.delegate = self
@@ -64,7 +65,8 @@ final class MenuBarController: NSObject, MenuActions {
                     button: button, usage: state.usage.currentUsage,
                     hasCredentials: state.hasCredentials,
                     isStale: state.polling.isAnyServiceStale || state.polling.isUsageDataExpired,
-                    windowAnalyses: state.usage.windowAnalyses
+                    windowAnalyses: state.usage.windowAnalyses,
+                    showBlockedCountdown: state.showBlockedCountdown
                 )
             }
         }

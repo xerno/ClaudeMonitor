@@ -24,6 +24,8 @@ open ClaudeMonitor.xcodeproj
 
 Xcode 26 project uses `PBXFileSystemSynchronizedRootGroup` — new `.swift` files in source/test directories are auto-discovered, no pbxproj edits needed.
 
+**`Assets.xcassets` is excluded from the SPM target** (`Package.swift`) and `build.sh` copies resources by name, so an image added to the catalogue is invisible to the test bundle and untestable. Artwork that needs a test — the sunburst mark, the status badges — is drawn as a path or an SF Symbol composition instead, and measured with `pixelCount` (`ClaudeMonitorTests/Support/PixelCount.swift`).
+
 ### Build settings — single source of truth
 
 **`scripts/build-config.sh`** is the authoritative source for shared build parameters (app name, bundle ID, version, deployment target, Swift version, default isolation, upcoming features). `build.sh` and `install.sh` source it directly. `Package.swift` and the Xcode project (`project.pbxproj`) must be kept in sync manually — when changing a build setting, update `scripts/build-config.sh` first, then propagate to `Package.swift` and the Xcode project.
@@ -37,6 +39,9 @@ ClaudeMonitor/
 ├── Constants.swift                      — all hardcoded values (URLs, intervals, file naming, thresholds)
 ├── DemoData.swift                       — demo mode data for screenshots/testing
 ├── MenuBuilder+LiveUpdate.swift         — live menu refresh while open
+├── Energy/                              — datacentre energy estimate from Claude Code token logs
+│   ├── TokenUsage.swift, TokenLogReader.swift — ~/.claude/projects/**/*.jsonl scan, dedup, incremental offsets
+│   └── EnergyModel.swift, EnergyMonitor.swift — per-model coefficients, background rescan
 ├── Extensions/
 │   ├── JSONDecoder+ISO8601.swift        — shared ISO8601 decoder with fractional seconds
 │   └── NSColor+Desaturate.swift
@@ -46,6 +51,7 @@ ClaudeMonitor/
 │   ├── Profile.swift                    — Profile (id, name, organizationId); cookie lives in the encrypted store
 │   ├── StatusModels.swift               — StatusSummary, StatusComponent, ComponentStatus, Incident, PageStatus
 │   ├── UsageModels.swift                — UsageResponse, UsageWindow, WindowEntry, WindowKeyParser
+│   ├── Profile.swift                    — Profile, ProfileStore, legacy-credential migration
 │   ├── UsageHistory.swift               — WindowInstance, UsageEvent, record(), boundary detection, partitionEvents
 │   ├── UsageHistory+Analysis.swift      — nonisolated pure analysis: segments, rate (credit-aware), projection
 │   ├── UsageHistory+Archive.swift       — archiveWindow, plateau-collapse, retention, quarantine pruning
@@ -75,6 +81,10 @@ ClaudeMonitor/
 │   ├── MenuBuilder+AccountSwitcher.swift — header account switcher (shown with ≥2 profiles)
 │   ├── MenuBuilder+State.swift          — state → menu reconciliation, refreshGraph
 │   ├── MenuBuilder+{Reconciliation,UsageFormatting,UsageItems,ViewLayout}.swift
+│   ├── MenuBuilder+TitleHeader.swift    — dropdown title block: mark, app name, switcher, status badge
+│   ├── ClaudeGlyph.swift                — sunburst mark drawn as a path (not an asset — see below)
+│   ├── AccountToggleView.swift          — compact segmented account switcher in the title block
+│   ├── FooterActionsView.swift          — footer action bar (Refresh / Preferences / About / Quit)
 │   ├── GraphDrawer.swift                — usage graph rendering
 │   ├── GraphDrawer+Credits.swift        — credit-event markers (dashed line + step + dot)
 │   ├── GraphDrawer+{Background,Decorations,Projection,Segments}.swift
@@ -111,7 +121,7 @@ Key patterns:
 
 **Icon** — service status (green checkmark = all OK, colored icons for outages/maintenance).
 
-**Text** — `42% | 18%` showing usage windows. First (shortest) window always visible; additional windows appear when outpacing time. "all" suffix shown on all non-model-specific entries when any model-specific variant exists (regardless of duration). Styled with bold and color based on urgency (see UX rules below).
+**Text** — `42% | 18%` showing usage windows. A blocked window replaces this with a 🛑 and a countdown, unless `Preferences → General → Show reset countdown in the menu bar` is off, in which case the title goes empty and only the icon remains. The countdown timer keeps running either way — it is also what asks for a refresh once the block expires. First (shortest) window always visible; additional windows appear when outpacing time. "all" suffix shown on all non-model-specific entries when any model-specific variant exists (regardless of duration). Styled with bold and color based on urgency (see UX rules below).
 
 **Tooltip** — single shared tooltip on the entire status item with usage details, time until reset, service status, and last refresh time.
 
@@ -128,6 +138,8 @@ Projection-based styling: implied rate = `utilization / timeElapsed`, projected 
 | Red    | projectedAtReset ≥ 120%        | utilization ≥ 95%      |
 
 Special case: utilization ≥ 100% → always red (blocked). `timeRemaining = 0` → always normal (about to reset).
+
+The dropdown's progress bars follow the same rule in their own way: `Formatting.barFillColor` is `restingAccent` — the same green as the services status — while a window has headroom, and red at `blockedUtilization`. The reference design showed a blue bar at 100%, which would have been the single surface disagreeing with everything above — so the threshold is shared, not a second literal.
 
 Window durations are parsed from API key names by `WindowKeyParser` (e.g., `five_hour` → 5h = 18000s).
 
@@ -205,6 +217,8 @@ Unit tests in `ClaudeMonitorTests/`:
 - **CredentialGuideTests** — `parseBoldMarkdown` (plain text, single/nested markers, unclosed markers, adjacent markers, empty bold)
 
 All formatting, model, data coordination, profile storage, rendering logic, and menu-building logic is tested. Network services are not unit-tested (they hit real APIs); window controllers are tested through injected `defaults:`/`ProfileStore` and read-only test seams, without showing windows.
+
+**A view-tree assertion must be recursive and must assert it found something.** `labels(in:)` in `MenuBuilderTests` once walked only direct subviews; the moment a header was built into a container it returned `[]`, and `allSatisfy` on an empty array is `true` — the shade tests would have gone on passing while checking nothing. Every such helper now recurses, and its callers pin the expected count.
 
 ### CRITICAL: tests must never contaminate production state
 

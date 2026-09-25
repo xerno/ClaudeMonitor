@@ -1,15 +1,18 @@
 import AppKit
 
 extension MenuBuilder {
+    /// The rows above the footer bar: the "Updated / Interval / Next" line and the history-health
+    /// status. The action buttons themselves are `footerActionsItem`.
     static func controlItems(state: MonitorState) -> [NSMenuItem] {
         var items: [NSMenuItem] = []
 
         if let date = state.lastRefreshed {
-            let title = updatedNextTitle(lastRefreshed: date, interval: state.polling.currentPollInterval)
-            let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+            let interval = state.polling.currentPollInterval
+            let segments = updatedNextSegments(lastRefreshed: date, interval: interval)
+            let item = NSMenuItem(title: segments.joined(separator: "        "), action: nil, keyEquivalent: "")
             item.tag = updatedTag
             item.isEnabled = false
-            item.view = ControlRowView(title: title)
+            item.view = ControlRowView(segments: segments)
             items.append(item)
         }
 
@@ -128,5 +131,4 @@ extension MenuBuilder {
         guard !lines.isEmpty else { return nil }
         return staticItem("  ⚠︎  " + lines.joined(separator: "  ·  "), tag: historyHealthTag)
     }
-
 }

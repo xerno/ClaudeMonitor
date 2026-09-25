@@ -135,7 +135,8 @@ extension DataCoordinator {
             lastRefreshed: lastRefreshed,
             hasCredentials: hasCredentials,
             showGraph: Constants.Preferences.isUsageGraphEnabled(in: defaults),
-            compactServices: Constants.Preferences.isServicesCompact(in: defaults)
+            compactServices: Constants.Preferences.isServicesCompact(in: defaults),
+            showBlockedCountdown: Constants.Preferences.isBlockedCountdownShown(in: defaults)
         )
     }
 }

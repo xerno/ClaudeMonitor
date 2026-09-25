@@ -74,7 +74,8 @@ extension MenuBarController {
                 button: button, usage: state.usage.currentUsage,
                 hasCredentials: state.hasCredentials,
                 isStale: state.polling.isAnyServiceStale || state.polling.isUsageDataExpired,
-                windowAnalyses: state.usage.windowAnalyses
+                windowAnalyses: state.usage.windowAnalyses,
+                showBlockedCountdown: state.showBlockedCountdown
             )
         }
         if isMenuOpen, let menu = statusItem.menu {

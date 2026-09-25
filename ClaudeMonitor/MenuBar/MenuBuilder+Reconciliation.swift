@@ -19,7 +19,11 @@ extension MenuBuilder {
                               let desiredRow = desiredItem.view as? UsageRowView {
                         existingRow.updateTitle(desiredRow.currentAttributedTitle)
                     } else if let existingControl = existing.view as? ControlRowView {
-                        existingControl.updateTitle(desiredItem.title)
+                        if let desiredControl = desiredItem.view as? ControlRowView {
+                            existingControl.update(segments: desiredControl.segments)
+                        } else {
+                            existingControl.updateTitle(desiredItem.title)
+                        }
                     }
                 }
                 let currentIndex = menu.index(of: existing)

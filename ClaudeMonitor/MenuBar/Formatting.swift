@@ -174,19 +174,36 @@ enum Formatting {
         return String(format: String(localized: String.LocalizationValue(key), bundle: .module), rateStr, timeStr)
     }
 
-    static let barImageWidth: CGFloat = 120
-    static let barImageWidthWide: CGFloat = 150
-    static let barImageHeight: CGFloat = 12
+    static let barImageWidth: CGFloat = 140
+    static let barImageWidthWide: CGFloat = 170
+    static let barImageHeight: CGFloat = 14
 
-    static func progressBarImage(percent: Int, width: CGFloat = barImageWidth) -> NSImage {
+    /// The fill a bar gets for `percent`.
+    ///
+    /// `restingAccent` is the resting colour — the same green as "All systems operational", so the
+    /// dropdown has one colour for a calm state instead of two. A window at or past
+    /// `blockedUtilization` turns red. The reference design shows a blue bar at 100%, but this app
+    /// already treats 100% as blocked
+    /// everywhere else — the menu bar title, the stats row and `UsageStyle` all agree on that —
+    /// so a calm fill on an exhausted window would be the one place contradicting the rest.
+    static func barFillColor(percent: Int) -> NSColor {
+        percent >= Constants.Projection.blockedUtilization ? .systemRed : .restingAccent
+    }
+
+    static func progressBarImage(
+        percent: Int,
+        width: CGFloat = barImageWidth,
+        fill: NSColor? = nil
+    ) -> NSImage {
         let clamped = max(0, min(100, percent))
+        let fillColor = fill ?? barFillColor(percent: percent)
         return NSImage(size: NSSize(width: width, height: barImageHeight), flipped: false) { rect in
             NSColor.tertiaryLabelColor.setFill()
             let bgPath = NSBezierPath(roundedRect: rect, xRadius: rect.height / 2, yRadius: rect.height / 2)
             bgPath.fill()
             let filledWidth = rect.width * CGFloat(clamped) / 100
             if filledWidth > 0 {
-                NSColor.labelColor.setFill()
+                fillColor.setFill()
                 let fgPath = NSBezierPath(roundedRect: NSRect(x: 0, y: 0, width: filledWidth, height: rect.height),
                                           xRadius: rect.height / 2, yRadius: rect.height / 2)
                 fgPath.fill()

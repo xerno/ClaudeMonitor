@@ -634,13 +634,20 @@ private final class MockMenuActions: NSObject, MenuActions {
 }
 
 
-/// Header shade consistency: "Usage", "Services", "Claude Monitor" and "All systems operational"
-/// must all render in one shade, so a header row reads as a single line rather than two greys.
+/// Header shades. A section header's two labels share one quiet shade so the row reads as a single
+/// line — except the Services status, which the redesign gives its own green, and the dropdown's
+/// title, which is the one loud thing at the top.
 @MainActor
 struct MenuBuilderHeaderShadeTests {
 
+    /// Recursive on purpose. The non-recursive version returned `[]` for any header built into a
+    /// container, and `allSatisfy` on an empty array is `true` — the shade tests would have gone on
+    /// passing while checking nothing. Callers assert the count as well, for the same reason.
     private func labels(in view: NSView) -> [NSTextField] {
-        view.subviews.compactMap { $0 as? NSTextField }
+        view.subviews.flatMap { subview -> [NSTextField] in
+            if let field = subview as? NSTextField { return [field] }
+            return labels(in: subview)
+        }
     }
 
     @Test func bothHeaderLabelsShareOneShade() throws {
@@ -650,9 +657,11 @@ struct MenuBuilderHeaderShadeTests {
         #expect(found.allSatisfy { $0.textColor == MenuBuilder.headerTextColor })
     }
 
-    @Test func servicesHeaderMatchesTheUsageHeader() throws {
+    /// The subtitle colour is opt-in: a header that does not ask for one still matches every other
+    /// header, so the green below stays the deliberate exception rather than the start of a drift.
+    @Test func headersWithoutAnExplicitColourStillMatchEachOther() throws {
         let usage = labels(in: MenuBuilder.makeHeaderView(title: "Usage", subtitle: "Claude Monitor"))
-        let services = labels(in: MenuBuilder.makeHeaderView(title: "Services", subtitle: "All systems operational"))
+        let services = labels(in: MenuBuilder.makeHeaderView(title: "Services", subtitle: "Operational"))
         let shades = Set((usage + services).compactMap { $0.textColor })
         #expect(shades.count == 1, "every header label should resolve to the same colour")
     }
@@ -667,13 +676,16 @@ struct MenuBuilderHeaderShadeTests {
     }
 
     @Test func sectionHeaderCarriesTheSharedShade() throws {
-        let item = MenuBuilder.sectionHeader("Services", subtitle: "All systems operational", tag: 1)
+        let item = MenuBuilder.sectionHeader("Services", subtitle: "Operational", tag: 1)
         let view = try #require(item.view)
-        #expect(labels(in: view).allSatisfy { $0.textColor == MenuBuilder.headerTextColor })
+        let found = labels(in: view)
+        #expect(found.count == 2)
+        #expect(found.allSatisfy { $0.textColor == MenuBuilder.headerTextColor })
     }
 
-    /// Pins the built menu, not just the helper: the services header is the one compact mode relies on.
-    @Test func servicesHeaderIsBuiltWithTheSharedShade() throws {
+    /// Pins the built menu, not just the helper: the services header is the one compact mode relies
+    /// on. The section word stays quiet; only the status it summarises turns green.
+    @Test func servicesHeaderKeepsAGreyWordAndAGreenStatus() throws {
         let state = MonitorState(
             service: ServiceHealth(currentStatus: StatusSummary(
                 components: [StatusComponent(id: "1", name: "API", status: .operational)],
@@ -684,7 +696,28 @@ struct MenuBuilderHeaderShadeTests {
         let (items, _) = MenuBuilder.buildDesiredItems(state: state, target: HeaderShadeMockActions())
         let header = try #require(items.first { $0.tag == MenuBuilder.servicesSectionTag })
         let view = try #require(header.view, "compact + all-operational should render a subtitle view")
-        #expect(labels(in: view).allSatisfy { $0.textColor == MenuBuilder.headerTextColor })
+        let found = labels(in: view)
+        #expect(found.count == 2)
+        #expect(found.first?.textColor == MenuBuilder.headerTextColor)
+        #expect(found.last?.textColor == .restingAccent)
+    }
+
+    /// The bar and the services status are meant to be one green, not two that happen to match
+    /// today. Measured against `barFillColor` rather than against the constant, so renaming or
+    /// re-pointing either surface alone fails here.
+    @Test func theServicesStatusUsesTheSameGreenAsARestingBar() throws {
+        let state = MonitorState(
+            service: ServiceHealth(currentStatus: StatusSummary(
+                components: [StatusComponent(id: "1", name: "API", status: .operational)],
+                incidents: []
+            )),
+            compactServices: true
+        )
+        let (items, _) = MenuBuilder.buildDesiredItems(state: state, target: HeaderShadeMockActions())
+        let header = try #require(items.first { $0.tag == MenuBuilder.servicesSectionTag })
+        let view = try #require(header.view)
+        let status = try #require(labels(in: view).last)
+        #expect(status.textColor == Formatting.barFillColor(percent: 60))
     }
 }
 
