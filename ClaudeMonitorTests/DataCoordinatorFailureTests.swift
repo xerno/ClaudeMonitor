@@ -29,7 +29,7 @@ import Foundation
         await coordinator.refresh()
 
         #expect(coordinator.statusError == nil)
-        #expect(coordinator.scheduler.statusState.consecutiveFailures == 1)
+        #expect(coordinator.statusScheduler.statusState.consecutiveFailures == 1)
     }
 
     @Test func statusFailureJustBelowThresholdDoesNotSetError() async {
@@ -42,7 +42,7 @@ import Foundation
         }
 
         #expect(coordinator.statusError == nil)
-        #expect(coordinator.scheduler.statusState.consecutiveFailures == Constants.Retry.failureThreshold - 1)
+        #expect(coordinator.statusScheduler.statusState.consecutiveFailures == Constants.Retry.failureThreshold - 1)
     }
 
     @Test func statusFailureAtThresholdSetsError() async {
@@ -75,17 +75,18 @@ import Foundation
 
     // MARK: - Usage Failure
 
-    @Test func usageFailureBelowThresholdDoesNotSetError() async {
+    @Test func usageFailureBelowThresholdDoesNotSetError() async throws {
         mockUsage.result = .failure(ServiceError.unexpectedStatus(500))
         let fixture = UsageHistoryTestFixture()
         let (coordinator, _) = coordinator(fixture: fixture)
         await coordinator.refresh()
 
         #expect(coordinator.usageError == nil)
-        #expect(coordinator.scheduler.usageState.consecutiveFailures == 1)
+        let monitor = try #require(coordinator.activeMonitor)
+        #expect(monitor.scheduler.usageState.consecutiveFailures == 1)
     }
 
-    @Test func usageFailureJustBelowThresholdDoesNotSetError() async {
+    @Test func usageFailureJustBelowThresholdDoesNotSetError() async throws {
         mockUsage.result = .failure(ServiceError.unexpectedStatus(500))
         let fixture = UsageHistoryTestFixture()
         let (coordinator, _) = coordinator(fixture: fixture)
@@ -95,7 +96,8 @@ import Foundation
         }
 
         #expect(coordinator.usageError == nil)
-        #expect(coordinator.scheduler.usageState.consecutiveFailures == Constants.Retry.failureThreshold - 1)
+        let monitor = try #require(coordinator.activeMonitor)
+        #expect(monitor.scheduler.usageState.consecutiveFailures == Constants.Retry.failureThreshold - 1)
     }
 
     @Test func usageFailureAtThresholdSetsError() async {
@@ -124,13 +126,14 @@ import Foundation
         #expect(coordinator.currentUsage == nil)
     }
 
-    @Test func authFailureClassifiedCorrectly() async {
+    @Test func authFailureClassifiedCorrectly() async throws {
         mockUsage.result = .failure(ServiceError.unauthorized)
         let fixture = UsageHistoryTestFixture()
         let (coordinator, _) = coordinator(fixture: fixture)
         await coordinator.refresh()
 
-        #expect(coordinator.scheduler.usageState.lastError == .authFailure)
+        let monitor = try #require(coordinator.activeMonitor)
+        #expect(monitor.scheduler.usageState.lastError == .authFailure)
     }
 
     // MARK: - Multiple Refreshes
@@ -141,10 +144,10 @@ import Foundation
         let (coordinator, _) = coordinator(fixture: fixture)
 
         await coordinator.refresh()
-        #expect(coordinator.scheduler.statusState.consecutiveFailures == 1)
+        #expect(coordinator.statusScheduler.statusState.consecutiveFailures == 1)
 
         await coordinator.refresh()
-        #expect(coordinator.scheduler.statusState.consecutiveFailures == 2)
+        #expect(coordinator.statusScheduler.statusState.consecutiveFailures == 2)
 
     }
 
@@ -187,7 +190,8 @@ import Foundation
         await coordinator.refresh()
         #expect(coordinator.currentUsage != nil)
         let identity = try #require(usageResponse.entries.first).storageIdentity
-        let countAfterSuccess = coordinator.usageHistory.storage[identity]?.samples.count
+        let monitor = try #require(coordinator.activeMonitor)
+        let countAfterSuccess = monitor.usageHistory.storage[identity]?.samples.count
         #expect(countAfterSuccess == 1, "The first, genuinely fresh cycle records exactly one sample.")
 
         mockUsage.result = .failure(ServiceError.unexpectedStatus(503))
@@ -196,7 +200,7 @@ import Foundation
         // currentUsage is retained (stale) for display — the pre-fix bug's whole premise —
         // but it must not have been fed into history a second time.
         #expect(coordinator.currentUsage != nil, "Sanity check: currentUsage is indeed retained (stale), not nilled, on a transient failure.")
-        #expect(coordinator.usageHistory.storage[identity]?.samples.count == countAfterSuccess,
+        #expect(monitor.usageHistory.storage[identity]?.samples.count == countAfterSuccess,
                 "A failed (non-auth) cycle must never append a fabricated sample for the stale retained currentUsage.")
     }
 }

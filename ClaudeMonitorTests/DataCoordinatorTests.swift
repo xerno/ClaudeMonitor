@@ -67,15 +67,16 @@ import Foundation
         #expect(updateCount == 1)
     }
 
-    @Test func refreshRecordsSchedulerSuccess() async {
+    @Test func refreshRecordsSchedulerSuccess() async throws {
         let fixture = UsageHistoryTestFixture()
         let (coordinator, _) = coordinator(fixture: fixture)
         await coordinator.refresh()
 
-        #expect(coordinator.scheduler.statusState.lastSuccess != nil)
-        #expect(coordinator.scheduler.usageState.lastSuccess != nil)
-        #expect(coordinator.scheduler.statusState.consecutiveFailures == 0)
-        #expect(coordinator.scheduler.usageState.consecutiveFailures == 0)
+        let monitor = try #require(coordinator.activeMonitor)
+        #expect(coordinator.statusScheduler.statusState.lastSuccess != nil)
+        #expect(monitor.scheduler.usageState.lastSuccess != nil)
+        #expect(coordinator.statusScheduler.statusState.consecutiveFailures == 0)
+        #expect(monitor.scheduler.usageState.consecutiveFailures == 0)
     }
 
     // MARK: - Credentials
@@ -157,7 +158,7 @@ import Foundation
             pathMonitor: mockPath,
             profileStore: makeTestProfileStore(secrets: InMemorySecrets(), defaults: defaults),
             defaults: defaults,
-            usageHistory: fixture.history
+            makeUsageHistory: { fixture.history }
         )
 
         #expect(coordinator.monitorState.showGraph)
@@ -172,18 +173,19 @@ import Foundation
 
     // MARK: - Restart
 
-    @Test func restartResetsScheduler() async {
+    @Test func restartResetsScheduler() async throws {
         mockUsage.result = .failure(ServiceError.unexpectedStatus(500))
         let fixture = UsageHistoryTestFixture()
         let (coordinator, _) = coordinator(fixture: fixture)
         await coordinator.refresh()
-        #expect(coordinator.scheduler.usageState.consecutiveFailures == 1)
+        let monitor = try #require(coordinator.activeMonitor)
+        #expect(monitor.scheduler.usageState.consecutiveFailures == 1)
 
         mockUsage.result = .success(TestFixtures.usage())
         coordinator.restartPolling()
 
-        #expect(coordinator.scheduler.usageState.consecutiveFailures == 0)
-        #expect(coordinator.scheduler.effectivePollingInterval == Constants.Polling.baseInterval)
+        #expect(monitor.scheduler.usageState.consecutiveFailures == 0)
+        #expect(monitor.scheduler.effectivePollingInterval == Constants.Polling.baseInterval)
     }
 
     // MARK: - Multiple Refreshes
@@ -203,7 +205,7 @@ import Foundation
 
     // MARK: - Scheduler Adjustment
 
-    @Test func schedulerIntervalAtLeastBaseAfterNormalUtilization() async {
+    @Test func schedulerIntervalAtLeastBaseAfterNormalUtilization() async throws {
         let fixture = UsageHistoryTestFixture()
         let (coordinator, _) = coordinator(fixture: fixture)
         await coordinator.refresh()
@@ -211,8 +213,9 @@ import Foundation
         // testUsage has 42% and 18% utilization — projected well below 100%, so no urgency-driven
         // ramp-up. The interval must be >= baseInterval (never below it), but may exceed baseInterval
         // when the idle-cooldown path elevates it — hence >= rather than ==.
-        #expect(coordinator.scheduler.effectivePollingInterval >= Constants.Polling.baseInterval)
-        #expect(coordinator.scheduler.isAwayMode == false)
+        let monitor = try #require(coordinator.activeMonitor)
+        #expect(monitor.scheduler.effectivePollingInterval >= Constants.Polling.baseInterval)
+        #expect(monitor.scheduler.isAwayMode == false)
     }
 
     @Test func schedulerUsesRateDrivenIntervalWhenRecentRateIsHigh() {
@@ -278,19 +281,20 @@ import Foundation
     // stays at baseInterval, never reaching maxIdleInterval). Scheduler-level activation is covered by
     // PollingRateTests.awayModeActivatesAtCooldownCapAndSystemIdle.
 
-    @Test func awayModeRemainsOffAfterRefreshWithNoData() async {
+    @Test func awayModeRemainsOffAfterRefreshWithNoData() async throws {
         // Sanity: even with idle time above threshold, refresh() with no analysis data must not set away mode.
         mockIdleProvider.idleTimeValue = Constants.Polling.awayThreshold + 1
         let fixture = UsageHistoryTestFixture()
         let (coordinator, _) = coordinator(fixture: fixture)
         await coordinator.refresh()
 
-        #expect(coordinator.scheduler.isAwayMode == false)
+        let monitor = try #require(coordinator.activeMonitor)
+        #expect(monitor.scheduler.isAwayMode == false)
     }
 
     // MARK: - Offline / Connectivity
 
-    @Test func offlinePollSkipsNetwork() async {
+    @Test func offlinePollSkipsNetwork() async throws {
         mockPath.simulate(satisfied: false)
         let fixture = UsageHistoryTestFixture()
         let (coordinator, _) = coordinator(fixture: fixture)
@@ -298,8 +302,9 @@ import Foundation
 
         #expect(mockStatus.fetchCount == 0)
         #expect(mockUsage.fetchCount == 0)
-        #expect(coordinator.scheduler.statusState.consecutiveFailures == 1)
-        #expect(coordinator.scheduler.usageState.consecutiveFailures == 1)
+        let monitor = try #require(coordinator.activeMonitor)
+        #expect(coordinator.statusScheduler.statusState.consecutiveFailures == 1)
+        #expect(monitor.scheduler.usageState.consecutiveFailures == 1)
     }
 
     @Test func returningOnlineResetsRetryState() {
@@ -353,25 +358,27 @@ import Foundation
 
     // MARK: - Deallocation
 
-    /// Proves the coordinator can actually be deallocated once its poll task is cancelled
-    /// and every other strong reference is dropped. Before the fix, `pollTask`'s closure
-    /// captured `self` strongly and `pollLoop()` never returns except on cancellation,
-    /// forming a `self -> pollTask -> closure -> self` cycle that kept the object (and its
-    /// `usageHistory`) alive for the rest of the process, no matter what `deinit` did. A
+    /// Proves the coordinator (and its per-account `AccountMonitor`) can actually be deallocated
+    /// once polling is stopped and every other strong reference is dropped. Before the fix, the
+    /// poll task's closure captured `self` strongly and the poll loop never returned except on
+    /// cancellation, forming a `self -> pollTask -> closure -> self` cycle that kept the object
+    /// (and its `usageHistory`) alive for the rest of the process, no matter what `deinit` did. A
     /// test that only asserts "the task was cancelled" would not catch that: the cycle keeps
     /// the object alive even after cancellation, since nothing ever drops the strong
     /// reference. Checking a `weak` reference actually goes `nil` is the only way to catch it.
     @Test func coordinatorDeallocatesAfterPollTaskCancelledAndReleased() async {
         let fixture = UsageHistoryTestFixture()
         weak var weakCoordinator: DataCoordinator?
+        weak var weakMonitor: AccountMonitor?
 
         do {
             let (coordinator, _) = coordinator(fixture: fixture)
             coordinator.startPolling()
             weakCoordinator = coordinator
+            weakMonitor = coordinator.activeMonitor
 
             // Let the poll task actually begin executing — i.e. wait until `refresh()` has been
-            // entered and returned at least once — before cancelling it and dropping the last
+            // entered and returned at least once — before stopping it and dropping the last
             // strong reference. Note this does NOT prove deallocation mid-`await`: `MockUsageService
             // .fetch` has no internal suspension point, so by the time `fetchCount` is observed
             // as non-zero, `await self.refresh()` inside the loop has already completed and `self`
@@ -381,16 +388,17 @@ import Foundation
             for _ in 0..<20 where mockUsage.fetchCount == 0 {
                 await Task.yield()
             }
-            coordinator.pollTask?.cancel()
+            coordinator.stopPolling()
         }
 
         // Give the cancelled task's suspension points a chance to unwind so the weakly
         // captured `self` inside the poll loop is not itself the last thing keeping the
         // object alive.
-        for _ in 0..<50 where weakCoordinator != nil {
+        for _ in 0..<50 where weakCoordinator != nil || weakMonitor != nil {
             try? await Task.sleep(for: .milliseconds(10))
         }
 
         #expect(weakCoordinator == nil)
+        #expect(weakMonitor == nil)
     }
 }
