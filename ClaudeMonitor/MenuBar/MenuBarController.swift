@@ -18,6 +18,7 @@ final class MenuBarController: NSObject, MenuActions {
         coordinator.onCriticalReset = { [weak self] in self?.handleCriticalReset() }
         configureStatusItem()
         coordinator.startPolling()
+        coordinator.energyMonitor.start()
         NSWorkspace.shared.notificationCenter.addObserver(
             self, selector: #selector(systemDidWake),
             name: NSWorkspace.didWakeNotification, object: nil
@@ -117,7 +118,7 @@ final class MenuBarController: NSObject, MenuActions {
     }
 
     @objc func didSelectAbout() {
-        openWindow(&aboutController) { AboutWindowController() }
+        openWindow(&aboutController) { [coordinator] in AboutWindowController(energy: coordinator.energyMonitor.estimate) }
     }
 
     @objc func didSelectPreferences() {

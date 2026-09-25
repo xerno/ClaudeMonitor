@@ -61,6 +61,8 @@
   "graph.stats.limit_soon_timed_date": "%1$@ · eléri a korlátot ~%2$@ a visszaállítás előtt (%3$@)",
   "graph.stats.limit_unknown": "%1$@ · korlát hamarosan",
   "graph.stats.projected": "%1$@ · ~%2$ld%% visszaállításkor",
+  "graph.stats.limit_at": "%1$@ · korlát %2$@-kor",
+  "graph.stats.limit_at_date": "%1$@ · korlát %2$@",
   "guide.org_id_label": "Szervezeti azonosító",
   "guide.step1.prefix": "1. Nyissa meg a következőt: ",
   "guide.step2": "2. Nyissa meg a **DevTools** panelt (⌥⌘I) → **Network** fül",

@@ -61,6 +61,8 @@
   "graph.stats.limit_soon_timed_date": "%1$@ · φτάνει όριο ~%2$@ πριν την επαναφορά (%3$@)",
   "graph.stats.limit_unknown": "%1$@ · όριο σύντομα",
   "graph.stats.projected": "%1$@ · ~%2$ld%% κατά την επαναφορά",
+  "graph.stats.limit_at": "%1$@ · όριο στις %2$@",
+  "graph.stats.limit_at_date": "%1$@ · όριο %2$@",
   "guide.org_id_label": "Organization ID",
   "guide.step1.prefix": "1. Ανοίξτε ",
   "guide.step2": "2. Ανοίξτε **DevTools** (⌥⌘I) → καρτέλα **Network**",

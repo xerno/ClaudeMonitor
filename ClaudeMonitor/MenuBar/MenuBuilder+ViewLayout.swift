@@ -1,6 +1,10 @@
 import AppKit
 
 extension MenuBuilder {
+    /// Horizontal inset the dropdown's rows line up on — the header labels, the control row and the
+    /// stats row all use it, so a row that picks its own number visibly steps out of the column.
+    static let rowTrailingInset: CGFloat = Constants.Menu.edgePadding
+
     static let maxDisplayLength = 40
     static let truncatedPrefixLength = 30
     private static let headerSubtitleIdentifier = NSUserInterfaceItemIdentifier("headerSubtitle")

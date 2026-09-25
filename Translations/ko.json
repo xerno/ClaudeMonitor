@@ -61,6 +61,8 @@
   "graph.stats.limit_soon_timed_date": "%1$@ · 초기화 ~%2$@ 전 제한 도달 (%3$@)",
   "graph.stats.limit_unknown": "%1$@ · 곧 제한",
   "graph.stats.projected": "%1$@ · 리셋 시 ~%2$ld%%",
+  "graph.stats.limit_at": "%1$@ · %2$@에 제한",
+  "graph.stats.limit_at_date": "%1$@ · %2$@에 제한",
   "guide.org_id_label": "조직 ID",
   "guide.step1.prefix": "1. 열기: ",
   "guide.step2": "2. **DevTools** 열기(⌥⌘I) → **Network** 탭",

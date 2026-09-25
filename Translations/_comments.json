@@ -67,6 +67,8 @@
   "graph.stats.limit_soon_timed_date": "Graph stats: rate projects to hit limit, reset on a different day. %1$@ is rate, %2$@ is how long before reset the limit will be hit, %3$@ is localized date+time string (Apple automatically inserts 'at' between date and time, so do NOT add 'at' before %3$@ in translations).",
   "graph.stats.limit_unknown": "Graph stats: rate projects to hit limit, no exact time. %1$@ is rate.",
   "graph.stats.projected": "Graph stats: rate with projection. %1$@ is rate, %2$ld is projected percent.",
+  "graph.stats.limit_at": "Graph stats: at the current rate the limit is reached at this clock time today. %1$@ is rate, %2$@ is the localized time the LIMIT is hit (not when the window resets).",
+  "graph.stats.limit_at_date": "Graph stats: same as graph.stats.limit_at but the limit falls on a later day, so %2$@ is a localized weekday + time (no date, no year). %1$@ is rate. The weekday already carries the \"when\", so no preposition is needed before %2$@.",
   "guide.org_id_label": "Bold label in credential guide step 4",
   "guide.step1.prefix": "Credential guide step 1 — text before the link",
   "guide.step2": "Credential guide step 2 — wrap terms in **double asterisks** to render them bold",

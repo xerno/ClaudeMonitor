@@ -79,7 +79,7 @@ extension MenuBarController {
         }
         if isMenuOpen, let menu = statusItem.menu {
             MenuBuilder.refreshTimes(in: menu, cache: usageCache)
-            MenuBuilder.refreshGraph(in: menu, analyses: state.usage.windowAnalyses)
+            MenuBuilder.refreshGraph(in: menu, analyses: state.usage.windowAnalyses, energy: state.energy)
         }
     }
 

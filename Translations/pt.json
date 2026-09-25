@@ -61,6 +61,8 @@
   "graph.stats.limit_soon_timed_date": "%1$@ · atinge limite ~%2$@ antes da reposição (%3$@)",
   "graph.stats.limit_unknown": "%1$@ · limite em breve",
   "graph.stats.projected": "%1$@ · ~%2$ld%% ao repor",
+  "graph.stats.limit_at": "%1$@ · limite às %2$@",
+  "graph.stats.limit_at_date": "%1$@ · limite %2$@",
   "guide.org_id_label": "Organization ID",
   "guide.step1.prefix": "1. Abra ",
   "guide.step2": "2. Abra **DevTools** (⌥⌘I) → separador **Network**",

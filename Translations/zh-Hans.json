@@ -61,6 +61,8 @@
   "graph.stats.limit_soon_timed_date": "%1$@ · 重置前~%2$@达限（%3$@）",
   "graph.stats.limit_unknown": "%1$@ · 即将达限",
   "graph.stats.projected": "%1$@ · 重置时约%2$ld%%",
+  "graph.stats.limit_at": "%1$@ · %2$@达限",
+  "graph.stats.limit_at_date": "%1$@ · %2$@达限",
   "guide.org_id_label": "组织 ID",
   "guide.step1.prefix": "1. 打开 ",
   "guide.step2": "2. 打开 **DevTools**（⌥⌘I）→ **Network** 标签页",

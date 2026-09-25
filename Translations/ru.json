@@ -61,6 +61,8 @@
   "graph.stats.limit_soon_timed_date": "%1$@ · достигнет лимита за ~%2$@ до сброса (%3$@)",
   "graph.stats.limit_unknown": "%1$@ · лимит скоро",
   "graph.stats.projected": "%1$@ · ~%2$ld%% при сбросе",
+  "graph.stats.limit_at": "%1$@ · лимит в %2$@",
+  "graph.stats.limit_at_date": "%1$@ · лимит %2$@",
   "guide.org_id_label": "Идентификатор организации",
   "guide.step1.prefix": "1. Откройте ",
   "guide.step2": "2. Откройте **DevTools** (⌥⌘I) → вкладка **Network**",

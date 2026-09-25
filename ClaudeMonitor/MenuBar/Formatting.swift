@@ -5,7 +5,7 @@ enum Formatting {
     enum AbsoluteTimeStyle {
         case hourMinute
         case hourMinuteSecond
-        case dateHourMinute
+        case weekdayHourMinute
     }
 
     /// `Date.FormatStyle` (`.formatted(...)`) returns an EMPTY string under region-override
@@ -18,7 +18,10 @@ enum Formatting {
         switch style {
         case .hourMinute: template = "jmm"
         case .hourMinuteSecond: template = "jmmss"
-        case .dateHourMinute: template = "yMMMdjmm"
+        // Weekday and time, no date and deliberately no year. Usage windows run at most seven
+        // days, so the year was never information, and with it the stats row overflowed its width in
+        // every locale tested (cs 187 pt, de 212 pt, en 230 pt against 166 pt available).
+        case .weekdayHourMinute: template = "Ejmm"
         }
         let formatter = DateFormatter()
         formatter.locale = .autoupdatingCurrent
@@ -137,7 +140,7 @@ enum Formatting {
         if util >= 100 {
             let isToday = Calendar.current.isDateInToday(resetsAt)
             let key = isToday ? "graph.stats.blocked" : "graph.stats.blocked_date"
-            let timeStr = absoluteTime(resetsAt, isToday ? .hourMinute : .dateHourMinute)
+            let timeStr = absoluteTime(resetsAt, isToday ? .hourMinute : .weekdayHourMinute)
             return String(format: String(localized: String.LocalizationValue(key), bundle: .module), timeStr)
         }
 
@@ -159,17 +162,16 @@ enum Formatting {
             return String(format: String(localized: "graph.stats.limit_unknown", bundle: .module), rateStr)
         }
 
-        let beforeResetStr = Formatting.timeUntil(max(0, resetsAt.timeIntervalSince(now) - ttl))
-
-        guard ttl > 3600 else {
-            return String(format: String(localized: "graph.stats.limit_soon", bundle: .module), rateStr, beforeResetStr)
-        }
-
+        // The clock time the limit is reached, and nothing else. The previous wording — "hits limit
+        // ~9h 2m before reset (at 17:44)" — was both too long for the row and misleading twice over:
+        // the duration was the margin ahead of the reset rather than the time remaining, and the
+        // bracketed time reads as the reset when it is actually when the limit lands. How long the
+        // window has left is already on screen in the usage rows above.
         let limitHitAt = now.addingTimeInterval(ttl)
         let isToday = Calendar.current.isDateInToday(limitHitAt)
-        let key = isToday ? "graph.stats.limit_soon_timed" : "graph.stats.limit_soon_timed_date"
-        let timeStr = absoluteTime(limitHitAt, isToday ? .hourMinute : .dateHourMinute)
-        return String(format: String(localized: String.LocalizationValue(key), bundle: .module), rateStr, beforeResetStr, timeStr)
+        let key = isToday ? "graph.stats.limit_at" : "graph.stats.limit_at_date"
+        let timeStr = absoluteTime(limitHitAt, isToday ? .hourMinute : .weekdayHourMinute)
+        return String(format: String(localized: String.LocalizationValue(key), bundle: .module), rateStr, timeStr)
     }
 
     static let barImageWidth: CGFloat = 120

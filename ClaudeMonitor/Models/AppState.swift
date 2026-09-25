@@ -89,6 +89,10 @@ struct MonitorState: Sendable, Equatable {
     let polling: PollingState
     let history: HistoryHealth
     let profiles: ProfileSnapshot
+    /// Estimated datacentre electricity derived from Claude Code's local logs; nil until the first
+    /// scan finishes. Carried here rather than read from a service so the menu stays a pure
+    /// function of this value type.
+    let energy: EnergyEstimate?
     let lastRefreshed: Date?
     let hasCredentials: Bool
     let showGraph: Bool
@@ -100,6 +104,7 @@ struct MonitorState: Sendable, Equatable {
         polling: PollingState = PollingState(),
         history: HistoryHealth = HistoryHealth(),
         profiles: ProfileSnapshot = ProfileSnapshot(),
+        energy: EnergyEstimate? = nil,
         lastRefreshed: Date? = nil,
         hasCredentials: Bool = false,
         showGraph: Bool = true,
@@ -110,6 +115,7 @@ struct MonitorState: Sendable, Equatable {
         self.polling = polling
         self.history = history
         self.profiles = profiles
+        self.energy = energy
         self.lastRefreshed = lastRefreshed
         self.hasCredentials = hasCredentials
         self.showGraph = showGraph

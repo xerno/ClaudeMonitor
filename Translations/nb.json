@@ -61,6 +61,8 @@
   "graph.stats.limit_soon_timed_date": "%1$@ · treffer grense ~%2$@ før nullstilling (%3$@)",
   "graph.stats.limit_unknown": "%1$@ · grense snart",
   "graph.stats.projected": "%1$@ · ~%2$ld%% ved nullstilling",
+  "graph.stats.limit_at": "%1$@ · grense kl. %2$@",
+  "graph.stats.limit_at_date": "%1$@ · grense %2$@",
   "guide.org_id_label": "Organization ID",
   "guide.step1.prefix": "1. Åpne ",
   "guide.step2": "2. Åpne **DevTools** (⌥⌘I) → **Network**-fanen",

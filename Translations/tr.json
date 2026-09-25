@@ -61,6 +61,8 @@
   "graph.stats.limit_soon_timed_date": "%1$@ · sıfırlamadan ~%2$@ önce sınıra ulaşır (%3$@)",
   "graph.stats.limit_unknown": "%1$@ · sınır yakında",
   "graph.stats.projected": "%1$@ · sıfırlamada ~%2$ld%%",
+  "graph.stats.limit_at": "%1$@ · sınır %2$@'da",
+  "graph.stats.limit_at_date": "%1$@ · sınır %2$@",
   "guide.org_id_label": "Kuruluş Kimliği",
   "guide.step1.prefix": "1. Açın: ",
   "guide.step2": "2. **DevTools**'u açın (⌥⌘I) → **Network** sekmesi",

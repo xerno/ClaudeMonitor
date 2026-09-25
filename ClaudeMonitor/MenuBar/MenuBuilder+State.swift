@@ -25,7 +25,7 @@ extension MenuBuilder {
                 bannerItem.view = makeHeaderView(title: bannerText, subtitle: Constants.Menu.appTitle)
             }
         }
-        refreshGraph(in: menu, analyses: state.usage.windowAnalyses)
+        refreshGraph(in: menu, analyses: state.usage.windowAnalyses, energy: state.energy)
         return cache
     }
 
@@ -79,10 +79,11 @@ extension MenuBuilder {
         return (items, cache)
     }
 
-    static func refreshGraph(in menu: NSMenu, analyses: [WindowAnalysis]) {
+    static func refreshGraph(in menu: NSMenu, analyses: [WindowAnalysis], energy: EnergyEstimate? = nil) {
         guard let item = menu.item(withTag: usageGraphTag),
               let graphView = item.view as? UsageGraphView else { return }
         graphView.update(analyses: analyses)
+        graphView.update(energy: energy)
         syncUsageCheckmarks(in: menu, selectedIndex: graphView.currentSelectedIndex)
     }
 

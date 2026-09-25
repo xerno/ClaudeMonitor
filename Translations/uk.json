@@ -61,6 +61,8 @@
   "graph.stats.limit_soon_timed_date": "%1$@ · досягне ліміту за ~%2$@ до скидання (%3$@)",
   "graph.stats.limit_unknown": "%1$@ · ліміт скоро",
   "graph.stats.projected": "%1$@ · ~%2$ld%% при скиданні",
+  "graph.stats.limit_at": "%1$@ · ліміт о %2$@",
+  "graph.stats.limit_at_date": "%1$@ · ліміт %2$@",
   "guide.org_id_label": "Organization ID",
   "guide.step1.prefix": "1. Відкрийте ",
   "guide.step2": "2. Відкрийте **DevTools** (⌥⌘I) → вкладка **Network**",

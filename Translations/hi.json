@@ -61,6 +61,8 @@
   "graph.stats.limit_soon_timed_date": "%1$@ · रीसेट से ~%2$@ पहले सीमा (%3$@)",
   "graph.stats.limit_unknown": "%1$@ · सीमा जल्द",
   "graph.stats.projected": "%1$@ · रीसेट पर ~%2$ld%%",
+  "graph.stats.limit_at": "%1$@ · सीमा %2$@ पर",
+  "graph.stats.limit_at_date": "%1$@ · सीमा %2$@",
   "guide.org_id_label": "Organization ID",
   "guide.step1.prefix": "1. खोलें ",
   "guide.step2": "2. **DevTools** खोलें (⌥⌘I) → **Network** टैब",

@@ -16,6 +16,12 @@ final class UsageGraphView: NSView {
     private var selectedIndex: Int = 0
     private var userSelectedIndex: Bool = false
     private let statsLabel = NSTextField(labelWithString: "")
+    /// Estimated datacentre electricity, right-aligned on the same row as the stats text.
+    ///
+    /// A second label rather than more text appended to `statsLabel`: that label is centered across
+    /// the full width, and `Formatting.statsLabelTextCore` has several return branches, so anything
+    /// folded into its string would vanish in every branch but one.
+    private let energyLabel = NSTextField(labelWithString: "")
 
     var currentSelectedIndex: Int { selectedIndex }
 
@@ -30,17 +36,80 @@ final class UsageGraphView: NSView {
     }
 
     private func setupViews() {
+        let rowY = GraphDrawer.Layout.topPadding + GraphDrawer.Layout.graphHeight + GraphDrawer.Layout.graphStatsGap
+        let energyWidth = GraphDrawer.Layout.energyLabelWidth
+        let usableWidth = bounds.width - MenuBuilder.rowTrailingInset * 2
+
         statsLabel.font = NSFont.systemFont(ofSize: 12)
         statsLabel.textColor = .secondaryLabelColor
-        statsLabel.alignment = .center
+        // Left, not centered: the energy estimate takes the right of this row, and a centered label
+        // would drift under it as the text changes length.
+        statsLabel.alignment = .left
+        statsLabel.lineBreakMode = .byTruncatingTail
         statsLabel.autoresizingMask = .width
         statsLabel.frame = NSRect(
-            x: GraphDrawer.Layout.sidePadding,
-            y: GraphDrawer.Layout.topPadding + GraphDrawer.Layout.graphHeight + GraphDrawer.Layout.graphStatsGap,
-            width: bounds.width - GraphDrawer.Layout.sidePadding * 2,
+            x: MenuBuilder.rowTrailingInset,
+            y: rowY,
+            width: usableWidth - energyWidth - GraphDrawer.Layout.statsEnergyGap,
             height: GraphDrawer.Layout.statsHeight
         )
         addSubview(statsLabel)
+
+        energyLabel.font = NSFont.systemFont(ofSize: 12)
+        energyLabel.textColor = .secondaryLabelColor
+        energyLabel.alignment = .right
+        // Pinned to the trailing edge while the menu resizes; the stats label absorbs the slack.
+        energyLabel.autoresizingMask = .minXMargin
+        energyLabel.frame = NSRect(
+            x: bounds.width - MenuBuilder.rowTrailingInset - energyWidth,
+            y: rowY,
+            width: energyWidth,
+            height: GraphDrawer.Layout.statsHeight
+        )
+        addSubview(energyLabel)
+        layoutStatsRow()
+    }
+
+    // MARK: - Energy
+
+    /// Sets the energy reading, or clears the row when there is nothing to show yet.
+    func update(energy: EnergyEstimate?) {
+        energyLabel.stringValue = Self.energyText(for: energy)
+        layoutStatsRow()
+    }
+
+    /// Gives the energy label exactly the width its text needs and the rest of the row to the stats
+    /// text. Splitting the row at a fixed point meant the reserve had to cover the widest reading in
+    /// the widest of thirty languages, and whatever it reserved was taken from the stats text even
+    /// when the reading was short.
+    private func layoutStatsRow() {
+        // Inset matches the other text rows in the dropdown, not the graph's own side padding: this
+        // row reads as part of the text column below the graph, and two points out of line is
+        // visible against "Services" and "Updated:".
+        let inset = MenuBuilder.rowTrailingInset
+        let usable = bounds.width - inset * 2
+
+        // `fittingSize`, not the measured string width. A text field needs a few points more than
+        // its text: sized to the text alone it clipped the last glyph ("⚡ ~17 kWh" measures 69 pt
+        // but the field needs 73).
+        let energyWidth = energyLabel.stringValue.isEmpty
+            ? 0
+            : min(energyLabel.fittingSize.width.rounded(.up), GraphDrawer.Layout.energyLabelMaxWidth)
+        let gap = energyWidth > 0 ? GraphDrawer.Layout.statsEnergyGap : 0
+
+        energyLabel.frame.origin.x = bounds.width - inset - energyWidth
+        energyLabel.frame.size.width = energyWidth
+        statsLabel.frame.origin.x = inset
+        statsLabel.frame.size.width = max(0, usable - energyWidth - gap)
+    }
+
+    /// The rendered energy text (for testing).
+    var currentEnergyText: String { energyLabel.stringValue }
+
+    /// Kept separate and testable: the icon-plus-range string is the whole visible contract.
+    static func energyText(for estimate: EnergyEstimate?) -> String {
+        guard let estimate, estimate.median > 0 else { return "" }
+        return "\u{26A1} " + estimate.description
     }
 
     // NSView uses non-flipped coordinates (y=0 at bottom) by default on macOS.

@@ -61,6 +61,8 @@
   "graph.stats.limit_soon_timed_date": "%1$@ · alcanza límite ~%2$@ antes del reinicio (%3$@)",
   "graph.stats.limit_unknown": "%1$@ · límite pronto",
   "graph.stats.projected": "%1$@ · ~%2$ld%% al reiniciarse",
+  "graph.stats.limit_at": "%1$@ · límite a las %2$@",
+  "graph.stats.limit_at_date": "%1$@ · límite %2$@",
   "guide.org_id_label": "Organization ID",
   "guide.step1.prefix": "1. Abre ",
   "guide.step2": "2. Abre **DevTools** (⌥⌘I) → pestaña **Network**",

@@ -61,6 +61,8 @@
   "graph.stats.limit_soon_timed_date": "%1$@ · dosiahne limit ~%2$@ pred resetom (%3$@)",
   "graph.stats.limit_unknown": "%1$@ · limit čoskoro",
   "graph.stats.projected": "%1$@ · ~%2$ld%% pri resete",
+  "graph.stats.limit_at": "%1$@ · limit v %2$@",
+  "graph.stats.limit_at_date": "%1$@ · limit %2$@",
   "guide.org_id_label": "ID organizácie",
   "guide.step1.prefix": "1. Otvorte ",
   "guide.step2": "2. Otvorte **DevTools** (⌥⌘I) → záložku **Network**",

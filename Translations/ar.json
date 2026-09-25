@@ -61,6 +61,8 @@
   "graph.stats.limit_soon_timed_date": "%1$@ · يبلغ الحد قبل ~%2$@ من إعادة التعيين (%3$@)",
   "graph.stats.limit_unknown": "%1$@ · الحد قريبًا",
   "graph.stats.projected": "%1$@ · ~%2$ld%% عند إعادة التعيين",
+  "graph.stats.limit_at": "%1$@ · الحد في %2$@",
+  "graph.stats.limit_at_date": "%1$@ · الحد %2$@",
   "guide.org_id_label": "معرّف المؤسسة",
   "guide.step1.prefix": "1. افتح ",
   "guide.step2": "2. افتح **DevTools** (⌥⌘I) → علامة تبويب **Network**",

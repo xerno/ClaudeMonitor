@@ -61,6 +61,8 @@
   "graph.stats.limit_soon_timed_date": "%1$@ · mencapai had ~%2$@ sebelum penetapan semula (%3$@)",
   "graph.stats.limit_unknown": "%1$@ · had tidak lama lagi",
   "graph.stats.projected": "%1$@ · ~%2$ld%% semasa penetapan semula",
+  "graph.stats.limit_at": "%1$@ · had pada %2$@",
+  "graph.stats.limit_at_date": "%1$@ · had %2$@",
   "guide.org_id_label": "Organization ID",
   "guide.step1.prefix": "1. Buka ",
   "guide.step2": "2. Buka **DevTools** (⌥⌘I) → tab **Network**",
