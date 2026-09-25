@@ -98,5 +98,5 @@ private final class TitleHeaderMockActions: NSObject, MenuActions {
     @objc func didSelectAbout() {}
     @objc func didSelectUsageWindow(_ sender: NSMenuItem) {}
     @objc func didSelectSentinel() {}
-    @objc func didSelectProfile(_ sender: NSMenuItem) {}
+    @objc func didSelectProfile(id: String) {}
 }

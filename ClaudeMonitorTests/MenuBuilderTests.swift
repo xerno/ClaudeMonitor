@@ -525,9 +525,13 @@ private final class MockMenuActions: NSObject, MenuActions {
     private func stateWithProfiles(
         _ profiles: [Profile] = personalAndWork,
         activeId: String = "b",
-        isStale: Bool = false
+        isStale: Bool = false,
+        usageBlocked: Bool = false
     ) -> MonitorState {
-        MonitorState(
+        let entries = [WindowEntry.make(key: "five_hour", utilization: usageBlocked ? 100 : 40,
+                                        resetsAt: Date().addingTimeInterval(3600))].compactMap { $0 }
+        return MonitorState(
+            usage: UsageSnapshot(currentUsage: UsageResponse(entries: entries)),
             polling: PollingState(isAnyServiceStale: isStale),
             profiles: ProfileSnapshot(profiles: profiles, activeId: activeId),
             hasCredentials: true
@@ -536,10 +540,6 @@ private final class MockMenuActions: NSObject, MenuActions {
 
     private func usageHeaderToggle(in menu: NSMenu) -> AccountToggleView? {
         MenuBuilder.findAccountToggle(in: menu.item(withTag: MenuBuilder.usageSectionTag)?.view)
-    }
-
-    private func segmentedControl(in toggle: AccountToggleView) throws -> NSSegmentedControl {
-        try #require(toggle.subviews.compactMap { $0 as? NSSegmentedControl }.first)
     }
 
     @Test func accountToggleAbsentWithSingleProfile() {
@@ -556,7 +556,7 @@ private final class MockMenuActions: NSObject, MenuActions {
     @Test func switcherSelectsActiveProfileIndex() throws {
         let menu = MenuBuilder.build(state: stateWithProfiles(activeId: "b"), target: target)
         let toggle = try #require(usageHeaderToggle(in: menu))
-        #expect(try segmentedControl(in: toggle).selectedSegment == 1)
+        #expect(toggle.selectedIndex == 1)
     }
 
     @Test func populateUpdatesToggleSelectionInPlace() throws {
@@ -568,7 +568,7 @@ private final class MockMenuActions: NSObject, MenuActions {
 
         let updated = try #require(usageHeaderToggle(in: menu))
         #expect(updated === original)
-        #expect(try segmentedControl(in: updated).selectedSegment == 0)
+        #expect(updated.selectedIndex == 0)
     }
 
     @Test func switcherReplacedWhenIdsChangeEvenIfLabelsEqual() throws {
@@ -586,14 +586,11 @@ private final class MockMenuActions: NSObject, MenuActions {
         #expect(replaced !== original)
         #expect(replaced.currentSegments.map(\.id) == ["c", "d"])
 
-        let control = try segmentedControl(in: replaced)
-        control.selectedSegment = 1
-        let action = try #require(control.action)
-        _ = (control.target as? NSObject)?.perform(action)
+        replaced.select(segmentAt: 1)
         #expect(target.selectedProfileIds == ["d"])
     }
 
-    @Test func switcherPresentWhenServiceStale() {
+    @Test func switcherPresentWhenServiceStale() throws {
         let built = MenuBuilder.build(state: stateWithProfiles(isStale: true), target: target)
         #expect(usageHeaderToggle(in: built) != nil)
 
@@ -601,7 +598,6 @@ private final class MockMenuActions: NSObject, MenuActions {
         MenuBuilder.populate(menu: menu, state: stateWithProfiles(), target: target)
         MenuBuilder.populate(menu: menu, state: stateWithProfiles(isStale: true), target: target)
         #expect(usageHeaderToggle(in: menu) != nil)
-        #expect(MenuBuilder.headerSubtitle(in: menu.item(withTag: MenuBuilder.usageSectionTag)?.view) == nil)
     }
 
     @Test func switcherTruncatesLongNames() throws {
@@ -611,15 +607,32 @@ private final class MockMenuActions: NSObject, MenuActions {
             Profile(id: "b", name: "Work", organizationId: "org-b"),
         ]
         let menu = MenuBuilder.build(state: stateWithProfiles(profiles), target: target)
-        let control = try segmentedControl(in: try #require(usageHeaderToggle(in: menu)))
+        let toggle = try #require(usageHeaderToggle(in: menu))
 
-        let label = try #require(control.label(forSegment: 0))
+        let label = toggle.currentSegments[0].label
         #expect(label.count == MenuBuilder.switcherNameMaxLength)
         #expect(label.hasSuffix("…"))
         #expect(longName.hasPrefix(String(label.dropLast())))
-        #expect(control.label(forSegment: 1) == "Work")
-        #expect(control.toolTip(forSegment: 0) == longName)
-        #expect(control.toolTip(forSegment: 1) == "Work")
+        #expect(toggle.currentSegments[1].label == "Work")
+        #expect(toggle.currentSegments[0].toolTip == longName)
+        #expect(toggle.currentSegments[1].toolTip == "Work")
+
+        let tooltips = toggle.subviews.compactMap(\.toolTip)
+        #expect(tooltips == [longName, "Work"])
+    }
+
+    @Test func populateRebuildsTitleHeaderWhenBadgeChanges() throws {
+        let menu = NSMenu()
+        MenuBuilder.populate(menu: menu, state: stateWithProfiles(usageBlocked: false), target: target)
+        let originalToggle = try #require(usageHeaderToggle(in: menu))
+        #expect(MenuBuilder.titleHeaderBadgeText(in: menu.item(withTag: MenuBuilder.usageSectionTag)?.view) == nil)
+
+        MenuBuilder.populate(menu: menu, state: stateWithProfiles(usageBlocked: true), target: target)
+
+        let header = menu.item(withTag: MenuBuilder.usageSectionTag)?.view
+        #expect(MenuBuilder.titleHeaderBadgeText(in: header) != nil)
+        let updatedToggle = try #require(usageHeaderToggle(in: menu))
+        #expect(updatedToggle !== originalToggle)
     }
 
     @Test func graphShownByDefault() {
