@@ -54,9 +54,10 @@ ClaudeMonitor/
 │   ├── UsageHistory+LegacyArchiveMigration.swift — one-time v1 .json.lzma → current format migration
 │   └── WindowInstanceCodec.swift        — v3 binary codec, v2 + legacy v1 read paths, CRC32
 ├── Services/
-│   ├── DataCoordinator.swift            — orchestration, polling lifecycle, history maintenance task
-│   ├── DataCoordinator+Refresh.swift    — refresh cycle, UsageFetchOutcome (fresh vs stale)
-│   ├── DataCoordinator+Polling.swift    — poll loop (weak self, scoped per iteration), switchToProfile
+│   ├── AccountMonitor.swift             — one account: own scheduler, history, usage state, poll loop, history maintenance task, UsageFetchOutcome
+│   ├── DataCoordinator.swift            — monitor per organization, one UsageHistory per organization, active-account facades
+│   ├── DataCoordinator+Refresh.swift    — status refresh, demo refresh
+│   ├── DataCoordinator+Polling.swift    — status poll loop, restart/stop of all loops, switchToProfile
 │   ├── ProfileStore.swift               — profile registry, active profile, per-profile cookies, registry quarantine
 │   ├── ProfileStore+LegacyMigration.swift — one-time single-account → profile migration
 │   ├── StatusService.swift              — fetches status.claude.com/api/v2/summary.json
@@ -100,8 +101,8 @@ Key patterns:
 - **CredentialFormView** — reusable NSView encapsulating credential fields, UUID validation, and saving through `ProfileStore`. Used by both Setup and Preferences windows.
 - **ProfileStore** — the only owner of profiles and their cookies. Built in production only via `ProfileStore.production()`; `init` has no defaults and traps on `UserDefaults.standard` under the test env var.
 - **WindowManager** — centralized activation policy management for `.accessory` ↔ `.regular` transitions.
-- **DataCoordinator** — owns services, state, and polling lifecycle. Notifies `MenuBarController` via `onUpdate` callback. Pure data orchestration with no UI dependencies.
-- **Async polling** — `DataCoordinator` uses `Task` + `Task.sleep(for:)` instead of `Timer`, with dynamic retry intervals via `PollingScheduler`.
+- **DataCoordinator** — owns services, one `AccountMonitor` per profile's organization, and the status poll loop. Exposes the active account through read-only facades and forwards only the active monitor's `onUpdate`/`onCriticalReset` to `MenuBarController`. Pure data orchestration with no UI dependencies.
+- **Async polling** — every `AccountMonitor` polls its own account with `Task` + `Task.sleep(for:)` instead of `Timer`, with dynamic retry intervals via its own `PollingScheduler`; the status page has a separate loop with its own scheduler.
 - **Formatting** — pure functions, testable in isolation. `usageStyle()` is the core UX logic. `displayLabel()` implements smart "all" labeling.
 - **Sendable conformance** — all models conform to `Sendable` for strict concurrency safety. `ComponentStatus` is `Comparable` for natural severity ordering.
 - **Dynamic windows** — `UsageResponse` decodes any API window key dynamically via `WindowKeyParser`. Window durations and model scopes are parsed from key names (e.g., `seven_day_sonnet` → 7d, Sonnet). `WindowEntry` is `Comparable` for deterministic ordering (shortest duration first, all-models before model-specific).
@@ -143,8 +144,9 @@ Authentication: per account profile, the user provides a session cookie and orga
 ## Account profiles
 
 - **History stays keyed by organization ID**, not by profile. Two profiles with the same org (compared as UUIDs, case-insensitively) are rejected — they would share one history directory.
-- **Switching** goes through `restartPolling()` so the scheduler's backoff never carries over, and changing the organization clears the displayed usage. The previous account's numbers must never appear under the new one — the open menu swaps its usage rows for a loading placeholder.
-- **A late response never crosses accounts.** `refresh()` captures `usageHistory.generation` before fetching and re-checks it after every `await` before recording, archiving or saving.
+- **Every account is polled independently.** Each has its own adaptive scheduler, history and last-known usage, so an inactive account slows down on its own and its history has no gaps. Switching only changes the active profile and restarts that account's loop: its own last-known data shows immediately, the previous account's numbers never appear under it.
+- **A late response never crosses accounts.** A response is recorded only by the monitor that requested it, into that organization's history. The coordinator owns exactly one `UsageHistory` per organization and hands it to every monitor it ever builds for that organization, so two instances never write the same directory. `refresh()` still captures `usageHistory.generation` before fetching and re-checks it after every `await`, which guards against `clearAll()`.
+- **Usage requests never share cookies.** `UsageService` uses its own ephemeral session without a cookie store; a shared jar let one account's server-set `sessionKey` ride along with another account's requests.
 - **Migration** from the single-account keys runs once: the registry key's presence is the marker. It is written only when there was nothing to migrate or the new cookie saved; a failed save retries next launch. The legacy keys are removed after a successful migration.
 - **A corrupt registry is quarantined** (`profiles.corrupt.<epoch>`), never overwritten; entries with a non-UUID org ID are dropped in memory and the original is quarantined.
 - At most `Constants.Profiles.maxCount` profiles; the Add tab hides at the limit.
@@ -195,7 +197,7 @@ Unit tests in `ClaudeMonitorTests/`:
 - **ModelsTests** — JSON decoding (dynamic windows, unknown keys), `WindowKeyParser` (basic/compound numbers, model scopes, unknown formats), `WindowEntry` sorting, `displayLabel` (disambiguation vs no-disambiguation), `ComponentStatus` severity/`Comparable` ordering, `Equatable` conformance, fractional-seconds fallback
 - **MenuBuilderTests** — menu structure, section content, incident links, sorted components, compact services (build and live update), footer buttons and hidden shortcuts, account switcher identity and staleness, live usage-row swapping after an account switch
 - **ProfileStoreTests** — registry CRUD, duplicate orgs, max count, migration (success, save failure, partial/invalid legacy data, idempotence), registry quarantine
-- **ProfileSwitchTests** — switching uses the new credentials, clears the previous account's usage, discards in-flight responses of the previous account
+- **ProfileSwitchTests** — switching shows the new account's own data immediately, per-account schedulers and histories, in-flight responses land only in their own account, monitor lifecycle on profile removal and re-add
 - **PreferencesWindowControllerTests** — retention confirmation, immediate General settings, no lost edits across re-show/add/remove, Add tab at the limit, setup recovery
 
 - **StatusBarRendererTests** — icon resolution (status → symbol/color mapping, refresh warning, worst-severity), title methods (no credentials, loading, blocked countdown, usage with styled percentages), `nsColor` mapping

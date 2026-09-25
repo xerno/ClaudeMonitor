@@ -759,7 +759,7 @@ final class RetentionConfirmationRecorder {
         onDisplaySettingsChanged: @escaping () -> Void = {}
     ) -> PreferencesWindowController {
         PreferencesWindowController(
-            usageHistory: history,
+            usageHistories: { [history] },
             profileStore: profileStore ?? makeTestProfileStore(secrets: InMemorySecrets()),
             defaults: defaults,
             onDisplaySettingsChanged: onDisplaySettingsChanged,

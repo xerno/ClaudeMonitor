@@ -54,7 +54,7 @@ func makeCoordinator(
         pathMonitor: path ?? MockPathMonitor(),
         profileStore: store,
         defaults: defaults,
-        usageHistory: fixture.history
+        makeUsageHistory: { fixture.history }
     )
     return (coordinator, testOrgId)
 }

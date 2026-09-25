@@ -35,6 +35,7 @@ final class MockStatusService: StatusFetching, @unchecked Sendable {
 
 final class MockUsageService: UsageFetching, @unchecked Sendable {
     var result: Result<UsageResponse, Error> = .success(TestFixtures.usage())
+    var resultsByOrgId: [String: Result<UsageResponse, Error>] = [:]
     var fetchCount = 0
     var lastOrgId: String?
     var lastCookie: String?
@@ -53,7 +54,7 @@ final class MockUsageService: UsageFetching, @unchecked Sendable {
         if let beforeReturn {
             await beforeReturn()
         }
-        return try result.get()
+        return try (resultsByOrgId[organizationId] ?? result).get()
     }
 }
 

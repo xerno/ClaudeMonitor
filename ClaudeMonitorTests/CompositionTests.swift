@@ -66,7 +66,8 @@ import AppKit
         // First refresh produces one sample — recentRate requires ≥2 samples, so the
         // rate-driven formula is inactive. Scheduler falls back to cooldownInterval,
         // which equals baseInterval when timeSinceLastChange is nil (first sample).
-        #expect(coordinator.scheduler.effectivePollingInterval == Constants.Polling.baseInterval)
+        let monitor = try #require(coordinator.activeMonitor)
+        #expect(monitor.scheduler.effectivePollingInterval == Constants.Polling.baseInterval)
         // Projection is computed correctly even without enough history for rate-driven polling.
         let analyses = coordinator.monitorState.usage.windowAnalyses
         #expect(!analyses.isEmpty)
@@ -126,7 +127,7 @@ import AppKit
     /// is nil and effectivePollingInterval falls back to baseInterval. The integration value
     /// here is verifying that MonitorState.currentPollInterval is wired to the scheduler:
     /// whatever the scheduler decides, MonitorState exposes the same value.
-    @Test func testMonitorStateCurrentPollIntervalReflectsSchedulerState() async {
+    @Test func testMonitorStateCurrentPollIntervalReflectsSchedulerState() async throws {
         let fixture = UsageHistoryTestFixture()
         let (coordinator, _) = coordinator(fixture: fixture)
         await coordinator.refresh()
@@ -138,7 +139,8 @@ import AppKit
 
         // currentPollInterval is nextPollInterval(usage:), which returns effectivePollingInterval
         // when no reset is imminent. With a 9000s-out reset and baseInterval=60s, they agree.
-        #expect(state.polling.currentPollInterval! == coordinator.scheduler.effectivePollingInterval)
+        let monitor = try #require(coordinator.activeMonitor)
+        #expect(state.polling.currentPollInterval! == monitor.scheduler.effectivePollingInterval)
     }
 
     // MARK: - Test 4: usageTitle always shows first entry regardless of projection
@@ -249,7 +251,7 @@ import AppKit
     /// requires ≥2 samples with a measurable time delta — not achievable in fast unit tests.
     /// This test instead verifies that a scheduler driven into cooldown via analyze() directly
     /// is reset by restartPolling(), confirming the scheduler.reset() call is wired correctly.
-    @Test func testRestartPollingResetsCurrentPollIntervalInMonitorState() async {
+    @Test func testRestartPollingResetsCurrentPollIntervalInMonitorState() async throws {
         let fixture = UsageHistoryTestFixture()
         let (coordinator, _) = coordinator(fixture: fixture)
         await coordinator.refresh()
@@ -260,7 +262,8 @@ import AppKit
 
         // restartPolling() calls scheduler.reset() which sets effectivePollingInterval = baseInterval.
         coordinator.restartPolling()
-        #expect(coordinator.scheduler.effectivePollingInterval == Constants.Polling.baseInterval)
+        let monitor = try #require(coordinator.activeMonitor)
+        #expect(monitor.scheduler.effectivePollingInterval == Constants.Polling.baseInterval)
     }
 
     // MARK: - Test 7: windowAnalyses consistency with currentUsage
