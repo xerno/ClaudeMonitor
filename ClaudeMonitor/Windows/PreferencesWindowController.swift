@@ -89,7 +89,7 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate, N
     private let retentionLabel = NSTextField(labelWithString: String(localized: "prefs.retention.label", bundle: .module))
     private let retentionField = NSTextField()
     private let retentionStepper = NSStepper()
-    private let usageHistory: UsageHistory
+    private let usageHistories: @MainActor () -> [UsageHistory]
     private let onSave: () -> Void
     private let onDisplaySettingsChanged: () -> Void
     // Injected rather than reaching for `.standard` internally — see `init`'s doc comment.
@@ -172,13 +172,13 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate, N
     /// `Constants.History.retentionYears(defaults:)` already exposes; this just threads it
     /// through the one call site here that previously bypassed it via the defaulted overload.
     init(
-        usageHistory: UsageHistory,
+        usageHistories: @escaping @MainActor () -> [UsageHistory],
         profileStore: ProfileStore,
         defaults: UserDefaults = .standard,
         onDisplaySettingsChanged: @escaping () -> Void,
         onSave: @escaping () -> Void
     ) {
-        self.usageHistory = usageHistory
+        self.usageHistories = usageHistories
         self.profileStore = profileStore
         self.defaults = defaults
         self.onDisplaySettingsChanged = onDisplaySettingsChanged
@@ -462,14 +462,19 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate, N
         // separate `now` for each call that could drift while the sheet is open.
         let now = Date()
         let currentValue = currentRetentionYears
-        pendingRetentionTask = Task { [weak self, usageHistory] in
+        let histories = usageHistories()
+        pendingRetentionTask = Task { [weak self] in
             // Only a decrease can delete anything, so the (async, disk-touching) count is only
             // ever fetched on that path — awaited directly here rather than handed across as a
             // closure, which keeps `RetentionChangeDecision.evaluate` a plain synchronous
             // function with nothing to send across an isolation boundary.
             let count: Int
             if RetentionChangeDecision.requiresArchivedWindowCount(currentValue: currentValue, newValue: newValue) {
-                count = await usageHistory.archivedWindowCount(retentionYears: newValue, now: now)
+                var total = 0
+                for history in histories {
+                    total += await history.archivedWindowCount(retentionYears: newValue, now: now)
+                }
+                count = total
             } else {
                 count = 0
             }
@@ -554,7 +559,12 @@ final class PreferencesWindowController: NSWindowController, NSWindowDelegate, N
         currentRetentionYears = value
         setRetentionDisplay(value)
         defaults.set(value, forKey: Constants.Preferences.historyRetentionYears)
-        Task { [usageHistory] in await usageHistory.pruneArchives(retentionYears: value, now: now) }
+        let histories = usageHistories()
+        Task {
+            for history in histories {
+                await history.pruneArchives(retentionYears: value, now: now)
+            }
+        }
     }
 
     private func revertRetentionFields() {

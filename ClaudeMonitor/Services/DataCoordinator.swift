@@ -9,33 +9,18 @@ final class DataCoordinator {
     let pathMonitor: any PathMonitoring
     let profileStore: ProfileStore
     private let defaults: UserDefaults
-    var pollTask: Task<Void, Never>?
+    private let makeUsageHistory: @MainActor () -> UsageHistory
+    private(set) var monitors: [String: AccountMonitor] = [:]
+    var statusPollTask: Task<Void, Never>?
     var demoRotationIndex = 0
-    var loadedCredentials: (cookie: String, orgId: String)?
-    let usageHistory: UsageHistory
     var demoFrame: DemoData.DemoFrame?
-    var lastFailedAt: Date?
-    // Runs pruneArchives() once at launch and then on Constants.History.pruneInterval
-    // thereafter, independent of network/credential state — pruning is calendar-driven and
-    // has nothing to do with whether a fetch ever succeeds. This is in addition to (not a
-    // replacement for) the existing prune-after-detected-boundary call in
-    // detectAndStoreResets, which now runs far more often than that alone did.
-    var historyMaintenanceTask: Task<Void, Never>?
+    var demoWindowAnalyses: [WindowAnalysis] = []
+    var demoRefreshedAt: Date?
 
     var currentStatus: StatusSummary?
-    var currentUsage: UsageResponse?
-    var usageError: String?
     var statusError: String?
-    var lastRefreshed: Date?
-    var nextPollDate: Date?
-    var currentPollInterval: TimeInterval?
-    var scheduler = PollingScheduler()
-    var windowAnalyses: [WindowAnalysis] = []
-    /// Cached from `usageHistory.quarantinedFileCount()` (an async disk scan) so `monitorState`
-    /// can stay a synchronous computed property. Refreshed on the same calendar-driven cadence
-    /// as `pruneArchives()` (see `historyMaintenanceTask`) — quarantine accumulation is not
-    /// time-sensitive enough to warrant scanning on every poll cycle.
-    var quarantinedFileCount = 0
+    var statusLastFailedAt: Date?
+    var statusScheduler = PollingScheduler()
 
     var onUpdate: (() -> Void)?
     var onCriticalReset: (() -> Void)?
@@ -47,7 +32,7 @@ final class DataCoordinator {
         pathMonitor: any PathMonitoring = PathMonitor(),
         profileStore: ProfileStore = .production(),
         defaults: UserDefaults = .standard,
-        usageHistory: UsageHistory = UsageHistory(baseDirectory: UsageHistory.productionBaseDirectory)
+        makeUsageHistory: @escaping @MainActor () -> UsageHistory = { UsageHistory(baseDirectory: UsageHistory.productionBaseDirectory) }
     ) {
         self.statusService = statusService
         self.usageService = usageService
@@ -55,41 +40,64 @@ final class DataCoordinator {
         self.pathMonitor = pathMonitor
         self.profileStore = profileStore
         self.defaults = defaults
-        self.usageHistory = usageHistory
-        reloadCredentials()
-        historyMaintenanceTask = Task { [weak self, usageHistory] in
-            await self?.runLegacyArchiveMigrationAndPrune()
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(Constants.History.pruneInterval))
-                guard !Task.isCancelled else { break }
-                await usageHistory.pruneArchives()
-                self?.quarantinedFileCount = await usageHistory.quarantinedFileCount()
-            }
-        }
+        self.makeUsageHistory = makeUsageHistory
+        reconcileMonitors()
         pathMonitor.setOnPathChange { [weak self] satisfied in
             guard let self, satisfied else { return }
-            self.scheduler.resetRetryState()
-            self.pollTask?.cancel()
-            self.pollTask = self.spawnPollTask()
+            self.statusScheduler.resetRetryState()
+            for monitor in self.monitors.values {
+                monitor.scheduler.resetRetryState()
+            }
+            self.restartLoops()
         }
     }
 
     deinit {
-        // `pollTask` is otherwise cancelled before every reassignment (see the path-monitor
-        // callback above), but nothing reassigns it after `init`, so only a `deinit` gives it
-        // the same guarantee it never outlives this object. `historyMaintenanceTask` is never
-        // reassigned at all, so this is the only place it can be cancelled — without it, every
-        // `DataCoordinator` (in particular the many short-lived ones the test suite constructs)
-        // leaked one infinitely-sleeping task holding `usageHistory` alive for the rest of the
-        // process.
-        pollTask?.cancel()
-        historyMaintenanceTask?.cancel()
+        statusPollTask?.cancel()
     }
 }
 
 extension DataCoordinator {
+    var activeMonitor: AccountMonitor? {
+        guard let profile = profileStore.activeProfile else { return nil }
+        return monitors[Self.monitorKey(organizationId: profile.organizationId)]
+    }
+
+    var usageHistories: [UsageHistory] {
+        monitors.values.map(\.usageHistory)
+    }
+
+    var currentUsage: UsageResponse? {
+        demoFrame?.usage ?? activeMonitor?.currentUsage
+    }
+
+    var usageError: String? {
+        guard let monitor = activeMonitor else {
+            return Constants.Demo.isActive ? nil : String(localized: "credentials.configure", bundle: .module)
+        }
+        return monitor.usageError
+    }
+
+    var windowAnalyses: [WindowAnalysis] {
+        demoFrame != nil ? demoWindowAnalyses : activeMonitor?.windowAnalyses ?? []
+    }
+
+    var lastRefreshed: Date? {
+        demoRefreshedAt ?? activeMonitor?.lastRefreshed
+    }
+
+    var currentPollInterval: TimeInterval? {
+        demoFrame?.pollInterval ?? activeMonitor?.currentPollInterval
+    }
+
+    var hasCredentials: Bool {
+        Constants.Demo.isActive || activeMonitor != nil
+    }
+
     var monitorState: MonitorState {
-        MonitorState(
+        let monitor = activeMonitor
+        let histories = usageHistories
+        return MonitorState(
             usage: UsageSnapshot(
                 currentUsage: currentUsage,
                 usageError: usageError,
@@ -101,16 +109,19 @@ extension DataCoordinator {
             ),
             polling: PollingState(
                 isOnline: demoFrame?.isOnline ?? pathMonitor.isSatisfied,
-                hasRecentFailure: demoFrame?.hasRecentFailure ?? scheduler.hasRecentFailure,
-                lastFailedAt: demoFrame?.lastFailedAt ?? lastFailedAt,
-                isAnyServiceStale: demoFrame?.isAnyServiceStale ?? scheduler.isAnyServiceStale,
+                hasRecentFailure: demoFrame?.hasRecentFailure
+                    ?? (statusScheduler.hasRecentFailure || monitor?.scheduler.hasRecentFailure == true),
+                lastFailedAt: demoFrame?.lastFailedAt
+                    ?? [statusLastFailedAt, monitor?.lastFailedAt].compactMap { $0 }.max(),
+                isAnyServiceStale: demoFrame?.isAnyServiceStale
+                    ?? (statusScheduler.isAnyServiceStale || monitor?.scheduler.isAnyServiceStale == true),
                 currentPollInterval: currentPollInterval,
-                isUsageDataExpired: scheduler.isUsageDataExpired
+                isUsageDataExpired: monitor?.scheduler.isUsageDataExpired ?? false
             ),
             history: HistoryHealth(
-                lastSaveSucceeded: usageHistory.lastSaveSucceeded,
-                persistenceFailingSince: usageHistory.persistenceFailingSince,
-                quarantinedFileCount: quarantinedFileCount
+                lastSaveSucceeded: histories.allSatisfy(\.lastSaveSucceeded),
+                persistenceFailingSince: histories.compactMap(\.persistenceFailingSince).min(),
+                quarantinedFileCount: monitors.values.reduce(0) { $0 + $1.quarantinedFileCount }
             ),
             profiles: ProfileSnapshot(profiles: profileStore.profiles, activeId: profileStore.activeId),
             lastRefreshed: lastRefreshed,
@@ -122,57 +133,47 @@ extension DataCoordinator {
 }
 
 extension DataCoordinator {
-    var hasCredentials: Bool {
-        Constants.Demo.isActive || loadedCredentials != nil
+    static func monitorKey(organizationId: String) -> String {
+        organizationId.lowercased()
     }
 
-    func reloadCredentials() {
-        guard !Constants.Demo.isActive,
-              let orgId = profileStore.activeProfile?.organizationId,
-              let cookie = profileStore.activeCookie,
-              !cookie.isEmpty, !orgId.isEmpty else {
-            if loadedCredentials != nil {
-                usageHistory.switchOrganization(nil)
-                clearDisplayedUsage()
-            }
-            loadedCredentials = nil
-            return
-        }
-        let previousOrgId = loadedCredentials?.orgId
-        loadedCredentials = (cookie, orgId)
-        if orgId != previousOrgId {
-            usageHistory.switchOrganization(orgId)
-            clearDisplayedUsage()
-            // Defect 5: `historyMaintenanceTask` only ever migrates the ORIGINAL organization
-            // present at `init` — if the user switches to a different organization later (here,
-            // `previousOrgId != nil` means this is a genuine later switch, not that initial
-            // assignment, which `historyMaintenanceTask` already covers), that org's own legacy
-            // archives would otherwise never be migrated for the rest of the process. Safe to
-            // fire on every switch: `migrateLegacyArchives()` is gated by a cheap directory scan
-            // (`hasLegacyArchives`), so re-running it for an org with nothing left to migrate is
-            // a near-free no-op.
-            if previousOrgId != nil {
-                Task { [weak self] in
-                    await self?.runLegacyArchiveMigrationAndPrune()
-                }
+    func reconcileMonitors() {
+        guard !Constants.Demo.isActive else { return }
+        var retained: [String: AccountMonitor] = [:]
+        for profile in profileStore.profiles {
+            guard !profile.organizationId.isEmpty,
+                  let cookie = profileStore.cookie(for: profile), !cookie.isEmpty else { continue }
+            let key = Self.monitorKey(organizationId: profile.organizationId)
+            if let existing = monitors[key] {
+                existing.updateCookie(cookie)
+                retained[key] = existing
+            } else {
+                retained[key] = makeMonitor(organizationId: profile.organizationId, cookie: cookie)
             }
         }
+        for (key, monitor) in monitors where retained[key] == nil {
+            monitor.stop()
+        }
+        monitors = retained
     }
 
-    private func clearDisplayedUsage() {
-        currentUsage = nil
-        windowAnalyses = []
-        usageError = nil
-    }
-
-    /// Migrates this organization's legacy archives, prunes retention-expired archives and
-    /// quarantine debris, and refreshes the cached quarantine count — the one-time-per-organization
-    /// history maintenance pass. Shared by `init`'s `historyMaintenanceTask` (the original
-    /// organization present at launch) and `reloadCredentials()` (Defect 5: a later switch to a
-    /// different organization) so the two call sites can never drift apart.
-    func runLegacyArchiveMigrationAndPrune() async {
-        _ = await usageHistory.migrateLegacyArchives()
-        await usageHistory.pruneArchives()
-        quarantinedFileCount = await usageHistory.quarantinedFileCount()
+    private func makeMonitor(organizationId: String, cookie: String) -> AccountMonitor {
+        let monitor = AccountMonitor(
+            organizationId: organizationId,
+            cookie: cookie,
+            usageHistory: makeUsageHistory(),
+            usageService: usageService,
+            systemIdleProvider: systemIdleProvider,
+            pathMonitor: pathMonitor
+        )
+        monitor.onUpdate = { [weak self, weak monitor] in
+            guard let self, let monitor, monitor === self.activeMonitor else { return }
+            self.onUpdate?()
+        }
+        monitor.onCriticalReset = { [weak self, weak monitor] in
+            guard let self, let monitor, monitor === self.activeMonitor else { return }
+            self.onCriticalReset?()
+        }
+        return monitor
     }
 }
