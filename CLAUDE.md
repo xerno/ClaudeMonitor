@@ -51,7 +51,6 @@ ClaudeMonitor/
 │   ├── Profile.swift                    — Profile (id, name, organizationId); cookie lives in the encrypted store
 │   ├── StatusModels.swift               — StatusSummary, StatusComponent, ComponentStatus, Incident, PageStatus
 │   ├── UsageModels.swift                — UsageResponse, UsageWindow, WindowEntry, WindowKeyParser
-│   ├── Profile.swift                    — Profile, ProfileStore, legacy-credential migration
 │   ├── UsageHistory.swift               — WindowInstance, UsageEvent, record(), boundary detection, partitionEvents
 │   ├── UsageHistory+Analysis.swift      — nonisolated pure analysis: segments, rate (credit-aware), projection
 │   ├── UsageHistory+Archive.swift       — archiveWindow, plateau-collapse, retention, quarantine pruning
@@ -83,13 +82,11 @@ ClaudeMonitor/
 │   ├── MenuBuilder+{Reconciliation,UsageFormatting,UsageItems,ViewLayout}.swift
 │   ├── MenuBuilder+TitleHeader.swift    — dropdown title block: mark, app name, switcher, status badge
 │   ├── ClaudeGlyph.swift                — sunburst mark drawn as a path (not an asset — see below)
-│   ├── AccountToggleView.swift          — compact segmented account switcher in the title block
-│   ├── FooterActionsView.swift          — footer action bar (Refresh / Preferences / About / Quit)
 │   ├── GraphDrawer.swift                — usage graph rendering
 │   ├── GraphDrawer+Credits.swift        — credit-event markers (dashed line + step + dot)
 │   ├── GraphDrawer+{Background,Decorations,Projection,Segments}.swift
 │   ├── UsageGraphView.swift, UsageRowView.swift, ControlRowView.swift
-│   ├── AccountToggleView.swift          — segmented account switcher view (HeaderAccountSwitcher, AccountSegment)
+│   ├── AccountToggleView.swift          — drawn coral account pill in the title block (HeaderAccountSwitcher, AccountSegment, per-segment tooltips)
 │   ├── FooterIconButton.swift           — accessible icon button for the footer bar
 │   ├── StatusBarRenderer{,+IconRendering,+TitleRendering}.swift
 │   ├── Formatting.swift                 — timeUntil(), progressBar(), displayLabel(), creditDescription()
@@ -125,7 +122,7 @@ Key patterns:
 
 **Tooltip** — single shared tooltip on the entire status item with usage details, time until reset, service status, and last refresh time.
 
-**Dropdown menu** — account switcher in the Usage header (two or more profiles), usage bars, usage graph (optional), service component list (compact by default: one line while all operational, otherwise only affected components), active incidents with links, footer icon bar (refresh, preferences, about, quit).
+**Dropdown menu** — title block (mark, app name, rate-limit badge, account switcher with two or more profiles), usage bars, usage graph (optional), service component list (compact by default: one line while all operational, otherwise only affected components), active incidents with links, footer icon bar (refresh, preferences, about, quit).
 
 ### UX rules for usage text styling
 
