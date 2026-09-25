@@ -38,7 +38,6 @@ final class AccountMonitor {
         self.usageService = usageService
         self.systemIdleProvider = systemIdleProvider
         self.pathMonitor = pathMonitor
-        usageHistory.switchOrganization(organizationId)
         // Runs pruneArchives() once at launch and then on Constants.History.pruneInterval
         // thereafter, independent of network/credential state — pruning is calendar-driven and
         // has nothing to do with whether a fetch ever succeeds. This is in addition to (not a

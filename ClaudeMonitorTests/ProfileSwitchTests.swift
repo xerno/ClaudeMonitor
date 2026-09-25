@@ -320,6 +320,23 @@ import Testing
         #expect(monitorB.pollTask == nil)
     }
 
+    @Test func recreatedMonitorReusesTheOrganizationsHistory() async throws {
+        let mockUsage = MockUsageService()
+        let setup = try makeTwoProfileSetup(usage: mockUsage)
+        let coordinator = setup.coordinator
+        let monitorB = try #require(setup.monitorB)
+
+        setup.store.removeProfile(id: setup.b.id)
+        coordinator.restartPolling()
+        _ = try setup.store.addProfile(name: "B again", organizationId: setup.b.organizationId, cookie: "cookie-b")
+        coordinator.restartPolling()
+        coordinator.stopPolling()
+
+        let recreated = try #require(setup.monitorB)
+        #expect(recreated !== monitorB)
+        #expect(recreated.usageHistory === monitorB.usageHistory)
+    }
+
     @Test func twoOrgsNeverShareAHistoryInstance() async throws {
         let mockUsage = MockUsageService()
         let setup = try makeTwoProfileSetup(usage: mockUsage)

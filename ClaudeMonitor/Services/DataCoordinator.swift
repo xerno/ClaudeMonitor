@@ -11,6 +11,7 @@ final class DataCoordinator {
     private let defaults: UserDefaults
     private let makeUsageHistory: @MainActor () -> UsageHistory
     private(set) var monitors: [String: AccountMonitor] = [:]
+    private var histories: [String: UsageHistory] = [:]
     var statusPollTask: Task<Void, Never>?
     var demoRotationIndex = 0
     var demoFrame: DemoData.DemoFrame?
@@ -64,7 +65,7 @@ extension DataCoordinator {
     }
 
     var usageHistories: [UsageHistory] {
-        monitors.values.map(\.usageHistory)
+        profileStore.profiles.compactMap { histories[Self.monitorKey(organizationId: $0.organizationId)] }
     }
 
     var currentUsage: UsageResponse? {
@@ -140,15 +141,15 @@ extension DataCoordinator {
     func reconcileMonitors() {
         guard !Constants.Demo.isActive else { return }
         var retained: [String: AccountMonitor] = [:]
-        for profile in profileStore.profiles {
-            guard !profile.organizationId.isEmpty,
-                  let cookie = profileStore.cookie(for: profile), !cookie.isEmpty else { continue }
+        for profile in profileStore.profiles where !profile.organizationId.isEmpty {
             let key = Self.monitorKey(organizationId: profile.organizationId)
+            let history = usageHistory(forKey: key, organizationId: profile.organizationId)
+            guard let cookie = profileStore.cookie(for: profile), !cookie.isEmpty else { continue }
             if let existing = monitors[key] {
                 existing.updateCookie(cookie)
                 retained[key] = existing
             } else {
-                retained[key] = makeMonitor(organizationId: profile.organizationId, cookie: cookie)
+                retained[key] = makeMonitor(organizationId: profile.organizationId, cookie: cookie, usageHistory: history)
             }
         }
         for (key, monitor) in monitors where retained[key] == nil {
@@ -157,11 +158,21 @@ extension DataCoordinator {
         monitors = retained
     }
 
-    private func makeMonitor(organizationId: String, cookie: String) -> AccountMonitor {
+    private func usageHistory(forKey key: String, organizationId: String) -> UsageHistory {
+        if let existing = histories[key] {
+            return existing
+        }
+        let history = makeUsageHistory()
+        history.switchOrganization(organizationId)
+        histories[key] = history
+        return history
+    }
+
+    private func makeMonitor(organizationId: String, cookie: String, usageHistory: UsageHistory) -> AccountMonitor {
         let monitor = AccountMonitor(
             organizationId: organizationId,
             cookie: cookie,
-            usageHistory: makeUsageHistory(),
+            usageHistory: usageHistory,
             usageService: usageService,
             systemIdleProvider: systemIdleProvider,
             pathMonitor: pathMonitor
