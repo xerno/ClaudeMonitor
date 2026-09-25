@@ -10,6 +10,14 @@ import Testing
         let fixture: UsageHistoryTestFixture
         let a: Profile
         let b: Profile
+
+        var monitorA: AccountMonitor? {
+            coordinator.monitors[DataCoordinator.monitorKey(organizationId: a.organizationId)]
+        }
+
+        var monitorB: AccountMonitor? {
+            coordinator.monitors[DataCoordinator.monitorKey(organizationId: b.organizationId)]
+        }
     }
 
     private func makeTwoProfileSetup(
@@ -29,7 +37,7 @@ import Testing
             pathMonitor: MockPathMonitor(),
             profileStore: store,
             defaults: defaults,
-            usageHistory: fixture.history
+            makeUsageHistory: { UsageHistory(baseDirectory: fixture.baseDirectory) }
         )
         return TwoProfileSetup(coordinator: coordinator, store: store, fixture: fixture, a: a, b: b)
     }
@@ -44,14 +52,14 @@ import Testing
         #expect(mockUsage.lastCookie == "cookie-a")
 
         coordinator.switchToProfile(id: setup.b.id)
-        coordinator.pollTask?.cancel()
+        coordinator.stopPolling()
         await coordinator.refresh()
 
         #expect(mockUsage.lastOrgId == setup.b.organizationId)
         #expect(mockUsage.lastCookie == "cookie-b")
     }
 
-    @Test func switchClearsPreviousAccountUsage() async throws {
+    @Test func switchShowsNewAccountsOwnDataNeverPrevious() async throws {
         let mockUsage = MockUsageService()
         let setup = try makeTwoProfileSetup(usage: mockUsage)
         let coordinator = setup.coordinator
@@ -61,29 +69,33 @@ import Testing
         #expect(!coordinator.windowAnalyses.isEmpty)
 
         coordinator.switchToProfile(id: setup.b.id)
-        coordinator.pollTask?.cancel()
+        coordinator.stopPolling()
 
-        #expect(coordinator.currentUsage == nil)
+        #expect(coordinator.currentUsage == nil,
+                "B has never fetched yet — it shows its own (nil) data, never A's")
         #expect(coordinator.windowAnalyses.isEmpty)
     }
 
-    @Test func switchResetsSchedulerSoBackoffDoesNotLeakBetweenAccounts() async throws {
+    @Test func eachAccountSchedulerStaleStateDoesNotLeakToTheOther() async throws {
         let mockUsage = MockUsageService()
-        mockUsage.result = .failure(ServiceError.unexpectedStatus(500))
         let setup = try makeTwoProfileSetup(usage: mockUsage)
         let coordinator = setup.coordinator
+        mockUsage.resultsByOrgId[setup.a.organizationId] = .failure(ServiceError.unexpectedStatus(500))
 
         for _ in 0..<Constants.Retry.failureThreshold {
             await coordinator.refresh()
         }
-        #expect(coordinator.scheduler.isAnyServiceStale,
+        let monitorA = try #require(setup.monitorA)
+        #expect(monitorA.scheduler.isAnyServiceStale,
                 "account A must be marked stale after reaching the failure threshold")
 
         coordinator.switchToProfile(id: setup.b.id)
-        #expect(!coordinator.scheduler.isAnyServiceStale,
-                "switching accounts must reset the scheduler — A's stale/backoff state must not carry to B")
-        #expect(coordinator.scheduler.usageState.consecutiveFailures == 0)
-        coordinator.pollTask?.cancel()
+        coordinator.stopPolling()
+
+        #expect(!coordinator.monitorState.polling.isAnyServiceStale,
+                "switching to B must reflect B's own healthy scheduler and status, not A's stale one")
+        #expect(monitorA.scheduler.isAnyServiceStale,
+                "A's stale state must persist independently on its own monitor after switching away")
     }
 
     @Test func switchingToActiveProfileIsANoOp() async throws {
@@ -95,14 +107,15 @@ import Testing
         for _ in 0..<Constants.Retry.failureThreshold {
             await coordinator.refresh()
         }
-        #expect(coordinator.scheduler.isAnyServiceStale)
-        #expect(coordinator.pollTask == nil)
+        #expect(coordinator.monitorState.polling.isAnyServiceStale)
+        #expect(coordinator.activeMonitor?.pollTask == nil)
 
         coordinator.switchToProfile(id: setup.a.id)
 
-        #expect(coordinator.scheduler.isAnyServiceStale)
-        #expect(coordinator.pollTask == nil)
+        #expect(coordinator.monitorState.polling.isAnyServiceStale)
+        #expect(coordinator.activeMonitor?.pollTask == nil)
         #expect(setup.store.activeId == setup.a.id)
+        coordinator.stopPolling()
     }
 
     @Test func switchingToUnknownProfileIsANoOp() async throws {
@@ -113,15 +126,18 @@ import Testing
         await coordinator.refresh()
         coordinator.switchToProfile(id: "does-not-exist")
 
-        #expect(coordinator.pollTask == nil)
+        #expect(coordinator.activeMonitor?.pollTask == nil)
         #expect(coordinator.currentUsage != nil)
         #expect(setup.store.activeId == setup.a.id)
+        coordinator.stopPolling()
     }
 
-    @Test func staleFetchDuringProfileSwitchDoesNotBleed() async throws {
+    @Test func staleFetchDuringProfileSwitchLandsOnlyInItsOwnMonitor() async throws {
         let mockUsage = MockUsageService()
         let setup = try makeTwoProfileSetup(usage: mockUsage)
         let coordinator = setup.coordinator
+        let monitorA = try #require(setup.monitorA)
+        let monitorB = try #require(setup.monitorB)
 
         let entryA = WindowEntry(
             key: "five_hour", duration: 18000, durationLabel: "5h", modelScope: nil,
@@ -140,21 +156,27 @@ import Testing
         await fetchStarted.wait()
 
         coordinator.switchToProfile(id: setup.b.id)
-        coordinator.pollTask?.cancel()
+        coordinator.stopPolling()
 
         await releaseFetch.open()
         await refreshTask.value
 
-        #expect(coordinator.currentUsage == nil)
+        #expect(coordinator.currentUsage == nil,
+                "B is active and never fetched — A's late response must not appear under B")
         #expect(coordinator.windowAnalyses.isEmpty)
-        #expect(!setup.fixture.history.samples(for: entryA).contains { $0.utilization == 91 })
+        #expect(monitorA.currentUsage?.entries.contains { $0.window.utilization == 91 } == true,
+                "A's own monitor legitimately records its own (not stale) late response")
+        #expect(monitorA.usageHistory.samples(for: entryA).contains { $0.utilization == 91 })
+        #expect(!monitorB.usageHistory.samples(for: entryA).contains { $0.utilization == 91 })
     }
 
-    @Test func switchWhileStatusFetchSuspendedDoesNotRecordPreviousAccount() async throws {
+    @Test func switchWhileStatusFetchSuspendedDoesNotShowPreviousAccountUnderNewOne() async throws {
         let mockUsage = MockUsageService()
         let mockStatus = MockStatusService()
         let setup = try makeTwoProfileSetup(usage: mockUsage, status: mockStatus)
         let coordinator = setup.coordinator
+        let monitorA = try #require(setup.monitorA)
+        let monitorB = try #require(setup.monitorB)
 
         let entryA = WindowEntry(
             key: "five_hour", duration: 18000, durationLabel: "5h", modelScope: nil,
@@ -176,21 +198,22 @@ import Testing
 
         let refreshTask = Task { await coordinator.refresh() }
         await statusFetchSuspended.wait()
-        while coordinator.currentUsage == nil {
+        while monitorA.currentUsage == nil {
             await Task.yield()
         }
-        #expect(coordinator.currentUsage?.entries.contains { $0.window.utilization == 91 } == true)
+        #expect(monitorA.currentUsage?.entries.contains { $0.window.utilization == 91 } == true)
 
         coordinator.switchToProfile(id: setup.b.id)
-        coordinator.pollTask?.cancel()
+        coordinator.stopPolling()
 
         await releaseStatusFetch.open()
         await refreshTask.value
 
-        #expect(setup.fixture.history.usageDirectory.lastPathComponent == setup.b.organizationId)
-        #expect(!setup.fixture.history.samples(for: entryA).contains { $0.utilization == 91 })
+        #expect(monitorA.usageHistory.usageDirectory.lastPathComponent == setup.a.organizationId)
+        #expect(monitorA.usageHistory.samples(for: entryA).contains { $0.utilization == 91 })
         #expect(!(coordinator.currentUsage?.entries.contains { $0.window.utilization == 91 } ?? false))
         #expect(!coordinator.windowAnalyses.contains { $0.entry.window.utilization == 91 })
+        #expect(!monitorB.usageHistory.samples(for: entryA).contains { $0.utilization == 91 })
         #expect(mockUsage.lastOrgId == setup.a.organizationId)
     }
 
@@ -208,7 +231,7 @@ import Testing
             pathMonitor: MockPathMonitor(),
             profileStore: store,
             defaults: defaults,
-            usageHistory: fixture.history
+            makeUsageHistory: { fixture.history }
         )
         await coordinator.refresh()
         #expect(coordinator.hasCredentials)
@@ -216,11 +239,95 @@ import Testing
 
         store.removeProfile(id: only.id)
         coordinator.restartPolling()
-        coordinator.pollTask?.cancel()
+        coordinator.stopPolling()
 
         #expect(!coordinator.hasCredentials)
-        #expect(coordinator.loadedCredentials == nil)
+        #expect(coordinator.monitors.isEmpty)
         #expect(coordinator.currentUsage == nil)
         #expect(coordinator.windowAnalyses.isEmpty)
+    }
+
+    @Test func switchingShowsBsPreviouslyFetchedDataImmediately() async throws {
+        let mockUsage = MockUsageService()
+        let setup = try makeTwoProfileSetup(usage: mockUsage)
+        let coordinator = setup.coordinator
+        let monitorA = try #require(setup.monitorA)
+        let monitorB = try #require(setup.monitorB)
+
+        mockUsage.resultsByOrgId[setup.a.organizationId] = .success(UsageResponse(entries: [
+            WindowEntry(key: "five_hour", duration: 18000, durationLabel: "5h", modelScope: nil,
+                        window: UsageWindow(utilization: 30, resetsAt: Date().addingTimeInterval(3600))),
+        ]))
+        mockUsage.resultsByOrgId[setup.b.organizationId] = .success(UsageResponse(entries: [
+            WindowEntry(key: "five_hour", duration: 18000, durationLabel: "5h", modelScope: nil,
+                        window: UsageWindow(utilization: 70, resetsAt: Date().addingTimeInterval(3600))),
+        ]))
+
+        await monitorA.refresh()
+        await monitorB.refresh()
+        #expect(mockUsage.fetchCount == 2)
+
+        coordinator.switchToProfile(id: setup.b.id)
+        #expect(coordinator.currentUsage?.entries.first?.window.utilization == 70)
+        #expect(coordinator.windowAnalyses.first?.entry.window.utilization == 70)
+        coordinator.stopPolling()
+    }
+
+    @Test func eachAccountKeepsItsOwnScheduler() async throws {
+        let mockUsage = MockUsageService()
+        let setup = try makeTwoProfileSetup(usage: mockUsage)
+        let monitorA = try #require(setup.monitorA)
+        let monitorB = try #require(setup.monitorB)
+        mockUsage.resultsByOrgId[setup.a.organizationId] = .failure(ServiceError.unexpectedStatus(500))
+
+        for _ in 0..<Constants.Retry.failureThreshold {
+            await monitorA.refresh()
+        }
+        await monitorB.refresh()
+
+        #expect(monitorA.scheduler.isAnyServiceStale)
+        #expect(!monitorB.scheduler.isAnyServiceStale)
+    }
+
+    @Test func inactiveMonitorUpdatesAreNotForwarded() async throws {
+        let mockUsage = MockUsageService()
+        let setup = try makeTwoProfileSetup(usage: mockUsage)
+        let coordinator = setup.coordinator
+        let monitorA = try #require(setup.monitorA)
+        let monitorB = try #require(setup.monitorB)
+
+        var updateCount = 0
+        coordinator.onUpdate = { updateCount += 1 }
+
+        monitorB.onUpdate?()
+        #expect(updateCount == 0, "B is inactive; its update must not be forwarded")
+
+        monitorA.onUpdate?()
+        #expect(updateCount == 1, "A is active; its update must be forwarded")
+    }
+
+    @Test func removingAProfileDropsAndStopsItsMonitor() async throws {
+        let mockUsage = MockUsageService()
+        let setup = try makeTwoProfileSetup(usage: mockUsage)
+        let coordinator = setup.coordinator
+        let monitorB = try #require(setup.monitorB)
+
+        setup.store.removeProfile(id: setup.b.id)
+        coordinator.restartPolling()
+        coordinator.stopPolling()
+
+        #expect(coordinator.monitors.count == 1)
+        #expect(monitorB.pollTask == nil)
+    }
+
+    @Test func twoOrgsNeverShareAHistoryInstance() async throws {
+        let mockUsage = MockUsageService()
+        let setup = try makeTwoProfileSetup(usage: mockUsage)
+        let monitorA = try #require(setup.monitorA)
+        let monitorB = try #require(setup.monitorB)
+
+        #expect(monitorA.usageHistory !== monitorB.usageHistory)
+        #expect(monitorA.usageHistory.usageDirectory.lastPathComponent == setup.a.organizationId)
+        #expect(monitorB.usageHistory.usageDirectory.lastPathComponent == setup.b.organizationId)
     }
 }

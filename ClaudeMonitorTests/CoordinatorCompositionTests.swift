@@ -261,15 +261,15 @@ import Foundation
 
     }
 
-    // MARK: - Test 5: reloadCredentials org switch clears state
+    // MARK: - Test 5: org change on the same profile clears state
 
-    /// Verifies that switching to a different org ID via reloadCredentials:
-    ///   - clears windowAnalyses
-    ///   - switches the history to the new org (samples from the old org are gone)
+    /// Verifies that switching to a different org ID via restartPolling()/reconcileMonitors():
+    ///   - drops the old org's AccountMonitor and builds a fresh one for the new org
+    ///   - the fresh monitor's windowAnalyses starts empty (samples from the old org are gone)
     ///
     /// Edits the active profile's organization in an isolated ProfileStore to simulate the
     /// credential change.
-    @Test func reloadCredentialsWithNewOrgClearsWindowAnalyses() async throws {
+    @Test func orgChangeOnSameProfileClearsWindowAnalyses() async throws {
         let orgA = "test-org-a-\(UUID().uuidString)"
         let orgB = "test-org-b-\(UUID().uuidString)"
 
@@ -287,21 +287,25 @@ import Foundation
             systemIdleProvider: MockSystemIdleProvider(),
             profileStore: store,
             defaults: defaults,
-            usageHistory: fixture.history
+            makeUsageHistory: { UsageHistory(baseDirectory: fixture.baseDirectory) }
         )
+        let monitorA = try #require(coordinator.activeMonitor)
 
         // First refresh under orgA — populates windowAnalyses.
         await coordinator.refresh()
         #expect(!coordinator.monitorState.usage.windowAnalyses.isEmpty,
                 "windowAnalyses must be populated after a successful refresh")
 
-        // Switch to orgB and call restartPolling() which calls reloadCredentials() internally.
+        // Switch to orgB and call restartPolling(), which reconciles the monitors: orgA's
+        // monitor is dropped and a fresh one is built for orgB.
         try store.updateProfile(id: profile.id, name: "Acct", organizationId: orgB, cookie: "test-cookie")
         coordinator.restartPolling()
+        coordinator.stopPolling()
 
-        // After reloadCredentials detects a different org ID, windowAnalyses must be cleared.
+        // The fresh monitor for orgB never fetched anything, so windowAnalyses starts empty.
         #expect(coordinator.monitorState.usage.windowAnalyses.isEmpty,
-                "windowAnalyses must be cleared after switching to a different org ID")
-
+                "windowAnalyses must be empty on the fresh monitor after switching to a different org ID")
+        let monitorB = try #require(coordinator.activeMonitor)
+        #expect(monitorB !== monitorA)
     }
 }

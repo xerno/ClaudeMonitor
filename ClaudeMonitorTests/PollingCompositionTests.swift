@@ -107,18 +107,17 @@ import Foundation
                 "mid-ramp interval must be strictly less than the fully-idle cap")
     }
 
-    // MARK: - Test 4: Credential swap clears windowAnalyses
+    // MARK: - Test 4: Org change on the same profile drops the old monitor and starts a fresh one
 
-    /// Tests that switching to a different organization ID clears the coordinator's
-    /// windowAnalyses, preventing stale analyses from a previous org from leaking.
-    ///
-    /// Strategy: edit the active profile's organization in an isolated ProfileStore so we can
-    /// simulate a credential swap inside restartPolling() without touching real Keychain.
+    /// Tests that changing a profile's organization ID and calling restartPolling() drops the
+    /// old org's AccountMonitor and reconciles a brand-new one for the new org — the new
+    /// monitor's windowAnalyses starts empty rather than carrying over the old org's state.
     ///
     /// The path under test:
-    ///   restartPolling() → reloadCredentials() → orgId changed →
-    ///   usageHistory.switchOrganization(newOrgId) → windowAnalyses = []
-    @Test func credentialSwapClearsWindowAnalyses() async throws {
+    ///   restartPolling() → reconcileMonitors() → old org's monitor no longer matches any
+    ///   profile → stopped and dropped → new org has no existing monitor → a fresh one is
+    ///   built via `makeUsageHistory` → its windowAnalyses starts empty.
+    @Test func orgChangeOnSameProfileStartsAFreshEmptyMonitor() async throws {
         let mockStatus = MockStatusService()
         let mockUsage = MockUsageService()
         let mockIdleProvider = MockSystemIdleProvider()
@@ -136,8 +135,9 @@ import Foundation
             systemIdleProvider: mockIdleProvider,
             profileStore: store,
             defaults: defaults,
-            usageHistory: fixture.history
+            makeUsageHistory: { UsageHistory(baseDirectory: fixture.baseDirectory) }
         )
+        let monitorAlpha = try #require(coordinator.activeMonitor)
 
         // Populate windowAnalyses by refreshing with real usage data.
         let resetsAt = Date().addingTimeInterval(9000)
@@ -151,16 +151,17 @@ import Foundation
         #expect(!coordinator.windowAnalyses.isEmpty,
                 "windowAnalyses must be non-empty after a successful refresh")
 
-        // Swap to a different org ID and restart polling (which calls reloadCredentials()).
+        // Swap to a different org ID and restart polling (which calls reconcileMonitors()).
         try store.updateProfile(id: profile.id, name: "Acct", organizationId: orgBeta, cookie: "test-cookie")
         coordinator.restartPolling()
+        coordinator.stopPolling()
 
-        // After restartPolling() with a different org ID, reloadCredentials() detects the
-        // org change and calls usageHistory.switchOrganization(newOrgId) + windowAnalyses = [].
-        // This check is synchronous (restartPolling is sync up to launching the Task).
+        // The new org's monitor is a fresh instance that never fetched anything — its
+        // windowAnalyses starts empty rather than inheriting orgAlpha's.
         #expect(coordinator.windowAnalyses.isEmpty,
-                "windowAnalyses must be cleared when org ID changes")
-
+                "windowAnalyses must be empty on the fresh monitor for the new org")
+        let monitorBeta = try #require(coordinator.activeMonitor)
+        #expect(monitorBeta !== monitorAlpha)
     }
 
     // MARK: - Test 5: UsageHistory.switchOrganization clears history and analyses
@@ -217,29 +218,23 @@ import Foundation
 
     }
 
-    // MARK: - Test 6: cross-organisation data bleed when a fetch is in flight during an org switch
+    // MARK: - Test 6: an in-flight fetch under the old org lands only in its own (dropped) monitor
 
     /// Constructs the cross-organisation data bleed race: a usage fetch starts under org A,
-    /// suspends mid-flight (via `MockUsageService.beforeReturn`), the test switches the live
-    /// coordinator to org B while that fetch is still suspended, then releases the fetch so
-    /// org A's stale response resumes and completes `refresh()`.
+    /// suspends mid-flight (via `MockUsageService.beforeReturn`), the test changes the active
+    /// profile's org to B and calls `restartPolling()` while that fetch is still suspended
+    /// (dropping org A's `AccountMonitor` from `DataCoordinator.monitors` but not cancelling
+    /// the already-in-flight `refresh()` call bound to that monitor instance), then releases
+    /// the fetch so org A's response resumes and completes against org A's own (now orphaned)
+    /// monitor.
     ///
-    /// `refreshUsage()` (`DataCoordinator+Refresh.swift`) captures `credentials.orgId` before
-    /// the `await`, but performs no re-check of the *current* org after it resumes — it
-    /// unconditionally sets `currentUsage = response` and returns `.fresh(response)`, which
-    /// `refresh()` then unconditionally feeds into `usageHistory.record(...)`,
-    /// `archiveMissingWindows`, and `save()`. `UsageHistory.storage`/`organizationId` are
-    /// switched synchronously and eagerly by `switchOrganization` (`UsageHistory.swift`), so by
-    /// the time org A's response resumes, `usageHistory` already belongs to org B — meaning a
-    /// pass records org A's samples into org B's in-memory storage and persists them to org B's
-    /// on-disk directory.
-    ///
-    /// If this test fails, it proves exactly that: a real, unguarded race where a stale
-    /// cross-organisation usage response corrupts the newly-selected organization's stored
-    /// history. `UsageHistory`'s own `generation` counter already guards `archiveWindow`
-    /// against a suspended archive resurrecting stale data post-switch (see its doc comment)
-    /// but `record()`/`refresh()`'s fresh-response path has no equivalent guard.
-    @Test func staleFetchDuringOrgSwitchDoesNotBleedIntoNewOrganization() async throws {
+    /// `AccountMonitor.refreshUsage()` captures `usageHistory.generation` before the `await`
+    /// and re-checks it after — since org A's `UsageHistory` instance is never touched by the
+    /// org switch (a *different* `UsageHistory` instance is built for org B), org A's response
+    /// is legitimately recorded into org A's own monitor/history. The invariant under test is
+    /// narrower and just as important: none of it may leak into org B's brand-new monitor,
+    /// its `UsageHistory`, or the coordinator's facades once org B is active.
+    @Test func staleFetchDuringOrgChangeLandsOnlyInTheOldMonitorNeverTheNewOne() async throws {
         let mockStatus = MockStatusService()
         let mockUsage = MockUsageService()
         let mockIdleProvider = MockSystemIdleProvider()
@@ -257,8 +252,9 @@ import Foundation
             systemIdleProvider: mockIdleProvider,
             profileStore: store,
             defaults: defaults,
-            usageHistory: fixture.history
+            makeUsageHistory: { UsageHistory(baseDirectory: fixture.baseDirectory) }
         )
+        let monitorA = try #require(coordinator.activeMonitor)
 
         // Org A's response uses a distinctive utilization value (91%) unlikely to collide
         // with any other value used in this test.
@@ -284,16 +280,16 @@ import Foundation
         await fetchStarted.wait()
 
         // Switch the live coordinator to org B while org A's fetch is still suspended, via the
-        // production org-switch path (reloadCredentials(), called synchronously by
+        // production org-switch path (reconcileMonitors(), called synchronously by
         // restartPolling()).
         try store.updateProfile(id: profile.id, name: "Acct", organizationId: orgB, cookie: "test-cookie")
         coordinator.restartPolling()
-        // restartPolling() also spawns a new poll task; cancel it immediately so it doesn't
-        // perform its own concurrent refresh() and confound this test's single controlled race.
-        coordinator.pollTask?.cancel()
+        // restartPolling() also spawns new poll loops; cancel them immediately so they don't
+        // perform their own concurrent refresh() and confound this test's single controlled race.
+        coordinator.stopPolling()
 
         #expect(coordinator.windowAnalyses.isEmpty,
-                "switching org must clear windowAnalyses before org A's stale fetch resumes")
+                "org B's fresh monitor must start empty before org A's stale fetch resumes")
 
         // Release org A's suspended fetch and let refresh() run to completion.
         await releaseFetch.open()
@@ -313,11 +309,16 @@ import Foundation
         #expect(!bleedIntoAnalyses,
                 "org A's 91% utilization must not appear in windowAnalyses after switching to org B")
 
-        // Org B's UsageHistory (same in-memory `usageHistory`, now pointed at org B) must
-        // contain none of org A's samples for this identity.
-        let orgBSamples = fixture.history.samples(for: orgAEntry)
+        // Org B's own UsageHistory instance (a distinct instance from org A's) must contain
+        // none of org A's samples for this identity.
+        let monitorB = try #require(coordinator.activeMonitor)
+        #expect(monitorB !== monitorA)
+        let orgBSamples = monitorB.usageHistory.samples(for: orgAEntry)
         let bleedIntoHistory = orgBSamples.contains { $0.utilization == 91 }
         #expect(!bleedIntoHistory,
                 "org A's 91% sample must not be recorded into org B's UsageHistory storage")
+
+        #expect(monitorA.usageHistory.samples(for: orgAEntry).contains { $0.utilization == 91 },
+                "org A's own monitor legitimately records its own in-flight response")
     }
 }
