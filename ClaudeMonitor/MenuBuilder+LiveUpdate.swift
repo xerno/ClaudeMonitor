@@ -17,7 +17,7 @@ extension MenuBuilder {
         updateServiceRows(in: menu, state: state)
         updateControlRows(in: menu, state: state)
         updateConnectivityBanner(in: menu, state: state)
-        refreshGraph(in: menu, analyses: state.usage.windowAnalyses)
+        refreshGraph(in: menu, analyses: state.usage.windowAnalyses, energy: state.energy)
         return cache
     }
 }
@@ -135,12 +135,12 @@ private extension MenuBuilder {
     ) {
         guard let item = menu.item(withTag: updatedTag) else { return }
         
-        let title = updatedNextTitle(lastRefreshed: date, interval: interval)
+        let segments = updatedNextSegments(lastRefreshed: date, interval: interval)
         
         if let controlView = item.view as? ControlRowView {
-            controlView.updateTitle(title)
+            controlView.update(segments: segments)
         } else {
-            item.title = title
+            item.title = segments.joined(separator: "        ")
         }
     }
     

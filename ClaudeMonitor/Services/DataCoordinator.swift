@@ -14,6 +14,9 @@ final class DataCoordinator {
     private var histories: [String: UsageHistory] = [:]
     var statusPollTask: Task<Void, Never>?
     var demoRotationIndex = 0
+    /// Reads Claude Code's local logs on its own cadence — see EnergyMonitor for why it is not on
+    /// the network poll. Never started from here; MenuBarController starts it at launch.
+    let energyMonitor: EnergyMonitor
     var demoFrame: DemoData.DemoFrame?
     var demoWindowAnalyses: [WindowAnalysis] = []
     var demoRefreshedAt: Date?
@@ -33,7 +36,8 @@ final class DataCoordinator {
         pathMonitor: any PathMonitoring = PathMonitor(),
         profileStore: ProfileStore = .production(),
         defaults: UserDefaults = .standard,
-        makeUsageHistory: @escaping @MainActor () -> UsageHistory = { UsageHistory(baseDirectory: UsageHistory.productionBaseDirectory) }
+        makeUsageHistory: @escaping @MainActor () -> UsageHistory = { UsageHistory(baseDirectory: UsageHistory.productionBaseDirectory) },
+        energyMonitor: EnergyMonitor = EnergyMonitor()
     ) {
         self.statusService = statusService
         self.usageService = usageService
@@ -42,6 +46,8 @@ final class DataCoordinator {
         self.profileStore = profileStore
         self.defaults = defaults
         self.makeUsageHistory = makeUsageHistory
+        self.energyMonitor = energyMonitor
+        energyMonitor.onUpdate = { [weak self] in self?.onUpdate?() }
         reconcileMonitors()
         pathMonitor.setOnPathChange { [weak self] satisfied in
             guard let self, satisfied else { return }
@@ -125,10 +131,12 @@ extension DataCoordinator {
                 quarantinedFileCount: monitors.values.reduce(0) { $0 + $1.quarantinedFileCount }
             ),
             profiles: ProfileSnapshot(profiles: profileStore.profiles, activeId: profileStore.activeId),
+            energy: energyMonitor.estimate,
             lastRefreshed: lastRefreshed,
             hasCredentials: hasCredentials,
             showGraph: Constants.Preferences.isUsageGraphEnabled(in: defaults),
-            compactServices: Constants.Preferences.isServicesCompact(in: defaults)
+            compactServices: Constants.Preferences.isServicesCompact(in: defaults),
+            showBlockedCountdown: Constants.Preferences.isBlockedCountdownShown(in: defaults)
         )
     }
 }

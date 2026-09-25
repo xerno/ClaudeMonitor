@@ -14,7 +14,7 @@ extension MenuBuilder {
             if let servicesHeaderItem = menu.item(withTag: servicesSectionTag) {
                 let servicesTitle = String(localized: "menu.section.services", bundle: .module)
                 if let subtitle = servicesSubtitle(state: state) {
-                    servicesHeaderItem.view = makeHeaderView(title: servicesTitle, subtitle: subtitle)
+                    servicesHeaderItem.view = makeHeaderView(title: servicesTitle, subtitle: subtitle, subtitleColor: .restingAccent)
                 } else if servicesHeaderItem.view != nil {
                     servicesHeaderItem.view = nil
                 }
@@ -25,7 +25,7 @@ extension MenuBuilder {
                 bannerItem.view = makeHeaderView(title: bannerText, subtitle: Constants.Menu.appTitle)
             }
         }
-        refreshGraph(in: menu, analyses: state.usage.windowAnalyses)
+        refreshGraph(in: menu, analyses: state.usage.windowAnalyses, energy: state.energy)
         return cache
     }
 
@@ -44,12 +44,7 @@ extension MenuBuilder {
             items.append(separator(tag: separatorAfterConnectivityTag))
         }
 
-        items.append(sectionHeader(
-            String(localized: "menu.section.usage", bundle: .module),
-            subtitle: usageSubtitle(state: state),
-            tag: usageSectionTag,
-            switcher: accountSwitcher(state: state, target: target)
-        ))
+        items.append(usageHeaderItem(state: state, target: target))
         let (usageMenuItems, cache) = usageItems(state: state, target: target)
         items.append(contentsOf: usageMenuItems)
 
@@ -59,7 +54,12 @@ extension MenuBuilder {
         }
         items.append(separator(tag: separatorAfterUsageTag))
 
-        items.append(sectionHeader(String(localized: "menu.section.services", bundle: .module), subtitle: servicesSubtitle(state: state), tag: servicesSectionTag))
+        items.append(sectionHeader(
+            String(localized: "menu.section.services", bundle: .module),
+            subtitle: servicesSubtitle(state: state),
+            subtitleColor: .restingAccent,
+            tag: servicesSectionTag
+        ))
         items.append(contentsOf: serviceItems(state: state))
 
         if let incidents = state.service.currentStatus?.incidents, !incidents.isEmpty {
@@ -72,6 +72,9 @@ extension MenuBuilder {
 
         items.append(separator(tag: separatorAfterServicesTag))
         items.append(contentsOf: controlItems(state: state))
+
+        // The action items (Refresh / Preferences / About / Quit) sit in a footer bar of their own,
+        // each firing directly on click — see `footerActionsItem`.
         items.append(separator(tag: separatorControlsTag))
         items.append(footerActionsItem(target: target))
         items.append(contentsOf: shortcutItems(target: target))
@@ -79,10 +82,11 @@ extension MenuBuilder {
         return (items, cache)
     }
 
-    static func refreshGraph(in menu: NSMenu, analyses: [WindowAnalysis]) {
+    static func refreshGraph(in menu: NSMenu, analyses: [WindowAnalysis], energy: EnergyEstimate? = nil) {
         guard let item = menu.item(withTag: usageGraphTag),
               let graphView = item.view as? UsageGraphView else { return }
         graphView.update(analyses: analyses)
+        graphView.update(energy: energy)
         syncUsageCheckmarks(in: menu, selectedIndex: graphView.currentSelectedIndex)
     }
 
@@ -111,7 +115,7 @@ extension MenuBuilder {
         guard state.compactServices,
               !components.isEmpty,
               components.allSatisfy({ $0.status == .operational }) else { return nil }
-        return String(localized: "services.all_operational", bundle: .module)
+        return servicesOperationalSubtitle
     }
 
     static func serviceItems(state: MonitorState) -> [NSMenuItem] {
@@ -135,21 +139,16 @@ extension MenuBuilder {
         return item
     }
 
-    private static func usageSubtitle(state: MonitorState) -> String? {
-        state.polling.isAnyServiceStale ? nil : Constants.Menu.appTitle
-    }
-
     private static func updateUsageHeader(_ item: NSMenuItem, state: MonitorState, target: any MenuActions) {
-        let subtitle = usageSubtitle(state: state)
+        let badge = usageBadge(state: state)
         let switcher = accountSwitcher(state: state, target: target)
         if let switcher,
            let toggle = findAccountToggle(in: item.view),
            toggle.currentSegments == switcher.segments,
-           headerSubtitle(in: item.view) == subtitle {
+           titleHeaderBadgeText(in: item.view) == badge?.text {
             toggle.configure(with: switcher)
         } else {
-            let title = String(localized: "menu.section.usage", bundle: .module)
-            item.view = headerView(title: title, subtitle: subtitle, switcher: switcher)
+            item.view = makeTitleHeaderView(title: appTitle, badge: badge, switcher: switcher)
         }
     }
 }

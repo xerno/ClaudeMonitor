@@ -5,7 +5,7 @@ enum Formatting {
     enum AbsoluteTimeStyle {
         case hourMinute
         case hourMinuteSecond
-        case dateHourMinute
+        case weekdayHourMinute
     }
 
     /// `Date.FormatStyle` (`.formatted(...)`) returns an EMPTY string under region-override
@@ -18,7 +18,10 @@ enum Formatting {
         switch style {
         case .hourMinute: template = "jmm"
         case .hourMinuteSecond: template = "jmmss"
-        case .dateHourMinute: template = "yMMMdjmm"
+        // Weekday and time, no date and deliberately no year. Usage windows run at most seven
+        // days, so the year was never information, and with it the stats row overflowed its width in
+        // every locale tested (cs 187 pt, de 212 pt, en 230 pt against 166 pt available).
+        case .weekdayHourMinute: template = "Ejmm"
         }
         let formatter = DateFormatter()
         formatter.locale = .autoupdatingCurrent
@@ -137,7 +140,7 @@ enum Formatting {
         if util >= 100 {
             let isToday = Calendar.current.isDateInToday(resetsAt)
             let key = isToday ? "graph.stats.blocked" : "graph.stats.blocked_date"
-            let timeStr = absoluteTime(resetsAt, isToday ? .hourMinute : .dateHourMinute)
+            let timeStr = absoluteTime(resetsAt, isToday ? .hourMinute : .weekdayHourMinute)
             return String(format: String(localized: String.LocalizationValue(key), bundle: .module), timeStr)
         }
 
@@ -159,32 +162,48 @@ enum Formatting {
             return String(format: String(localized: "graph.stats.limit_unknown", bundle: .module), rateStr)
         }
 
-        let beforeResetStr = Formatting.timeUntil(max(0, resetsAt.timeIntervalSince(now) - ttl))
-
-        guard ttl > 3600 else {
-            return String(format: String(localized: "graph.stats.limit_soon", bundle: .module), rateStr, beforeResetStr)
-        }
-
+        // The clock time the limit is reached, and nothing else. The previous wording — "hits limit
+        // ~9h 2m before reset (at 17:44)" — was both too long for the row and misleading twice over:
+        // the duration was the margin ahead of the reset rather than the time remaining, and the
+        // bracketed time reads as the reset when it is actually when the limit lands. How long the
+        // window has left is already on screen in the usage rows above.
         let limitHitAt = now.addingTimeInterval(ttl)
         let isToday = Calendar.current.isDateInToday(limitHitAt)
-        let key = isToday ? "graph.stats.limit_soon_timed" : "graph.stats.limit_soon_timed_date"
-        let timeStr = absoluteTime(limitHitAt, isToday ? .hourMinute : .dateHourMinute)
-        return String(format: String(localized: String.LocalizationValue(key), bundle: .module), rateStr, beforeResetStr, timeStr)
+        let key = isToday ? "graph.stats.limit_at" : "graph.stats.limit_at_date"
+        let timeStr = absoluteTime(limitHitAt, isToday ? .hourMinute : .weekdayHourMinute)
+        return String(format: String(localized: String.LocalizationValue(key), bundle: .module), rateStr, timeStr)
     }
 
-    static let barImageWidth: CGFloat = 120
-    static let barImageWidthWide: CGFloat = 150
-    static let barImageHeight: CGFloat = 12
+    static let barImageWidth: CGFloat = 140
+    static let barImageWidthWide: CGFloat = 170
+    static let barImageHeight: CGFloat = 14
 
-    static func progressBarImage(percent: Int, width: CGFloat = barImageWidth) -> NSImage {
+    /// The fill a bar gets for `percent`.
+    ///
+    /// `restingAccent` is the resting colour — the same green as "All systems operational", so the
+    /// dropdown has one colour for a calm state instead of two. A window at or past
+    /// `blockedUtilization` turns red. The reference design shows a blue bar at 100%, but this app
+    /// already treats 100% as blocked
+    /// everywhere else — the menu bar title, the stats row and `UsageStyle` all agree on that —
+    /// so a calm fill on an exhausted window would be the one place contradicting the rest.
+    static func barFillColor(percent: Int) -> NSColor {
+        percent >= Constants.Projection.blockedUtilization ? .systemRed : .restingAccent
+    }
+
+    static func progressBarImage(
+        percent: Int,
+        width: CGFloat = barImageWidth,
+        fill: NSColor? = nil
+    ) -> NSImage {
         let clamped = max(0, min(100, percent))
+        let fillColor = fill ?? barFillColor(percent: percent)
         return NSImage(size: NSSize(width: width, height: barImageHeight), flipped: false) { rect in
             NSColor.tertiaryLabelColor.setFill()
             let bgPath = NSBezierPath(roundedRect: rect, xRadius: rect.height / 2, yRadius: rect.height / 2)
             bgPath.fill()
             let filledWidth = rect.width * CGFloat(clamped) / 100
             if filledWidth > 0 {
-                NSColor.labelColor.setFill()
+                fillColor.setFill()
                 let fgPath = NSBezierPath(roundedRect: NSRect(x: 0, y: 0, width: filledWidth, height: rect.height),
                                           xRadius: rect.height / 2, yRadius: rect.height / 2)
                 fgPath.fill()

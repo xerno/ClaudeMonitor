@@ -2,11 +2,11 @@ import AppKit
 
 @MainActor
 final class AboutWindowController: NSWindowController, NSWindowDelegate {
-    init() {
+    init(energy: EnergyEstimate? = nil) {
         let windowWidth: CGFloat = 900
         let columnWidth = windowWidth / 2
         let leftContent = Self.leftColumnContent()
-        let rightContent = Self.rightColumnContent()
+        let rightContent = Self.rightColumnContent(energy: energy)
         let leftHeight = Self.columnHeight(leftContent, columnWidth: columnWidth)
         let rightHeight = Self.columnHeight(rightContent, columnWidth: columnWidth)
         let signatureHeight: CGFloat = 48
@@ -210,7 +210,29 @@ final class AboutWindowController: NSWindowController, NSWindowDelegate {
         return s
     }
 
-    private static func rightColumnContent() -> NSAttributedString {
+    /// States the convention behind the menu's energy reading in full, because the reading itself is
+    /// a single number and cannot carry its own provenance.
+    private static func energyExplanation(for energy: EnergyEstimate?) -> String {
+        var lines = [
+            "Estimated electricity used in the datacentre for the tokens in your local Claude Code "
+            + "logs. Covers the whole datacentre: compute, host CPU and memory, idle capacity, power "
+            + "and cooling. Your own Mac is not included, and neither is model training.",
+            "Derived from the median in Oviedo et al., Joule 10(8):102430 (2026): 0.31 Wh per query "
+            + "at 300 output tokens, for models above 200B parameters. That study's quartile spread "
+            + "is 0.16–0.60 Wh, a factor of 3.75, so treat the reading as accurate to roughly a "
+            + "factor of two rather than to its digits.",
+        ]
+        if let energy, energy.high > 0 {
+            lines.append("On your current logs that spread works out to \(energy.rangeDescription).")
+        }
+        lines.append(
+            "Comparisons are more reliable than the absolute value: the coefficient is a constant, "
+            + "so a day showing twice as much really did use twice as much."
+        )
+        return lines.joined(separator: "\n\n")
+    }
+
+    private static func rightColumnContent(energy: EnergyEstimate?) -> NSAttributedString {
         let s = NSMutableAttributedString()
 
         heading(String(localized: "about.heading.refresh", bundle: .module), into: s)
@@ -226,6 +248,11 @@ final class AboutWindowController: NSWindowController, NSWindowDelegate {
 
         heading(String(localized: "about.heading.100_percent", bundle: .module), into: s)
         s.append(secondary(String(localized: "about.secondary.100_percent_explain", bundle: .module)))
+
+        // English hardcoded on purpose while the energy estimate is still provisional: a new key
+        // here means editing thirty translation files, and the wording is not settled yet.
+        heading("Energy estimate", into: s)
+        s.append(secondary(energyExplanation(for: energy)))
 
         heading(String(localized: "about.heading.shortcuts", bundle: .module), into: s)
         s.append(line("  ⌘R  " + String(localized: "menu.refresh", bundle: .module)))

@@ -22,7 +22,7 @@
   "about.line.shows_usage": "La barre des menus affiche votre utilisation de Claude en pourcentages.",
   "about.line.stale_prefix": "Point d'exclamation en gras — les dernières actualisations ont échoué ; les valeurs affichées sont atténuées et peuvent être obsolètes.",
   "about.line.yellow": "Jaune    — performances dégradées",
-  "about.secondary.100_percent_explain": "Si une fenêtre d'utilisation atteint 100 %, Claude Monitor affiche une icône d'arrêt 🛑 et remplace les pourcentages par un compte à rebours jusqu'à la réinitialisation de la limite. Un son est joué lorsqu'une limite critique est réinitialisée (configurable dans les Préférences).",
+  "about.secondary.100_percent_explain": "Si une fenêtre d’utilisation atteint 100 %, Claude Monitor affiche une icône 🛑 stop et remplace les pourcentages par un compte à rebours jusqu’à la réinitialisation — ce compte à rebours peut être désactivé dans les Préférences, ne laissant que l’icône. Un son est joué lors de la réinitialisation d’une limite critique (configurable dans les Préférences).",
   "about.secondary.additional_explain": "Les fenêtres plus longues et les limites par modèle n'apparaissent que lorsque l'utilisation est significative et dépasse le temps restant. Si une limite par modèle se déclenche, son équivalent pour tous les modèles est également affiché pour le contexte.",
   "about.secondary.outpacing": "« Projection à la réinitialisation » désigne votre taux moyen actuel × temps restant, prédisant le niveau d'utilisation lors de la réinitialisation de la fenêtre.",
   "about.secondary.refresh_explain": "Claude Monitor adapte sa fréquence d'actualisation en fonction de l'activité. Il vérifie fréquemment lorsque l'utilisation change, ralentit lorsqu'elle est stable et réduit les vérifications au minimum lorsque votre Mac est inactif. Utilisez Actualiser (⌘R) pour une mise à jour immédiate.",
@@ -61,6 +61,8 @@
   "graph.stats.limit_soon_timed_date": "%1$@ · atteint la limite ~%2$@ avant réinit. (%3$@)",
   "graph.stats.limit_unknown": "%1$@ · limite imminente",
   "graph.stats.projected": "%1$@ · ~%2$ld%% à la réinit.",
+  "graph.stats.limit_at": "%1$@ · limite à %2$@",
+  "graph.stats.limit_at_date": "%1$@ · limite %2$@",
   "guide.org_id_label": "Organization ID",
   "guide.step1.prefix": "1. Ouvrez ",
   "guide.step2": "2. Ouvrez **DevTools** (⌥⌘I) → onglet **Network**",
@@ -80,7 +82,7 @@
   "menu.resets.prefix": "réinit. dans ",
   "menu.section.incidents": "Incidents en cours",
   "menu.section.services": "Services",
-  "menu.section.usage": "Utilisation",
+  "menu.badge.rate_limited": "Limite atteinte",
   "menu.updated": "Mis à jour : %1$@",
   "prefs.button.save": "Enregistrer",
   "prefs.launch_at_login": "Ouvrir à l'ouverture de session",
@@ -132,5 +134,6 @@
   "prefs.show_graph": "Afficher le graphique d’utilisation",
   "prefs.compact_services": "Liste compacte des services",
   "profiles.migrated_default_name": "Compte 1",
+  "prefs.show_blocked_countdown": "Afficher le compte à rebours de réinitialisation dans la barre des menus",
   "services.all_operational": "Tous les systèmes opérationnels"
 }

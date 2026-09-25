@@ -24,10 +24,27 @@ struct GraphDrawer {
         static let graphHeight: CGFloat = 280
         static let statsHeight: CGFloat = 20
         static let topPadding: CGFloat = 14
-        static let graphStatsGap: CGFloat = 6
-        static let bottomPadding: CGFloat = 0
+        /// Space between the graph and the stats row below it. The graph draws its own labels flush
+        /// against its bottom edge — "now" sits 1 pt from it and the 0% axis label 2 pt — so a small
+        /// gap here left roughly 8 pt between two lines of live text and read as a collision rather
+        /// than as two separate rows.
+        static let graphStatsGap: CGFloat = 14
+        /// Keeps the stats row off the separator that follows it.
+        static let bottomPadding: CGFloat = 4
         static let sidePadding: CGFloat = 12
         static let defaultWidth: CGFloat = 280
+        /// Width the energy label starts with, before there is a reading to measure. Once a reading
+        /// exists the label shrinks to fit it exactly and hands the slack to the stats text — see
+        /// `UsageGraphView.layoutStatsRow`. A fixed reserve was the wrong shape here: it has to be
+        /// sized for the widest reading in the widest language, and every point of it is taken from
+        /// the stats text, which is the part that actually runs long (Croatian overflowed by 1.8 pt
+        /// with an 84 pt reserve).
+        static let energyLabelWidth: CGFloat = 84
+        /// Ceiling on the energy label, so an absurd reading can never swallow the stats text.
+        static let energyLabelMaxWidth: CGFloat = 110
+        /// Gap between the stats text and the energy estimate, so a long stats line stops short of
+        /// the number rather than running into it.
+        static let statsEnergyGap: CGFloat = 6
         static let totalHeight: CGFloat = topPadding + graphHeight + graphStatsGap + statsHeight + bottomPadding
         static let noDataHeight: CGFloat = 0
         static let currentDotRadius: CGFloat = 2.5

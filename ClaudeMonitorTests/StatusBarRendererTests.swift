@@ -23,8 +23,8 @@ import AppKit
 
     @Test func resolveIconNilStatus() {
         let icon = StatusBarRenderer.resolveIcon(status: nil, hasRefreshWarning: false)
-        #expect(icon.symbolName == "checkmark.circle.fill")
-        #expect(icon.color == .systemGreen)
+        #expect(icon.symbolName == StatusBarRenderer.healthyIcon.symbolName)
+        #expect(icon.color == StatusBarRenderer.healthyIcon.color)
     }
 
     @Test func resolveIconMajorOutage() {
@@ -63,16 +63,16 @@ import AppKit
         let icon = StatusBarRenderer.resolveIcon(
             status: status(with: .operational), hasRefreshWarning: false
         )
-        #expect(icon.symbolName == "checkmark.circle.fill")
-        #expect(icon.color == .systemGreen)
+        #expect(icon.symbolName == StatusBarRenderer.healthyIcon.symbolName)
+        #expect(icon.color == StatusBarRenderer.healthyIcon.color)
     }
 
     @Test func resolveIconUnknown() {
         let icon = StatusBarRenderer.resolveIcon(
             status: status(with: .unknown), hasRefreshWarning: false
         )
-        #expect(icon.symbolName == "checkmark.circle.fill")
-        #expect(icon.color == .systemGreen)
+        #expect(icon.symbolName == StatusBarRenderer.healthyIcon.symbolName)
+        #expect(icon.color == StatusBarRenderer.healthyIcon.color)
     }
 
     @Test func resolveIconWorstSeverityWins() {
@@ -95,8 +95,59 @@ import AppKit
             incidents: []
         )
         let icon = StatusBarRenderer.resolveIcon(status: empty, hasRefreshWarning: false)
-        #expect(icon.symbolName == "checkmark.circle.fill")
-        #expect(icon.color == .systemGreen)
+        #expect(icon.symbolName == StatusBarRenderer.healthyIcon.symbolName)
+        #expect(icon.color == StatusBarRenderer.healthyIcon.color)
+    }
+
+    // MARK: - Icon glyph legibility
+
+    @Test func healthyIconDrawsAVisibleCheckmark() throws {
+        let icon = StatusBarRenderer.healthyIcon
+        let image = try #require(StatusBarRenderer.makeImage(icon: icon))
+        let glyph = try #require(icon.glyph)
+        #expect(pixelCount(in: image, matching: glyph) > 0)
+        #expect(pixelCount(in: image, matching: icon.color) > 0)
+    }
+
+    /// Pins down why the two-colour palette is needed at all: drawn in a single colour, the same
+    /// symbol renders the checkmark in the disc's own colour, so nothing of the glyph is visible.
+    /// Without this, `healthyIconDrawsAVisibleCheckmark` could pass for the wrong reason.
+    @Test func singleColourBadgeHidesItsGlyph() throws {
+        let icon = StatusBarRenderer.healthyIcon
+        let flat = try #require(StatusBarRenderer.makeImage(symbolName: icon.symbolName, color: icon.color))
+        let glyph = try #require(icon.glyph)
+        #expect(pixelCount(in: flat, matching: glyph) == 0)
+        #expect(pixelCount(in: flat, matching: icon.color) > 0)
+    }
+
+    @Test func badgeIconsDrawAVisibleGlyph() throws {
+        let cases: [ComponentStatus] = [.majorOutage, .partialOutage, .degradedPerformance]
+        for componentStatus in cases {
+            let icon = StatusBarRenderer.resolveIcon(status: status(with: componentStatus), hasRefreshWarning: false)
+            let glyph = try #require(icon.glyph, "\(componentStatus) should carry a glyph colour")
+            let image = try #require(StatusBarRenderer.makeImage(icon: icon))
+            #expect(pixelCount(in: image, matching: glyph) > 0, "\(componentStatus) glyph is invisible")
+            #expect(pixelCount(in: image, matching: icon.color) > 0, "\(componentStatus) badge shape is missing")
+        }
+    }
+
+    @Test func refreshWarningIconDrawsAVisibleGlyph() throws {
+        let icon = StatusBarRenderer.resolveIcon(status: nil, hasRefreshWarning: true)
+        let glyph = try #require(icon.glyph)
+        let image = try #require(StatusBarRenderer.makeImage(icon: icon))
+        #expect(pixelCount(in: image, matching: glyph) > 0)
+    }
+
+    /// `wrench.and.screwdriver.fill` has no enclosing shape — its two layers are the wrench and the
+    /// screwdriver — so a second palette colour would recolour half the tool, not a glyph.
+    @Test func maintenanceIconStaysSingleColour() {
+        let icon = StatusBarRenderer.resolveIcon(status: status(with: .underMaintenance), hasRefreshWarning: false)
+        #expect(icon.glyph == nil)
+    }
+
+    @Test func glyphColoursContrastWithTheirBadge() {
+        #expect(StatusBarRenderer.healthyIcon.glyph != StatusBarRenderer.healthyIcon.color)
+        #expect(StatusBarRenderer.lightGlyph != StatusBarRenderer.darkGlyph)
     }
 
     // MARK: - nsColor

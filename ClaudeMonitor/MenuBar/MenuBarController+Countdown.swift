@@ -13,7 +13,7 @@ extension MenuBarController {
     private func animateResetIcon() {
         guard let button = statusItem.button else { return }
         animationTask?.cancel()
-        button.image = StatusBarRenderer.makeImage(symbolName: "checkmark.circle.fill", color: .systemGreen)
+        button.image = StatusBarRenderer.makeImage(icon: StatusBarRenderer.healthyIcon)
         animationTask = Task {
             try? await Task.sleep(for: .seconds(2))
             guard !Task.isCancelled else { return }
@@ -74,12 +74,13 @@ extension MenuBarController {
                 button: button, usage: state.usage.currentUsage,
                 hasCredentials: state.hasCredentials,
                 isStale: state.polling.isAnyServiceStale || state.polling.isUsageDataExpired,
-                windowAnalyses: state.usage.windowAnalyses
+                windowAnalyses: state.usage.windowAnalyses,
+                showBlockedCountdown: state.showBlockedCountdown
             )
         }
         if isMenuOpen, let menu = statusItem.menu {
             MenuBuilder.refreshTimes(in: menu, cache: usageCache)
-            MenuBuilder.refreshGraph(in: menu, analyses: state.usage.windowAnalyses)
+            MenuBuilder.refreshGraph(in: menu, analyses: state.usage.windowAnalyses, energy: state.energy)
         }
     }
 

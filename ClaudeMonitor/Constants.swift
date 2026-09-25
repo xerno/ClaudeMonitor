@@ -118,6 +118,17 @@ enum Constants {
         static func isServicesCompact(in defaults: UserDefaults) -> Bool {
             (defaults.object(forKey: compactServices) as? Bool) ?? true
         }
+
+        static let showBlockedCountdown = "showBlockedCountdown"
+
+        /// Whether the menu bar keeps showing the stop icon and the countdown while a window is
+        /// blocked. Turned off, the title goes empty and only the status icon remains; the
+        /// countdown still appears on the dropdown's badge, and the countdown timer keeps running
+        /// either way — it is also what triggers the refresh when the block expires.
+        /// Absent defaults to shown, so nobody's menu bar changes without them asking.
+        static func isBlockedCountdownShown(in defaults: UserDefaults) -> Bool {
+            (defaults.object(forKey: showBlockedCountdown) as? Bool) ?? true
+        }
     }
 
     enum Sounds {
@@ -156,6 +167,50 @@ enum Constants {
         static let isActive: Bool = ProcessInfo.processInfo.arguments.contains("--demo")
         static let rotationOrder: [Int] = [3, 2, 1, 4, 5, 6, 7]
         static let rotationInterval: TimeInterval = 5
+    }
+
+    enum Energy {
+        /// Claude Code's session logs: one JSON object per line, appended live while it runs.
+        static let logsDirectory = "~/.claude/projects"
+        static let logFileExtension = "jsonl"
+        /// Read size per step. Large enough that syscall overhead disappears, small enough that a
+        /// scan of a 700 MB archive never holds more than a chunk plus one partial line.
+        static let chunkSize = 256 * 1024
+        /// Where the scan offsets, dedup hashes and carried totals live, relative to Application
+        /// Support — mirrors `History.productionSubdirectory`.
+        static let stateSubdirectory = "ClaudeMonitor/energy"
+        static let stateFileName = "scan-state.json"
+
+        // MARK: - Energy coefficients
+        //
+        // Anchor: Oviedo et al. (Microsoft), "Energy use of AI inference, efficiency pathways, and
+        // test-time scaling", Joule 10(8):102430, 2026. Models >200B on H100: median 0.31 Wh per
+        // query, interquartile range 0.16–0.60, at a median of 300 output tokens. The paper fixes
+        // input length and approximates effective length by output length, on the grounds that
+        // output tokens dominate.
+        //
+        // These are FULL-NODE figures: host CPU and DRAM, idle capacity and PUE are already inside
+        // them. That is the accounting boundary this feature reports, and it is why `pue` below is
+        // 1.0 — applying a datacentre multiplier on top would count it twice.
+        //
+        // Kept as three separate numbers rather than one value with a spread, because the low and
+        // high are measured quartiles, not a symmetric error bar.
+        static let anchorWhPerQueryLow = 0.16
+        static let anchorWhPerQueryMedian = 0.31
+        static let anchorWhPerQueryHigh = 0.60
+        /// Output tokens the anchor's per-query figures correspond to.
+        static let anchorOutputTokensPerQuery = 300.0
+        /// Already contained in the anchor above. Present so a GPU-level anchor could be swapped in
+        /// without the multiplier being lost, not because it should be changed to 1.12 here.
+        static let pue = 1.0
+
+        /// How often the logs are re-read. A repeat scan reads only what was appended and costs
+        /// tens of milliseconds, so this is paced for how fast the number meaningfully changes,
+        /// not for how expensive the scan is.
+        static let scanInterval: TimeInterval = 120
+        /// Scan state is only written this often. Losing it costs one background cold scan on the
+        /// next launch, which is cheaper than writing a megabyte every two minutes.
+        static let statePersistInterval: TimeInterval = 600
     }
 
     enum History {

@@ -18,6 +18,7 @@ final class MenuBarController: NSObject, MenuActions {
         coordinator.onCriticalReset = { [weak self] in self?.handleCriticalReset() }
         configureStatusItem()
         coordinator.startPolling()
+        coordinator.energyMonitor.start()
         NSWorkspace.shared.notificationCenter.addObserver(
             self, selector: #selector(systemDidWake),
             name: NSWorkspace.didWakeNotification, object: nil
@@ -40,7 +41,8 @@ final class MenuBarController: NSObject, MenuActions {
         StatusBarRenderer.updateText(
             button: button, usage: state.usage.currentUsage,
             hasCredentials: state.hasCredentials,
-            isStale: state.polling.isAnyServiceStale || state.polling.isUsageDataExpired
+            isStale: state.polling.isAnyServiceStale || state.polling.isUsageDataExpired,
+            showBlockedCountdown: state.showBlockedCountdown
         )
         let menu = NSMenu()
         menu.delegate = self
@@ -63,7 +65,8 @@ final class MenuBarController: NSObject, MenuActions {
                     button: button, usage: state.usage.currentUsage,
                     hasCredentials: state.hasCredentials,
                     isStale: state.polling.isAnyServiceStale || state.polling.isUsageDataExpired,
-                    windowAnalyses: state.usage.windowAnalyses
+                    windowAnalyses: state.usage.windowAnalyses,
+                    showBlockedCountdown: state.showBlockedCountdown
                 )
             }
         }
@@ -117,7 +120,7 @@ final class MenuBarController: NSObject, MenuActions {
     }
 
     @objc func didSelectAbout() {
-        openWindow(&aboutController) { AboutWindowController() }
+        openWindow(&aboutController) { [coordinator] in AboutWindowController(energy: coordinator.energyMonitor.estimate) }
     }
 
     @objc func didSelectPreferences() {

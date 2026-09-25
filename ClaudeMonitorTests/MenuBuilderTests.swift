@@ -525,9 +525,13 @@ private final class MockMenuActions: NSObject, MenuActions {
     private func stateWithProfiles(
         _ profiles: [Profile] = personalAndWork,
         activeId: String = "b",
-        isStale: Bool = false
+        isStale: Bool = false,
+        usageBlocked: Bool = false
     ) -> MonitorState {
-        MonitorState(
+        let entries = [WindowEntry.make(key: "five_hour", utilization: usageBlocked ? 100 : 40,
+                                        resetsAt: Date().addingTimeInterval(3600))].compactMap { $0 }
+        return MonitorState(
+            usage: UsageSnapshot(currentUsage: UsageResponse(entries: entries)),
             polling: PollingState(isAnyServiceStale: isStale),
             profiles: ProfileSnapshot(profiles: profiles, activeId: activeId),
             hasCredentials: true
@@ -536,10 +540,6 @@ private final class MockMenuActions: NSObject, MenuActions {
 
     private func usageHeaderToggle(in menu: NSMenu) -> AccountToggleView? {
         MenuBuilder.findAccountToggle(in: menu.item(withTag: MenuBuilder.usageSectionTag)?.view)
-    }
-
-    private func segmentedControl(in toggle: AccountToggleView) throws -> NSSegmentedControl {
-        try #require(toggle.subviews.compactMap { $0 as? NSSegmentedControl }.first)
     }
 
     @Test func accountToggleAbsentWithSingleProfile() {
@@ -556,7 +556,7 @@ private final class MockMenuActions: NSObject, MenuActions {
     @Test func switcherSelectsActiveProfileIndex() throws {
         let menu = MenuBuilder.build(state: stateWithProfiles(activeId: "b"), target: target)
         let toggle = try #require(usageHeaderToggle(in: menu))
-        #expect(try segmentedControl(in: toggle).selectedSegment == 1)
+        #expect(toggle.selectedIndex == 1)
     }
 
     @Test func populateUpdatesToggleSelectionInPlace() throws {
@@ -568,7 +568,7 @@ private final class MockMenuActions: NSObject, MenuActions {
 
         let updated = try #require(usageHeaderToggle(in: menu))
         #expect(updated === original)
-        #expect(try segmentedControl(in: updated).selectedSegment == 0)
+        #expect(updated.selectedIndex == 0)
     }
 
     @Test func switcherReplacedWhenIdsChangeEvenIfLabelsEqual() throws {
@@ -586,14 +586,11 @@ private final class MockMenuActions: NSObject, MenuActions {
         #expect(replaced !== original)
         #expect(replaced.currentSegments.map(\.id) == ["c", "d"])
 
-        let control = try segmentedControl(in: replaced)
-        control.selectedSegment = 1
-        let action = try #require(control.action)
-        _ = (control.target as? NSObject)?.perform(action)
+        replaced.select(segmentAt: 1)
         #expect(target.selectedProfileIds == ["d"])
     }
 
-    @Test func switcherPresentWhenServiceStale() {
+    @Test func switcherPresentWhenServiceStale() throws {
         let built = MenuBuilder.build(state: stateWithProfiles(isStale: true), target: target)
         #expect(usageHeaderToggle(in: built) != nil)
 
@@ -601,7 +598,6 @@ private final class MockMenuActions: NSObject, MenuActions {
         MenuBuilder.populate(menu: menu, state: stateWithProfiles(), target: target)
         MenuBuilder.populate(menu: menu, state: stateWithProfiles(isStale: true), target: target)
         #expect(usageHeaderToggle(in: menu) != nil)
-        #expect(MenuBuilder.headerSubtitle(in: menu.item(withTag: MenuBuilder.usageSectionTag)?.view) == nil)
     }
 
     @Test func switcherTruncatesLongNames() throws {
@@ -611,15 +607,32 @@ private final class MockMenuActions: NSObject, MenuActions {
             Profile(id: "b", name: "Work", organizationId: "org-b"),
         ]
         let menu = MenuBuilder.build(state: stateWithProfiles(profiles), target: target)
-        let control = try segmentedControl(in: try #require(usageHeaderToggle(in: menu)))
+        let toggle = try #require(usageHeaderToggle(in: menu))
 
-        let label = try #require(control.label(forSegment: 0))
+        let label = toggle.currentSegments[0].label
         #expect(label.count == MenuBuilder.switcherNameMaxLength)
         #expect(label.hasSuffix("…"))
         #expect(longName.hasPrefix(String(label.dropLast())))
-        #expect(control.label(forSegment: 1) == "Work")
-        #expect(control.toolTip(forSegment: 0) == longName)
-        #expect(control.toolTip(forSegment: 1) == "Work")
+        #expect(toggle.currentSegments[1].label == "Work")
+        #expect(toggle.currentSegments[0].toolTip == longName)
+        #expect(toggle.currentSegments[1].toolTip == "Work")
+
+        let tooltips = toggle.subviews.compactMap(\.toolTip)
+        #expect(tooltips == [longName, "Work"])
+    }
+
+    @Test func populateRebuildsTitleHeaderWhenBadgeChanges() throws {
+        let menu = NSMenu()
+        MenuBuilder.populate(menu: menu, state: stateWithProfiles(usageBlocked: false), target: target)
+        let originalToggle = try #require(usageHeaderToggle(in: menu))
+        #expect(MenuBuilder.titleHeaderBadgeText(in: menu.item(withTag: MenuBuilder.usageSectionTag)?.view) == nil)
+
+        MenuBuilder.populate(menu: menu, state: stateWithProfiles(usageBlocked: true), target: target)
+
+        let header = menu.item(withTag: MenuBuilder.usageSectionTag)?.view
+        #expect(MenuBuilder.titleHeaderBadgeText(in: header) != nil)
+        let updatedToggle = try #require(usageHeaderToggle(in: menu))
+        #expect(updatedToggle !== originalToggle)
     }
 
     @Test func graphShownByDefault() {
@@ -631,4 +644,103 @@ private final class MockMenuActions: NSObject, MenuActions {
         let state = MonitorState(usage: UsageSnapshot(currentUsage: UsageResponse(entries: [])), hasCredentials: true, showGraph: false)
         #expect(!menuItems(for: state).contains { $0.tag == MenuBuilder.usageGraphTag })
     }
+}
+
+
+/// Header shades. A section header's two labels share one quiet shade so the row reads as a single
+/// line — except the Services status, which the redesign gives its own green, and the dropdown's
+/// title, which is the one loud thing at the top.
+@MainActor
+struct MenuBuilderHeaderShadeTests {
+
+    /// Recursive on purpose. The non-recursive version returned `[]` for any header built into a
+    /// container, and `allSatisfy` on an empty array is `true` — the shade tests would have gone on
+    /// passing while checking nothing. Callers assert the count as well, for the same reason.
+    private func labels(in view: NSView) -> [NSTextField] {
+        view.subviews.flatMap { subview -> [NSTextField] in
+            if let field = subview as? NSTextField { return [field] }
+            return labels(in: subview)
+        }
+    }
+
+    @Test func bothHeaderLabelsShareOneShade() throws {
+        let view = MenuBuilder.makeHeaderView(title: "Usage", subtitle: "Claude Monitor")
+        let found = labels(in: view)
+        #expect(found.count == 2)
+        #expect(found.allSatisfy { $0.textColor == MenuBuilder.headerTextColor })
+    }
+
+    /// The subtitle colour is opt-in: a header that does not ask for one still matches every other
+    /// header, so the green below stays the deliberate exception rather than the start of a drift.
+    @Test func headersWithoutAnExplicitColourStillMatchEachOther() throws {
+        let usage = labels(in: MenuBuilder.makeHeaderView(title: "Usage", subtitle: "Claude Monitor"))
+        let services = labels(in: MenuBuilder.makeHeaderView(title: "Services", subtitle: "Operational"))
+        let shades = Set((usage + services).compactMap { $0.textColor })
+        #expect(shades.count == 1, "every header label should resolve to the same colour")
+    }
+
+    /// The shade is deliberately the same token the "Updated / Interval / Next" line already uses,
+    /// which is the line Marek pointed at as the reference.
+    @Test func headerShadeMatchesTheControlRow() throws {
+        #expect(MenuBuilder.headerTextColor == .secondaryLabelColor)
+        let control = ControlRowView(title: "Updated: 10:00:00")
+        let label = try #require(control.subviews.compactMap { $0 as? NSTextField }.first)
+        #expect(label.textColor == MenuBuilder.headerTextColor)
+    }
+
+    @Test func sectionHeaderCarriesTheSharedShade() throws {
+        let item = MenuBuilder.sectionHeader("Services", subtitle: "Operational", tag: 1)
+        let view = try #require(item.view)
+        let found = labels(in: view)
+        #expect(found.count == 2)
+        #expect(found.allSatisfy { $0.textColor == MenuBuilder.headerTextColor })
+    }
+
+    /// Pins the built menu, not just the helper: the services header is the one compact mode relies
+    /// on. The section word stays quiet; only the status it summarises turns green.
+    @Test func servicesHeaderKeepsAGreyWordAndAGreenStatus() throws {
+        let state = MonitorState(
+            service: ServiceHealth(currentStatus: StatusSummary(
+                components: [StatusComponent(id: "1", name: "API", status: .operational)],
+                incidents: []
+            )),
+            compactServices: true
+        )
+        let (items, _) = MenuBuilder.buildDesiredItems(state: state, target: HeaderShadeMockActions())
+        let header = try #require(items.first { $0.tag == MenuBuilder.servicesSectionTag })
+        let view = try #require(header.view, "compact + all-operational should render a subtitle view")
+        let found = labels(in: view)
+        #expect(found.count == 2)
+        #expect(found.first?.textColor == MenuBuilder.headerTextColor)
+        #expect(found.last?.textColor == .restingAccent)
+    }
+
+    /// The bar and the services status are meant to be one green, not two that happen to match
+    /// today. Measured against `barFillColor` rather than against the constant, so renaming or
+    /// re-pointing either surface alone fails here.
+    @Test func theServicesStatusUsesTheSameGreenAsARestingBar() throws {
+        let state = MonitorState(
+            service: ServiceHealth(currentStatus: StatusSummary(
+                components: [StatusComponent(id: "1", name: "API", status: .operational)],
+                incidents: []
+            )),
+            compactServices: true
+        )
+        let (items, _) = MenuBuilder.buildDesiredItems(state: state, target: HeaderShadeMockActions())
+        let header = try #require(items.first { $0.tag == MenuBuilder.servicesSectionTag })
+        let view = try #require(header.view)
+        let status = try #require(labels(in: view).last)
+        #expect(status.textColor == Formatting.barFillColor(percent: 60))
+    }
+}
+
+@MainActor
+private final class HeaderShadeMockActions: NSObject, MenuActions {
+    @objc func didSelectRefresh() {}
+    @objc func openIncident(_ sender: NSMenuItem) {}
+    @objc func didSelectPreferences() {}
+    @objc func didSelectAbout() {}
+    @objc func didSelectUsageWindow(_ sender: NSMenuItem) {}
+    @objc func didSelectSentinel() {}
+    @objc func didSelectProfile(id: String) {}
 }

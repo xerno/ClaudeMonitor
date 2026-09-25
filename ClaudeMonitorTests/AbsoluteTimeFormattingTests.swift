@@ -58,7 +58,7 @@ struct AbsoluteTimeFormattingTests {
 
     @Test func absoluteTimeIsNonEmptyForAllStyles() {
         let date = Date()
-        for style: Formatting.AbsoluteTimeStyle in [.hourMinute, .hourMinuteSecond, .dateHourMinute] {
+        for style: Formatting.AbsoluteTimeStyle in [.hourMinute, .hourMinuteSecond, .weekdayHourMinute] {
             let result = Formatting.absoluteTime(date, style)
             #expect(!result.isEmpty)
             #expect(containsDigit(result))
@@ -91,17 +91,24 @@ struct AbsoluteTimeFormattingTests {
         }
     }
 
-    @Test func dateHourMinuteContainsYearAndSameMinuteAsHourMinute() throws {
+    /// The year is deliberately absent: windows last at most a week, so it carried no information,
+    /// and carrying it pushed the stats row past the width available for it in every locale tested.
+    /// What must remain is a weekday and the same clock time.
+    @Test func weekdayHourMinuteOmitsTheYearAndKeepsTheSameMinute() throws {
         let hm = Formatting.absoluteTime(Self.fixedInstant, .hourMinute)
-        let dhm = Formatting.absoluteTime(Self.fixedInstant, .dateHourMinute)
+        let whm = Formatting.absoluteTime(Self.fixedInstant, .weekdayHourMinute)
         let year = try #require(Self.fixedComponents.year)
         let minute = try #require(Self.fixedComponents.minute)
 
-        let dhmGroups = digitGroups(dhm)
-        #expect(dhmGroups.contains { Int($0) == year })
-        #expect(dhmGroups.contains { Int($0) == minute })
-        // The date portion must add content beyond the plain hour:minute string.
-        #expect(digitGroups(hm) != dhmGroups)
+        #expect(!whm.isEmpty)
+        let groups = digitGroups(whm)
+        #expect(!groups.contains { Int($0) == year }, "\(whm) should not carry the year")
+        #expect(groups.contains { Int($0) == minute })
+        // The clock time survives intact; the weekday is added as letters, not digits, so the digit
+        // groups match the plain hour:minute rendering exactly.
+        #expect(groups == digitGroups(hm))
+        #expect(whm.contains { $0.isLetter }, "\(whm) should name a weekday")
+        #expect(whm.count > hm.count)
     }
 
     @MainActor
@@ -132,11 +139,11 @@ struct AbsoluteTimeFormattingTests {
         #expect(text.contains(expectedTime))
     }
 
-    @Test func statsLabelTextForBlockedWindowOtherDayContainsDateHourMinute() {
+    @Test func statsLabelTextForBlockedWindowOtherDayContainsWeekdayAndTime() {
         let resetsAt = Calendar.current.date(byAdding: .day, value: 5, to: Date())!
         let analysis = makeAnalysis(utilization: 100, resetsAt: resetsAt)
         let text = Formatting.statsLabelText(analysis: analysis, now: Date())
-        let expectedTime = Formatting.absoluteTime(resetsAt, .dateHourMinute)
+        let expectedTime = Formatting.absoluteTime(resetsAt, .weekdayHourMinute)
         #expect(!expectedTime.isEmpty)
         #expect(text.contains(expectedTime))
     }
