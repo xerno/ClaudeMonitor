@@ -111,6 +111,46 @@ struct DecodingTests {
         #expect(response.entries.count == 2)
     }
 
+    @Test func usageResponseDecodesCurrentApiShape() throws {
+        let json = """
+        {
+            "five_hour": {"utilization": 56.0, "resets_at": "2026-09-25T04:09:59.528132+00:00",
+                          "limit_dollars": null, "used_dollars": null, "remaining_dollars": null, "locked_reason": null},
+            "seven_day": {"utilization": 67.0, "resets_at": "2026-09-26T09:59:59.528152+00:00",
+                          "limit_dollars": null, "used_dollars": null, "remaining_dollars": null, "locked_reason": null},
+            "seven_day_sonnet": null,
+            "iguana_necktie": {"utilization": 16.327132, "resets_at": "2026-11-05T07:59:00+00:00", "limit_dollars": 250},
+            "extra_usage": {"is_enabled": false, "utilization": 0.0, "currency": "EUR"},
+            "limits": [{"kind": "session", "percent": 56}],
+            "seven_day_breakdown": {"as_of": "2026-09-25T02:19:37.576987+00:00", "rows": []}
+        }
+        """.data(using: .utf8)!
+
+        let response = try JSONDecoder.iso8601WithFractionalSeconds.decode(UsageResponse.self, from: json)
+        #expect(response.entries.map(\.key) == ["five_hour", "seven_day"])
+        #expect(response.entries.map(\.window.utilization) == [56, 67])
+        #expect(response.entries[0].window.resetsAt == Date(timeIntervalSince1970: 1_790_309_399.528132))
+    }
+
+    @Test func usageResponseRoundsFractionalUtilizationDown() throws {
+        let json = """
+        {
+            "five_hour": {"utilization": 56.4, "resets_at": "2026-09-25T04:09:59.528132+00:00"},
+            "seven_day": {"utilization": 99.9, "resets_at": "2026-09-26T09:59:59.528152+00:00"}
+        }
+        """.data(using: .utf8)!
+
+        let response = try JSONDecoder.iso8601WithFractionalSeconds.decode(UsageResponse.self, from: json)
+        #expect(response.entries.map(\.window.utilization) == [56, 99])
+    }
+
+    @Test func usageWindowRejectsOutOfRangeUtilization() {
+        let json = #"{"utilization": 1e300, "resets_at": null}"#.data(using: .utf8)!
+        #expect(throws: DecodingError.self) {
+            try JSONDecoder.iso8601WithFractionalSeconds.decode(UsageWindow.self, from: json)
+        }
+    }
+
     // MARK: - StatusSummary
 
     @Test func statusSummaryDecoding() throws {

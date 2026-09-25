@@ -130,4 +130,22 @@ struct UsageWindow: Decodable, Sendable, Equatable, Hashable {
         case utilization
         case resetsAt = "resets_at"
     }
+
+    init(utilization: Int, resetsAt: Date?) {
+        self.utilization = utilization
+        self.resetsAt = resetsAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let rawUtilization = try container.decode(Double.self, forKey: .utilization)
+        guard let utilization = Int(exactly: rawUtilization.rounded(.down)) else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .utilization, in: container,
+                debugDescription: "Utilization out of range: \(rawUtilization)"
+            )
+        }
+        self.utilization = utilization
+        self.resetsAt = try container.decodeIfPresent(Date.self, forKey: .resetsAt)
+    }
 }
