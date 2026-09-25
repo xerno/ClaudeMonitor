@@ -13,7 +13,7 @@ extension MenuBarController {
     private func animateResetIcon() {
         guard let button = statusItem.button else { return }
         animationTask?.cancel()
-        button.image = StatusBarRenderer.makeImage(symbolName: "checkmark.circle.fill", color: .systemGreen)
+        button.image = StatusBarRenderer.makeImage(icon: StatusBarRenderer.healthyIcon)
         animationTask = Task {
             try? await Task.sleep(for: .seconds(2))
             guard !Task.isCancelled else { return }

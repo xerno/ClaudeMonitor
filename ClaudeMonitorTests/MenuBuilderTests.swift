@@ -632,3 +632,69 @@ private final class MockMenuActions: NSObject, MenuActions {
         #expect(!menuItems(for: state).contains { $0.tag == MenuBuilder.usageGraphTag })
     }
 }
+
+
+/// Header shade consistency: "Usage", "Services", "Claude Monitor" and "All systems operational"
+/// must all render in one shade, so a header row reads as a single line rather than two greys.
+@MainActor
+struct MenuBuilderHeaderShadeTests {
+
+    private func labels(in view: NSView) -> [NSTextField] {
+        view.subviews.compactMap { $0 as? NSTextField }
+    }
+
+    @Test func bothHeaderLabelsShareOneShade() throws {
+        let view = MenuBuilder.makeHeaderView(title: "Usage", subtitle: "Claude Monitor")
+        let found = labels(in: view)
+        #expect(found.count == 2)
+        #expect(found.allSatisfy { $0.textColor == MenuBuilder.headerTextColor })
+    }
+
+    @Test func servicesHeaderMatchesTheUsageHeader() throws {
+        let usage = labels(in: MenuBuilder.makeHeaderView(title: "Usage", subtitle: "Claude Monitor"))
+        let services = labels(in: MenuBuilder.makeHeaderView(title: "Services", subtitle: "All systems operational"))
+        let shades = Set((usage + services).compactMap { $0.textColor })
+        #expect(shades.count == 1, "every header label should resolve to the same colour")
+    }
+
+    /// The shade is deliberately the same token the "Updated / Interval / Next" line already uses,
+    /// which is the line Marek pointed at as the reference.
+    @Test func headerShadeMatchesTheControlRow() throws {
+        #expect(MenuBuilder.headerTextColor == .secondaryLabelColor)
+        let control = ControlRowView(title: "Updated: 10:00:00")
+        let label = try #require(control.subviews.compactMap { $0 as? NSTextField }.first)
+        #expect(label.textColor == MenuBuilder.headerTextColor)
+    }
+
+    @Test func sectionHeaderCarriesTheSharedShade() throws {
+        let item = MenuBuilder.sectionHeader("Services", subtitle: "All systems operational", tag: 1)
+        let view = try #require(item.view)
+        #expect(labels(in: view).allSatisfy { $0.textColor == MenuBuilder.headerTextColor })
+    }
+
+    /// Pins the built menu, not just the helper: the services header is the one compact mode relies on.
+    @Test func servicesHeaderIsBuiltWithTheSharedShade() throws {
+        let state = MonitorState(
+            service: ServiceHealth(currentStatus: StatusSummary(
+                components: [StatusComponent(id: "1", name: "API", status: .operational)],
+                incidents: []
+            )),
+            compactServices: true
+        )
+        let (items, _) = MenuBuilder.buildDesiredItems(state: state, target: HeaderShadeMockActions())
+        let header = try #require(items.first { $0.tag == MenuBuilder.servicesSectionTag })
+        let view = try #require(header.view, "compact + all-operational should render a subtitle view")
+        #expect(labels(in: view).allSatisfy { $0.textColor == MenuBuilder.headerTextColor })
+    }
+}
+
+@MainActor
+private final class HeaderShadeMockActions: NSObject, MenuActions {
+    @objc func didSelectRefresh() {}
+    @objc func openIncident(_ sender: NSMenuItem) {}
+    @objc func didSelectPreferences() {}
+    @objc func didSelectAbout() {}
+    @objc func didSelectUsageWindow(_ sender: NSMenuItem) {}
+    @objc func didSelectSentinel() {}
+    @objc func didSelectProfile(id: String) {}
+}
