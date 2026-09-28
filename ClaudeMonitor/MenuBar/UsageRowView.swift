@@ -2,20 +2,13 @@ import AppKit
 
 // MARK: - UsageRowView
 
-/// A custom NSView used as an NSMenuItem's view for usage rows.
-/// Because `.view` is set on the menu item, NSMenu does NOT auto-close on click.
+/// A menu item with a custom `.view` does not auto-close the menu on click.
 final class UsageRowView: NSView {
     private let textField: NSTextField
     var onClick: (() -> Void)?
-    /// Hover / keyboard highlight, written only by `MenuBuilder.syncHighlight` from
-    /// `NSMenuDelegate.menu(_:willHighlight:)` — AppKit decides which row is highlighted.
-    ///
-    /// The row deliberately keeps no tracking area of its own. A self-tracked flag gets stuck
-    /// on: AppKit delivers no `mouseExited` when the menu closes under the cursor or when the
-    /// row is clicked, and `reconcile` reuses these views for the life of the app, so the stale
-    /// highlight then reappears the next time the menu opens — alongside the row actually being
-    /// hovered. `NSMenuItem.isHighlighted` is not KVO-compliant either (an observer on it never
-    /// fires), which leaves the delegate callback as the one signal a view-based row can trust.
+    /// Written only by `MenuBuilder.syncHighlight` from `menu(_:willHighlight:)`. No tracking area of
+    /// its own: AppKit sends no `mouseExited` when the menu closes under the cursor or the row is
+    /// clicked, so the flag sticks (rows are reused), and `NSMenuItem.isHighlighted` is not KVO-compliant.
     var isHighlighted = false {
         didSet {
             guard oldValue != isHighlighted else { return }
@@ -71,9 +64,8 @@ final class UsageRowView: NSView {
         }
     }
 
-    /// Grows the row to fit `attributedTitle`, never shrinks it: the width reserved for the
-    /// widest countdown text has to survive live updates, and the menu stretches the row to the
-    /// full row width once it lays the item out.
+    /// Grow-only: the menu stretches the row to full width on layout, and the width reserved for the
+    /// widest countdown must survive live updates.
     func ensureFrameWidth(for attributedTitle: NSAttributedString) {
         let needed = UsageRowView.requiredWidth(for: attributedTitle)
         guard needed > frame.size.width else { return }
@@ -87,10 +79,9 @@ final class UsageRowView: NSView {
         ensureFrameWidth(for: attributedTitle)
     }
 
-    /// Returns the current attributed title of the row.
     var currentAttributedTitle: NSAttributedString { textField.attributedStringValue }
 
-    /// Returns the plain string content of the row (for testing).
+    /// For tests.
     var textContent: String { textField.attributedStringValue.string }
 
     override func draw(_ dirtyRect: NSRect) {

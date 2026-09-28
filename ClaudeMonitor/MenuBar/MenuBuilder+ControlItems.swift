@@ -1,8 +1,6 @@
 import AppKit
 
 extension MenuBuilder {
-    /// The rows above the footer bar: the "Updated / Interval / Next" line and the history-health
-    /// status. The action buttons themselves are `footerActionsItem`.
     static func controlItems(state: MonitorState) -> [NSMenuItem] {
         var items: [NSMenuItem] = []
 
@@ -114,10 +112,7 @@ extension MenuBuilder {
         return item
     }
 
-    /// Status line reporting `UsageHistory`'s persistence-failure/quarantine state — `nil` when
-    /// there is nothing to report (saving is succeeding and no files are quarantined), so it
-    /// never appears as an empty row. Deliberately a plain disabled row, never an alert or sheet:
-    /// this is ambient status, not something that should interrupt the user.
+    /// A plain disabled row, never an alert: ambient status must not interrupt the user.
     static func historyHealthItem(state: MonitorState) -> NSMenuItem? {
         var lines: [String] = []
         if !state.history.lastSaveSucceeded, let since = state.history.persistenceFailingSince {

@@ -2,8 +2,7 @@ import AppKit
 
 // MARK: - SentinelView
 
-/// Invisible 1×1 view that accepts first responder so NSMenu treats its enclosing menu item
-/// as a navigable target — used to absorb NSMenu's auto-highlight on open.
+/// Accepts first responder so NSMenu treats its menu item as navigable, absorbing the auto-highlight on open.
 final class SentinelView: NSView {
     override var acceptsFirstResponder: Bool { true }
 }
@@ -16,11 +15,6 @@ final class UsageGraphView: NSView {
     private var selectedIndex: Int = 0
     private var userSelectedIndex: Bool = false
     private let statsLabel = NSTextField(labelWithString: "")
-    /// Estimated datacentre electricity, right-aligned on the same row as the stats text.
-    ///
-    /// A second label rather than more text appended to `statsLabel`: that label is centered across
-    /// the full width, and `Formatting.statsLabelTextCore` has several return branches, so anything
-    /// folded into its string would vanish in every branch but one.
     private let energyLabel = NSTextField(labelWithString: "")
 
     var currentSelectedIndex: Int { selectedIndex }
@@ -42,8 +36,7 @@ final class UsageGraphView: NSView {
 
         statsLabel.font = NSFont.systemFont(ofSize: 12)
         statsLabel.textColor = .secondaryLabelColor
-        // Left, not centered: the energy estimate takes the right of this row, and a centered label
-        // would drift under it as the text changes length.
+        // Left, not centered: a centered label would drift under the energy estimate as its text changes length.
         statsLabel.alignment = .left
         statsLabel.lineBreakMode = .byTruncatingTail
         statsLabel.autoresizingMask = .width
@@ -58,7 +51,6 @@ final class UsageGraphView: NSView {
         energyLabel.font = NSFont.systemFont(ofSize: 12)
         energyLabel.textColor = .secondaryLabelColor
         energyLabel.alignment = .right
-        // Pinned to the trailing edge while the menu resizes; the stats label absorbs the slack.
         energyLabel.autoresizingMask = .minXMargin
         energyLabel.frame = NSRect(
             x: bounds.width - MenuBuilder.rowTrailingInset - energyWidth,
@@ -72,26 +64,20 @@ final class UsageGraphView: NSView {
 
     // MARK: - Energy
 
-    /// Sets the energy reading, or clears the row when there is nothing to show yet.
     func update(energy: EnergyEstimate?) {
         energyLabel.stringValue = Self.energyText(for: energy)
         layoutStatsRow()
     }
 
-    /// Gives the energy label exactly the width its text needs and the rest of the row to the stats
-    /// text. Splitting the row at a fixed point meant the reserve had to cover the widest reading in
-    /// the widest of thirty languages, and whatever it reserved was taken from the stats text even
-    /// when the reading was short.
+    /// Sizes the energy label to its text and gives the rest of the row to the stats text; a fixed
+    /// split would have to reserve for the widest reading in any language, at the stats text's expense.
     private func layoutStatsRow() {
-        // Inset matches the other text rows in the dropdown, not the graph's own side padding: this
-        // row reads as part of the text column below the graph, and two points out of line is
-        // visible against "Services" and "Updated:".
+        // The dropdown's text-row inset, not the graph's side padding: a mismatch shows against "Services" and "Updated:".
         let inset = MenuBuilder.rowTrailingInset
         let usable = bounds.width - inset * 2
 
-        // `fittingSize`, not the measured string width. A text field needs a few points more than
-        // its text: sized to the text alone it clipped the last glyph ("⚡ ~17 kWh" measures 69 pt
-        // but the field needs 73).
+        // `fittingSize`, not the string width: a text field needs a few points more than its text
+        // and clips the last glyph otherwise ("⚡ ~17 kWh" is 69 pt, the field needs 73).
         let energyWidth = energyLabel.stringValue.isEmpty
             ? 0
             : min(energyLabel.fittingSize.width.rounded(.up), GraphDrawer.Layout.energyLabelMaxWidth)
@@ -103,18 +89,15 @@ final class UsageGraphView: NSView {
         statsLabel.frame.size.width = max(0, usable - energyWidth - gap)
     }
 
-    /// The rendered energy text (for testing).
+    /// Test seam.
     var currentEnergyText: String { energyLabel.stringValue }
 
-    /// Kept separate and testable: the icon-plus-range string is the whole visible contract.
     static func energyText(for estimate: EnergyEstimate?) -> String {
         guard let estimate, estimate.median > 0 else { return "" }
         return "\u{26A1} " + estimate.description
     }
 
-    // NSView uses non-flipped coordinates (y=0 at bottom) by default on macOS.
-    // We override isFlipped to make it flipped (y=0 at top) so layout math is
-    // simpler for subview positioning, but we handle graph drawing manually.
+    // Flipped: y=0 at the top, so subview layout and graph coordinates are top-down.
     override var isFlipped: Bool { true }
 
     func selectWindow(at index: Int) {
@@ -134,12 +117,10 @@ final class UsageGraphView: NSView {
             userSelectedIndex = false
         }
 
-        // Default selected: highest warning level. On tie, first (shortest duration).
-        // Only auto-select if user hasn't manually chosen.
+        // Ties go to the first entry, the shortest window.
         if !userSelectedIndex {
             selectedIndex = highestWarningIndex(analyses: analyses)
         } else {
-            // Clamp in case count decreased
             selectedIndex = max(0, min(selectedIndex, analyses.count - 1))
         }
 

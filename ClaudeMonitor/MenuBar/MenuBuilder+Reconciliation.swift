@@ -48,11 +48,7 @@ extension MenuBuilder {
         }
     }
 
-    /// Pushes AppKit's highlight decision into the view-based usage rows: at most one row is
-    /// highlighted, `nil` clears every row. Driven by `NSMenuDelegate.menu(_:willHighlight:)`,
-    /// which reports mouse hover and keyboard navigation alike, and by `menuDidClose` — a closed
-    /// menu has no highlighted row. See `UsageRowView.isHighlighted` for why the rows cannot
-    /// track this themselves.
+    /// Rows can't track their own highlight; see `UsageRowView.isHighlighted`.
     static func syncHighlight(in menu: NSMenu, highlighted item: NSMenuItem?) {
         for menuItem in menu.items {
             (menuItem.view as? UsageRowView)?.isHighlighted = menuItem === item

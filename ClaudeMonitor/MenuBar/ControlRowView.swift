@@ -2,28 +2,21 @@ import AppKit
 
 /// The "Updated / Interval / Next" line under the Services section.
 ///
-/// The three readings are separate labels laid out across the row's real width — leading one on
-/// the inset, trailing one on the inset, middle one centred. They used to be a single string
-/// padded with literal spaces, which only lined up at one menu width: the menu is as wide as its
-/// widest item, so anything wider than this row left a gap on the right. Fixed padding could not
-/// survive thirty languages either ("Zaktualizowano:" against "Updated:").
+/// Separate labels rather than one space-padded string: padding lines up at only one menu width,
+/// and the menu is as wide as its widest item.
 final class ControlRowView: NSView {
     private static let edgePadding: CGFloat = MenuBuilder.rowTrailingInset
     private static let rowHeight: CGFloat = 22
-    /// Smallest gap kept between neighbouring readings before the row stops centring the middle
-    /// one and just spaces all three evenly.
     private static let minimumGap: CGFloat = 12
 
-    /// Monospaced digits: the readings carry clock times that change on every refresh, and in a
-    /// proportional font each redraw would shift the columns by a fraction of a point.
+    /// Monospaced digits: clock times change on every refresh, and proportional digits would shift the columns.
     private static let font = NSFont.monospacedDigitSystemFont(
         ofSize: NSFont.menuFont(ofSize: 0).pointSize, weight: .regular
     )
 
     private var labels: [NSTextField] = []
 
-    /// The readings currently on screen, so a rebuilt row can hand them to the live one during
-    /// reconciliation without going through the joined title.
+    /// Lets reconciliation copy a rebuilt row's readings without going through the joined title.
     var segments: [String] { labels.map(\.stringValue) }
 
     convenience init(title: String) {
@@ -44,8 +37,6 @@ final class ControlRowView: NSView {
         update(segments: [title])
     }
 
-    /// Replaces the readings. Rebuilds the labels only when their count changes — the usual case
-    /// is the same three readings with new values, which is a text assignment and a relayout.
     func update(segments: [String]) {
         guard segments.count == labels.count else {
             setSegments(segments)
@@ -61,8 +52,7 @@ final class ControlRowView: NSView {
     private func setSegments(_ segments: [String]) {
         labels.forEach { $0.removeFromSuperview() }
         labels = segments.map(Self.makeLabel)
-        // Direct subviews, deliberately: no stack view. The row's tests reach for the first
-        // NSTextField among `subviews`, and a container would hide every label from them.
+        // Direct subviews, no stack view: tests look for the labels among `subviews`.
         labels.forEach(addSubview)
         resizeToFit()
         needsLayout = true
@@ -75,8 +65,7 @@ final class ControlRowView: NSView {
         return label
     }
 
-    /// Keeps the view at least as wide as its content needs, which is what makes the menu itself
-    /// wide enough for the longest translation. The row grows past this when another item is wider.
+    /// Sets the row's minimum width from its content, so the menu fits the longest translation.
     private func resizeToFit() {
         let content = widths().reduce(0, +) + Self.minimumGap * CGFloat(max(labels.count - 1, 0))
         frame.size.width = max(frame.width, Self.edgePadding * 2 + content)
@@ -110,8 +99,6 @@ final class ControlRowView: NSView {
         labels[1].frame.origin.x = centredMiddleX(widths: widths)
     }
 
-    /// Centres the middle reading in the row, unless doing so would crowd a neighbour — then the
-    /// three readings share the leftover space evenly instead.
     private func centredMiddleX(widths: [CGFloat]) -> CGFloat {
         let centred = (bounds.width - widths[1]) / 2
         let leftEdge = Self.edgePadding + widths[0] + Self.minimumGap

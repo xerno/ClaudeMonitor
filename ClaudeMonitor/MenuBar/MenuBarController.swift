@@ -73,10 +73,8 @@ final class MenuBarController: NSObject, MenuActions {
         }
         if let menu = statusItem.menu {
             if isMenuOpen {
-                // Lightweight update — only values, no structural changes outside the usage rows
                 usageCache = MenuBuilder.updateExistingItems(menu: menu, state: state, target: self)
             } else {
-                // Full rebuild — can add/remove items, reorder, etc.
                 usageCache = MenuBuilder.populate(menu: menu, state: state, target: self)
             }
         }
@@ -155,9 +153,8 @@ extension MenuBarController: NSMenuDelegate {
     func menuDidClose(_ menu: NSMenu) {
         isMenuOpen = false
         applyUIUpdates()
-        // Not merely defensive: closing the menu after clicking a row is a path where AppKit
-        // never reports the highlight going away, so the row would stay lit until it is hovered
-        // and left again — the views outlive the menu session.
+        // A row click that closes the menu never reports the highlight going away, and the views
+        // outlive the menu session, so the row would stay lit.
         MenuBuilder.syncHighlight(in: menu, highlighted: nil)
         MenuBuilder.resetFooterHover(in: menu)
         updateCountdownState()

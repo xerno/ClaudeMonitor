@@ -30,9 +30,7 @@ enum StatusBarRenderer {
             return
         }
         if let blockedUntil = Formatting.blockingLimit(usage) {
-            // Turned off, the whole title goes — icon only. The countdown is not lost: the
-            // dropdown's badge carries it, and the countdown timer keeps running regardless,
-            // because it is also what asks for a refresh once the block expires.
+            // The countdown timer runs even with the title off: it also asks for a refresh once the block expires.
             button.attributedTitle = showBlockedCountdown
                 ? blockedTitle(blockedUntil: blockedUntil)
                 : NSAttributedString()

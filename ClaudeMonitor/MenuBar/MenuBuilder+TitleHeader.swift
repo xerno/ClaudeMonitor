@@ -1,8 +1,6 @@
 import AppKit
 
-/// The pill on the right of the dropdown's title block: a coloured dot and a short status phrase.
-/// Absent when there is nothing to report — its mere presence is the signal, which saves inventing
-/// and translating a neutral resting phrase.
+/// Presence is the signal: no neutral resting phrase to translate.
 struct HeaderBadge {
     let text: String
     let dotColor: NSColor
@@ -12,7 +10,6 @@ extension MenuBuilder {
     private static let titleHeaderHeight: CGFloat = 34
     private static let titleGlyphSize: CGFloat = 20
     private static let titleGlyphGap: CGFloat = 8
-    /// Gap kept between the switcher and whatever sits to its left.
     private static let titleToggleClearance: CGFloat = 16
 
     private static let badgeHeight: CGFloat = 20
@@ -23,9 +20,6 @@ extension MenuBuilder {
 
     static let titleFont = NSFont.systemFont(ofSize: NSFont.systemFontSize + 1, weight: .semibold)
 
-    /// The dropdown's top row: the mark, the app name, the account switcher, and the status badge.
-    /// Replaces the old grey "Usage … Claude Monitor" line — the section word is gone, the usage
-    /// rows sit directly under the title.
     static func makeTitleHeaderView(
         title: String,
         badge: HeaderBadge? = nil,
@@ -86,8 +80,6 @@ extension MenuBuilder {
         return view
     }
 
-    /// Lays out the right-hand side, right to left: the switcher owns the trailing edge and the
-    /// badge tucks in beside it. Both stay pinned to that edge as the menu widens.
     private static func addTrailingCluster(
         to view: NSView, width: CGFloat, badge: NSView?, toggle: AccountToggleView?
     ) {
@@ -161,17 +153,13 @@ extension MenuBuilder {
 }
 
 extension MenuBuilder {
-    /// The app's own name, shown as the dropdown's title. Deliberately not localized — it is the
-    /// product name, same as in the About and Preferences window titles.
+    /// Not localized: it is the product name.
     static let appTitle = Constants.Menu.appTitle
 
-    /// "All systems operational" — its own green is the whole signal, no dot beside it.
     static var servicesOperationalSubtitle: String {
         String(localized: "services.all_operational", bundle: .module)
     }
 
-    /// The dropdown's top row. Replaces the old "Usage" section header: the reference design drops
-    /// the section word and puts the usage rows straight under the title.
     static func usageHeaderItem(state: MonitorState, target: any MenuActions) -> NSMenuItem {
         let item = NSMenuItem(title: appTitle, action: nil, keyEquivalent: "")
         item.isEnabled = false
@@ -184,9 +172,7 @@ extension MenuBuilder {
         return item
     }
 
-    /// The status badge, or `nil` while nothing is blocked. No time in it on purpose — the row
-    /// right below already carries "resets in …", and the badge is only redrawn on a poll, so a
-    /// countdown here would sit up to five minutes stale.
+    /// No countdown on purpose: the badge is redrawn only on a poll, so it would be up to five minutes stale.
     static func usageBadge(state: MonitorState) -> HeaderBadge? {
         guard Formatting.blockingLimit(state.usage.currentUsage) != nil else { return nil }
         return HeaderBadge(

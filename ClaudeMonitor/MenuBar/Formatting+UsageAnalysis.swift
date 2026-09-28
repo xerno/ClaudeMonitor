@@ -71,7 +71,8 @@ extension Formatting {
         return UsageStyle(level: .normal, isBold: false)
     }
 
-        // Fallback projection using implied rate (utilization/timeElapsed). UsageHistory.project uses EMA rate when samples are available; this path runs when WindowAnalysis is not provided (e.g. tests, previews, or entries missing from analysisByKey).
+    // Implied-rate projection (utilization / timeElapsed) for callers without a `WindowAnalysis`;
+    // `UsageHistory.project` uses the EMA rate instead.
     private static func computeImpliedRateProjection(
         utilization: Int,
         resetsAt: Date,
@@ -141,14 +142,8 @@ extension Formatting {
             .max()
     }
 
-    /// Whether a critical reset just occurred, for the user-visible sound/animation.
-    ///
-    /// This intentionally does NOT re-derive a boundary from raw `resets_at` timestamps —
-    /// `UsageHistory.detectAndHandleReset` is the single source of truth for whether a
-    /// genuine window boundary occurred (see its doc comment). This function only answers
-    /// the remaining question: was the window critical right before that boundary? It looks
-    /// up each previously-computed `WindowAnalysis.style` (itself EMA/projection-based, not
-    /// a raw timestamp comparison) for the entries whose keys had a genuine boundary.
+    /// Boundaries come from `UsageHistory.detectAndHandleReset` via `genuineBoundaryKeys`, never re-derived
+    /// from raw `resets_at`; this only checks whether the window was critical just before it.
     static func detectCriticalReset(previousAnalyses: [WindowAnalysis], genuineBoundaryKeys: Set<String>) -> Bool {
         previousAnalyses.contains { genuineBoundaryKeys.contains($0.entry.key) && $0.style.isCritical }
     }

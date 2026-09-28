@@ -1,17 +1,13 @@
 import AppKit
 
 extension MenuBuilder {
-    /// Horizontal inset the dropdown's rows line up on — the header labels, the control row and the
-    /// stats row all use it, so a row that picks its own number visibly steps out of the column.
+    /// Horizontal inset, leading and trailing, that every row lines up on.
     static let rowTrailingInset: CGFloat = Constants.Menu.edgePadding
 
     static let maxDisplayLength = 40
     static let truncatedPrefixLength = 30
 
-    /// Both header labels share one shade — the section word ("Usage", "Services") and the trailing
-    /// text ("Claude Monitor", "All systems operational") read as a single row. They used to sit on
-    /// `disabledControlTextColor` and `tertiaryLabelColor`, which rendered them near-invisible and
-    /// mismatched against each other.
+    /// `disabledControlTextColor` and `tertiaryLabelColor` render these labels near-invisible.
     static let headerTextColor = NSColor.secondaryLabelColor
 
     private static let headerHeight: CGFloat = 22
@@ -67,8 +63,6 @@ extension MenuBuilder {
         return label
     }
 
-    /// The width at which both labels still clear each other. The real menu is usually wider, and
-    /// the trailing label stays pinned to the right edge of whatever width it gets.
     private static func headerMinWidth(left: NSTextField, right: NSTextField) -> CGFloat {
         rowTrailingInset + left.frame.width + Constants.Menu.headerElementSpacing
             + right.frame.width + rowTrailingInset

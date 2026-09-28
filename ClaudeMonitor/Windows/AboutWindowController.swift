@@ -210,8 +210,6 @@ final class AboutWindowController: NSWindowController, NSWindowDelegate {
         return s
     }
 
-    /// States the convention behind the menu's energy reading in full, because the reading itself is
-    /// a single number and cannot carry its own provenance.
     private static func energyExplanation(for energy: EnergyEstimate?) -> String {
         var lines = [
             "Estimated electricity used in the datacentre for the tokens in your local Claude Code "
@@ -249,8 +247,7 @@ final class AboutWindowController: NSWindowController, NSWindowDelegate {
         heading(String(localized: "about.heading.100_percent", bundle: .module), into: s)
         s.append(secondary(String(localized: "about.secondary.100_percent_explain", bundle: .module)))
 
-        // English hardcoded on purpose while the energy estimate is still provisional: a new key
-        // here means editing thirty translation files, and the wording is not settled yet.
+        // Hardcoded English: the wording is unsettled and a new key means editing every translation file.
         heading("Energy estimate", into: s)
         s.append(secondary(energyExplanation(for: energy)))
 

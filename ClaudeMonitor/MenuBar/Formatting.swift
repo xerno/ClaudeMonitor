@@ -8,19 +8,15 @@ enum Formatting {
         case weekdayHourMinute
     }
 
-    /// `Date.FormatStyle` (`.formatted(...)`) returns an EMPTY string under region-override
-    /// locales such as `en_CA@rg=czzzzz` (language English-Canada, region Czechia) — a common
-    /// macOS setup. `DateFormatter` with `setLocalizedDateFormatFromTemplate` does not have this
-    /// bug and correctly honours the region override. Do not "modernise" this back to
-    /// `Date.FormatStyle` — it will silently blank out every absolute time shown to the user.
+    /// Not `Date.FormatStyle`: it returns an empty string under region-override locales such as
+    /// `en_CA@rg=czzzzz`, which would blank every absolute time. `DateFormatter` honours the override.
     nonisolated static func absoluteTime(_ date: Date, _ style: AbsoluteTimeStyle) -> String {
         let template: String
         switch style {
         case .hourMinute: template = "jmm"
         case .hourMinuteSecond: template = "jmmss"
-        // Weekday and time, no date and deliberately no year. Usage windows run at most seven
-        // days, so the year was never information, and with it the stats row overflowed its width in
-        // every locale tested (cs 187 pt, de 212 pt, en 230 pt against 166 pt available).
+        // No date, no year: windows span at most 7 days, and with a year the stats row overflowed in
+        // every locale tested (en 230 pt vs 166 pt available).
         case .weekdayHourMinute: template = "Ejmm"
         }
         let formatter = DateFormatter()
@@ -82,7 +78,7 @@ enum Formatting {
 
         var nextCenter = intervalStart - intervalSize / 2
 
-        // Snap to just before zone transitions (match display tiers in timeUntil)
+        // Snap to just before the display-tier transitions of `timeUntil`.
         let daysToHoursThreshold: TimeInterval = TimeInterval(Constants.Time.daysHoursTierThreshold) * Constants.Time.secondsPerHour
         let minutesToSecondsThreshold: TimeInterval = 2 * 60
         if intervalSize == Constants.Time.secondsPerHour && nextCenter < daysToHoursThreshold {
@@ -118,8 +114,7 @@ enum Formatting {
         return "< 1%/d"
     }
 
-    /// When `analysis.events` is non-empty, the most recent credit's description is appended
-    /// so the row explains why the graph shows a drop that is not a window boundary.
+    /// Appends the most recent credit so the row explains a graph drop that is not a window boundary.
     static func statsLabelText(analysis: WindowAnalysis, now: Date) -> String {
         let base = statsLabelTextCore(analysis: analysis, now: now)
         guard let mostRecent = analysis.events.max(by: { $0.at < $1.at }) else { return base }
@@ -127,8 +122,7 @@ enum Formatting {
         return base.isEmpty ? credit : "\(base) · \(credit)"
     }
 
-    /// Factual, short description of a single usage-credit event — e.g. "usage credit: 32% →
-    /// 0%" — never invents a reason Anthropic granted it.
+    /// Describes the drop only; never invents a reason Anthropic granted it.
     static func creditDescription(for event: UsageEvent) -> String {
         String(format: String(localized: "graph.credit.description", bundle: .module), event.from, event.to)
     }
@@ -162,11 +156,7 @@ enum Formatting {
             return String(format: String(localized: "graph.stats.limit_unknown", bundle: .module), rateStr)
         }
 
-        // The clock time the limit is reached, and nothing else. The previous wording — "hits limit
-        // ~9h 2m before reset (at 17:44)" — was both too long for the row and misleading twice over:
-        // the duration was the margin ahead of the reset rather than the time remaining, and the
-        // bracketed time reads as the reset when it is actually when the limit lands. How long the
-        // window has left is already on screen in the usage rows above.
+        // Clock time only; the time left in the window is already in the usage rows above.
         let limitHitAt = now.addingTimeInterval(ttl)
         let isToday = Calendar.current.isDateInToday(limitHitAt)
         let key = isToday ? "graph.stats.limit_at" : "graph.stats.limit_at_date"
@@ -178,14 +168,8 @@ enum Formatting {
     static let barImageWidthWide: CGFloat = 170
     static let barImageHeight: CGFloat = 14
 
-    /// The fill a bar gets for `percent`.
-    ///
-    /// `restingAccent` is the resting colour — the same green as "All systems operational", so the
-    /// dropdown has one colour for a calm state instead of two. A window at or past
-    /// `blockedUtilization` turns red. The reference design shows a blue bar at 100%, but this app
-    /// already treats 100% as blocked
-    /// everywhere else — the menu bar title, the stats row and `UsageStyle` all agree on that —
-    /// so a calm fill on an exhausted window would be the one place contradicting the rest.
+    /// Green (`restingAccent`, shared with "All systems operational") until `blockedUtilization`, then red:
+    /// 100% means blocked everywhere else (title, stats row, `UsageStyle`), so a calm fill would contradict them.
     static func barFillColor(percent: Int) -> NSColor {
         percent >= Constants.Projection.blockedUtilization ? .systemRed : .restingAccent
     }

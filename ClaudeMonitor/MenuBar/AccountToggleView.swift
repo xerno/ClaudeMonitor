@@ -13,28 +13,18 @@ struct HeaderAccountSwitcher {
     let onSelect: (String) -> Void
 }
 
-/// Geometry and drawing for the account switcher, kept out of the view so the hit test and the
-/// tests can both measure it without a live control on screen.
-///
-/// Drawn rather than built from `NSSegmentedControl`: the control paints the selected segment with
-/// the system accent and exposes no way to colour the label. `selectedSegmentBezelColor` was tried
-/// on the running app and does nothing on the `.automatic` style — Apple documents it as honoured
-/// only "in appearances that support it" — and even where it does paint, the label stays white,
-/// which is 3.2:1 on this fill and below the readable threshold.
+/// Drawn, not an `NSSegmentedControl`: that paints the selected segment in the system accent with a
+/// white label, and `selectedSegmentBezelColor` is ignored on `.automatic`.
 @MainActor
 enum AccountTogglePill {
     static let height: CGFloat = 18
-    /// Space either side of a label inside its own segment.
     static let horizontalPadding: CGFloat = 9
     static var font: NSFont { NSFont.systemFont(ofSize: NSFont.systemFontSize(for: .small)) }
 
-    /// Track behind both segments — same treatment as the header badge, so the two read as one
-    /// family of small pills.
+    /// Same fill as the header badge.
     static var trackColor: NSColor { NSColor.quaternaryLabelColor.withAlphaComponent(0.18) }
-    /// The active segment carries the mark's coral, so the switcher and the logo are one colour.
     static var selectedFill: NSColor { ClaudeGlyph.color }
-    /// Dark label on the coral: white would be 3.2:1, this is 5.5:1. Same rule as the menu bar
-    /// badges, where a bright disc gets the dark glyph and a dark disc the white one.
+    /// Dark on coral is 5.5:1; white is 3.2:1.
     static var selectedText: NSColor { StatusBarRenderer.darkGlyph }
     static var unselectedText: NSColor { .secondaryLabelColor }
 
@@ -46,7 +36,6 @@ enum AccountTogglePill {
         NSSize(width: segmentWidths(labels).reduce(0, +).rounded(.up), height: height)
     }
 
-    /// Each segment's frame inside `rect`, left to right.
     static func segmentRects(labels: [String], in rect: NSRect) -> [NSRect] {
         var x = rect.minX
         return segmentWidths(labels).map { width in
@@ -79,7 +68,7 @@ enum AccountTogglePill {
         (text as NSString).draw(at: origin, withAttributes: attributes)
     }
 
-    /// The pill as a standalone image, so tests can count its pixels the way they count the mark's.
+    /// For pixel counting in tests.
     static func image(labels: [String], selectedIndex: Int) -> NSImage {
         NSImage(size: size(labels: labels), flipped: false) { rect in
             draw(labels: labels, selectedIndex: selectedIndex, in: rect)
@@ -90,9 +79,6 @@ enum AccountTogglePill {
 
 // MARK: - View
 
-/// Compact account switcher pinned to the trailing edge of the dropdown's title header, one segment
-/// per account, the active one filled with the mark's coral. Selecting a segment reports the chosen
-/// profile id via `onSelect`; the menu builder drives the switch from it.
 @MainActor
 final class AccountToggleView: NSView {
     private var onSelect: ((String) -> Void)?
@@ -102,8 +88,7 @@ final class AccountToggleView: NSView {
 
     private var currentLabels: [String] { currentSegments.map(\.label) }
 
-    /// The header sizes the switcher from `fittingSize`, and a view that draws itself has no
-    /// constraints to derive one from — without this it collapses to zero width and disappears.
+    /// A self-drawn view has no constraints, so without this `fittingSize` is zero and the header collapses it.
     override var intrinsicContentSize: NSSize { AccountTogglePill.size(labels: currentLabels) }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -132,9 +117,7 @@ final class AccountToggleView: NSView {
         needsDisplay = true
     }
 
-    /// Repaints itself rather than waiting for the next rebuild: while the menu is open the
-    /// reconciler only touches the rows it tracks, and the header is not one of them, so without
-    /// this the coral would not move until the menu was closed and reopened.
+    /// The reconciler skips the header while the menu is open, so `select(segmentAt:)` repaints itself.
     override func mouseUp(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
         let rects = AccountTogglePill.segmentRects(labels: currentLabels, in: bounds)

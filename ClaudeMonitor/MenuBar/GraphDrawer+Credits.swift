@@ -1,19 +1,14 @@
 import AppKit
 
 extension GraphDrawer {
-    /// The on-screen geometry of a single visible credit event's marker — computed
-    /// independently of any actual drawing so it can be unit-tested without a screen (see
-    /// `xPosition`/`yPosition`, GraphDrawer's own coordinate helpers).
+    /// Computed apart from drawing so it can be tested without a screen.
     struct CreditMarker: Equatable {
         let x: CGFloat
         let yFrom: CGFloat
         let yTo: CGFloat
     }
 
-    /// Filters `events` down to the ones falling inside `timeRange` and resolves each to plot
-    /// coordinates. An event whose `at` falls outside the visible range is dropped entirely,
-    /// never clamped to an edge — clamping would misrepresent when the credit actually
-    /// happened.
+    /// Events outside `timeRange` are dropped, not clamped to an edge: clamping would misplace the credit in time.
     func visibleCreditMarkers(in rect: NSRect, timeRange: ClosedRange<Date>) -> [CreditMarker] {
         events.filter { timeRange.contains($0.at) }.map { event in
             CreditMarker(
@@ -24,9 +19,6 @@ extension GraphDrawer {
         }
     }
 
-    /// Renders every mid-window usage credit (`UsageEvent`, see `UsageHistory.swift`) as an
-    /// explicit event marker: a full-height dashed vertical line, a vertical step at the drop
-    /// itself (never an interpolated decline), and a filled dot at the landing value.
     func drawCreditEvents(in rect: NSRect, timeRange: ClosedRange<Date>) {
         for marker in visibleCreditMarkers(in: rect, timeRange: timeRange) {
             drawCreditLine(at: marker.x, in: rect)
@@ -45,9 +37,7 @@ extension GraphDrawer {
         path.stroke()
     }
 
-    /// Draws the drop itself as a solid vertical segment between the pre-credit and
-    /// post-credit utilization — a deliberate step, never blended into the curve's
-    /// interpolated line, so it cannot read as gradual usage reduction.
+    /// A vertical step kept out of the interpolated curve, so the drop can't read as gradual reduction.
     private func drawCreditStep(at x: CGFloat, yFrom: CGFloat, yTo: CGFloat) {
         guard yFrom != yTo else { return }
         let path = NSBezierPath()

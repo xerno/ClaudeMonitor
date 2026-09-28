@@ -13,8 +13,6 @@ struct GraphDrawer {
         self.now = now
     }
 
-    /// Mid-window usage credit events for the selected window (see `UsageEvent`) — carried by
-    /// the selected `WindowAnalysis` itself.
     var events: [UsageEvent] {
         guard selectedIndex < analyses.count else { return [] }
         return analyses[selectedIndex].events
@@ -24,26 +22,16 @@ struct GraphDrawer {
         static let graphHeight: CGFloat = 280
         static let statsHeight: CGFloat = 20
         static let topPadding: CGFloat = 14
-        /// Space between the graph and the stats row below it. The graph draws its own labels flush
-        /// against its bottom edge — "now" sits 1 pt from it and the 0% axis label 2 pt — so a small
-        /// gap here left roughly 8 pt between two lines of live text and read as a collision rather
-        /// than as two separate rows.
+        /// The graph's own labels sit 1-2 pt from its bottom edge, so a small gap reads as two colliding lines.
         static let graphStatsGap: CGFloat = 14
         /// Keeps the stats row off the separator that follows it.
         static let bottomPadding: CGFloat = 4
         static let sidePadding: CGFloat = 12
         static let defaultWidth: CGFloat = 280
-        /// Width the energy label starts with, before there is a reading to measure. Once a reading
-        /// exists the label shrinks to fit it exactly and hands the slack to the stats text — see
-        /// `UsageGraphView.layoutStatsRow`. A fixed reserve was the wrong shape here: it has to be
-        /// sized for the widest reading in the widest language, and every point of it is taken from
-        /// the stats text, which is the part that actually runs long (Croatian overflowed by 1.8 pt
-        /// with an 84 pt reserve).
+        /// Initial width, before a reading exists to measure; `UsageGraphView.layoutStatsRow` then fits it.
         static let energyLabelWidth: CGFloat = 84
-        /// Ceiling on the energy label, so an absurd reading can never swallow the stats text.
+        /// Stops a long reading from swallowing the stats text.
         static let energyLabelMaxWidth: CGFloat = 110
-        /// Gap between the stats text and the energy estimate, so a long stats line stops short of
-        /// the number rather than running into it.
         static let statsEnergyGap: CGFloat = 6
         static let totalHeight: CGFloat = topPadding + graphHeight + graphStatsGap + statsHeight + bottomPadding
         static let noDataHeight: CGFloat = 0
@@ -75,12 +63,8 @@ struct GraphDrawer {
         static let gapDashPattern: [CGFloat] = [4, 3]
 
         // MARK: - Credit events
-        // A distinct dash pattern (finer/denser than inferred [2,2], projection/gap [4,3],
-        // and sustainable-pace [3,3]) plus a dedicated color (systemPurple — unused by any
-        // other decoration) so a mid-window usage credit can never be mistaken for a window
-        // boundary, a gap, or a projection/threshold line. systemPurple is a dynamic system
-        // catalog color, matching the existing pattern (systemBlue/systemRed/systemOrange)
-        // for automatic light/dark appearance adaptation.
+        // Dash pattern and colour are used by no other decoration, so a credit can't be mistaken for a
+        // window boundary, gap, projection or threshold line.
         static let creditColor: NSColor = .systemPurple
         static let creditLineDashPattern: [CGFloat] = [1, 2]
         static let creditLineWidth: CGFloat = 1
@@ -89,44 +73,20 @@ struct GraphDrawer {
         static let creditDotRadius: CGFloat = 3
     }
 
-    /// The graph's x-axis domain: exactly the window's own duration, ending at `resetsAt`.
-    ///
-    /// Deliberately does NOT widen to include samples that fall outside the window — a stored
-    /// sample predating `resetsAt - duration` (a data-layer window-boundary-detection question,
-    /// tracked separately) must never stretch the axis backwards. Doing so was the reported
-    /// defect: a 5-hour window's axis measured 7.5 hours because of a single pre-window sample,
-    /// which misplaced "now" at 40% of the axis instead of the correct 10%.
+    /// The window's own duration ending at `resetsAt`. Never widened to fit out-of-window samples:
+    /// a stray pre-window sample would stretch the axis backwards and misplace "now".
     nonisolated static func timeRange(resetsAt: Date, duration: TimeInterval) -> ClosedRange<Date> {
         resetsAt.addingTimeInterval(-duration)...resetsAt
     }
 
-    /// Filters a tracked/inferred segment's samples down to the ones that actually fall inside
-    /// `timeRange`. `xPosition`/`yPosition` saturate at the rect edges, so plotting an
-    /// out-of-domain sample unfiltered does not extend the curve off-screen — it silently
-    /// relocates that sample's real value onto `rect.minX`/`rect.maxX` as though it had been
-    /// observed at the window's own start. On the user's real data this produced a false
-    /// anchor point at 0% glued to `windowStart` (from samples recorded hours earlier, while
-    /// idle, before the window existed), dragging a curve down to it that the user never
-    /// actually experienced inside the window; with more varied pre-window values it would
-    /// instead stack multiple distinct utilizations onto that same edge x-coordinate. Filtering
-    /// first means a segment straddling the domain boundary simply starts (or ends) at its
-    /// first (or last) genuinely in-window sample — never fabricated, never collapsed onto an
-    /// edge. `buildSegmentPaths` already degrades safely (empty paths) when fewer than 2
-    /// samples remain.
+    /// `xPosition` clamps to the rect edges, so an out-of-domain sample would be plotted on the edge
+    /// as though observed at the window's start or reset. Filter first.
     nonisolated static func plottableSamples(_ samples: [UtilizationSample], in timeRange: ClosedRange<Date>) -> [UtilizationSample] {
         samples.filter { timeRange.contains($0.timestamp) }
     }
 
-    /// A gap segment (`SampleSegment.kind == .gap`) clipped to `timeRange`. `hatchStart`/
-    /// `hatchEnd` are always in-domain and always present when the gap is visible at all —
-    /// a gap means "the app was not running," and that remains true up to the window's own
-    /// edge even when the recorded `before`/`after` sample lies outside it, so the hatch is
-    /// drawn from the domain edge. `line` is the sloped dashed marker connecting the two real
-    /// sample values, and is present ONLY when both samples are themselves inside the domain:
-    /// drawing it from an edge would plot an out-of-domain sample's utilization as though it
-    /// had been observed at `windowStart`/`resetsAt`, which it was not. This deliberately does
-    /// NOT fabricate a sample at the edge to anchor the line — the project's rule is that a
-    /// gap is a discontinuity, never an interpolation.
+    /// `line` exists only when both samples are in-domain: anchoring it at an edge would plot an
+    /// out-of-domain value as observed there. No edge sample is fabricated; a gap is a discontinuity.
     struct ClippedGap: Equatable {
         let hatchStart: Date
         let hatchEnd: Date
@@ -142,8 +102,6 @@ struct GraphDrawer {
         }
     }
 
-    /// Returns `nil` when the gap is entirely outside `timeRange` (nothing to draw); otherwise
-    /// the clipped hatch bounds and, when both endpoints are in-domain, the dashed line.
     nonisolated static func clipGapSegment(
         before: UtilizationSample, after: UtilizationSample, in timeRange: ClosedRange<Date>
     ) -> ClippedGap? {

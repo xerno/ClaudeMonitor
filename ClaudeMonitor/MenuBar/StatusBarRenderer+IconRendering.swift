@@ -1,24 +1,18 @@
 import AppKit
 
-/// A menu-bar status icon: the SF Symbol plus the colours its layers are drawn in.
-///
-/// Badge symbols (`checkmark.circle.fill`, `xmark.circle.fill`, `exclamationmark.triangle.fill`, …)
-/// carry two layers — the inner glyph and the enclosing shape — so they need two palette colours.
-/// Painting both layers in one colour hides the glyph entirely (a green checkmark on a green disc).
-/// Symbols with no enclosing shape (`wrench.and.screwdriver.fill`, whose layers are the wrench and
-/// the screwdriver) leave `glyph` nil and are drawn in a single colour.
+/// Badge symbols have two layers (inner glyph, enclosing shape) and need two palette colours:
+/// one colour for both would hide the glyph.
 struct StatusIcon {
     let symbolName: String
-    /// Colour for the inner glyph layer; nil draws the whole symbol in `color`.
+    /// nil draws the whole symbol in `color`.
     let glyph: NSColor?
-    /// Colour for the enclosing shape — the whole symbol when `glyph` is nil.
     let color: NSColor
 }
 
 extension StatusBarRenderer {
-    /// Glyph colour for dark badges (green, red): a white checkmark / cross reads clearly.
+    /// Glyph on dark badges (green, red).
     static let lightGlyph = NSColor.white
-    /// Glyph colour for bright badges (yellow, orange), where white would wash out.
+    /// Glyph on bright badges (yellow, orange); white would wash out.
     static let darkGlyph = NSColor(calibratedWhite: 0.10, alpha: 1.0)
 
     static let blockedOctagon: NSImage? = {
@@ -30,9 +24,7 @@ extension StatusBarRenderer {
         return configured
     }()
 
-    /// The healthy "running" indicator: a white checkmark on a calm green disc. The green is darker
-    /// than `.systemGreen` so it sits quietly in the menu bar while still carrying a legible white
-    /// checkmark (≈4.3:1 contrast).
+    /// Darker than `.systemGreen` to sit quietly in the menu bar; the white checkmark still reads at ≈4.3:1.
     static let healthyIcon = StatusIcon(
         symbolName: "checkmark.circle.fill",
         glyph: lightGlyph,
@@ -59,7 +51,7 @@ extension StatusBarRenderer {
         case .degradedPerformance:
             return StatusIcon(symbolName: "exclamationmark.circle.fill", glyph: darkGlyph, color: .systemYellow)
         case .underMaintenance:
-            // No enclosing shape to sit inside, so it stays a single-colour symbol.
+            // No enclosing shape, so single-colour.
             return StatusIcon(symbolName: "wrench.and.screwdriver.fill", glyph: nil, color: .systemBlue)
         case .operational, .unknown:
             return Self.healthyIcon

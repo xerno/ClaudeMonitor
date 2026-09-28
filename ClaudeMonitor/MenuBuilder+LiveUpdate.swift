@@ -1,16 +1,8 @@
 import AppKit
 
-/// Lightweight menu updates for when menu is open.
-/// Updates only values of existing items without changing structure outside the usage rows.
 extension MenuBuilder {
-    
-    /// Update existing menu items without structural changes outside the usage rows.
-    /// - Parameters:
-    ///   - menu: The menu to update
-    ///   - state: Current monitor state
-    ///
-    /// Use this when the menu is open to avoid visual glitches from rebuilding.
-    /// This updates only the values/content of existing items.
+
+    /// For an open menu: updates values in place, since a rebuild glitches it. Only usage rows change structure.
     @discardableResult
     static func updateExistingItems(menu: NSMenu, state: MonitorState, target: (any MenuActions)? = nil) -> UsageCache {
         let cache = updateUsageRows(in: menu, state: state, target: target)

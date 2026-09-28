@@ -4,24 +4,19 @@ extension MenuBuilder {
     private static let menuFont = NSFont.menuFont(ofSize: 0)
     private static let boldMenuFont = NSFontManager.shared.convert(menuFont, toHaveTrait: .boldFontMask)
 
-    // Vertical offset that visually centers the bar attachment against the menu font's cap height.
     private static let barAttachmentY: CGFloat = (menuFont.capHeight - Formatting.barImageHeight) / 2
 
-    // Bar image width + suffix "   100%" measured in boldMenuFont — the font that segment is
-    // actually drawn in. Measuring it in the regular font leaves the "resets in" column short
-    // of where the percentage ends, and the two columns drift apart.
+    // Measured in boldMenuFont, the font the percentage is drawn in; the regular font leaves the
+    // "resets in" column short of where the percentage ends.
     static func barPercentWidth(_ barWidth: CGFloat = Formatting.barImageWidth) -> CGFloat {
         let suffixStr = NSAttributedString(string: "   100%", attributes: [.font: boldMenuFont])
         return barWidth + suffixStr.size().width
     }
 
-    /// Attributes for a value the eye should land on — the window label, the percentage, the
-    /// countdown. Everything else in the row is deliberately quieter.
     private static func valueAttrs(_ style: NSParagraphStyle) -> [NSAttributedString.Key: Any] {
         [.font: boldMenuFont, .paragraphStyle: style, .foregroundColor: NSColor.labelColor]
     }
 
-    /// Attributes for the row's connecting words ("resets in"), which carry no value.
     private static func captionAttrs(_ style: NSParagraphStyle) -> [NSAttributedString.Key: Any] {
         [.font: menuFont, .paragraphStyle: style, .foregroundColor: NSColor.secondaryLabelColor]
     }
@@ -91,8 +86,6 @@ extension MenuBuilder {
         return text
     }
 
-    /// The three readings of the status line, separately — `ControlRowView` spaces them across the
-    /// row's real width instead of relying on padding baked into one string.
     static func updatedNextSegments(lastRefreshed: Date, interval: TimeInterval?) -> [String] {
         let updated = String(format: String(localized: "menu.updated", bundle: .module),
                              Formatting.absoluteTime(lastRefreshed, .hourMinuteSecond))
@@ -105,8 +98,7 @@ extension MenuBuilder {
         return [updated, intervalLabel, nextLabel]
     }
 
-    /// The same readings as one string, for `NSMenuItem.title` — the accessibility label and the
-    /// fallback when the item has no view. The layout no longer depends on this spacing.
+    /// For `NSMenuItem.title`: the accessibility label and the fallback when the item has no view.
     static func updatedNextTitle(lastRefreshed: Date, interval: TimeInterval?) -> String {
         updatedNextSegments(lastRefreshed: lastRefreshed, interval: interval)
             .joined(separator: "        ")

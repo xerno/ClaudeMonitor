@@ -4,7 +4,7 @@ import AppKit
 enum WindowManager {
     static func bringToFront(_ window: NSWindow?) {
         NSApp.setActivationPolicy(.regular)
-        // Defer past the current run loop so the menu's dismissal sequence completes before we grab focus.
+        // Deferred so the menu's dismissal completes before we grab focus.
         DispatchQueue.main.async {
             window?.level = .floating
             window?.makeKeyAndOrderFront(nil)

@@ -73,8 +73,6 @@ extension MenuBuilder {
         items.append(separator(tag: separatorAfterServicesTag))
         items.append(contentsOf: controlItems(state: state))
 
-        // The action items (Refresh / Preferences / About / Quit) sit in a footer bar of their own,
-        // each firing directly on click — see `footerActionsItem`.
         items.append(separator(tag: separatorControlsTag))
         items.append(footerActionsItem(target: target))
         items.append(contentsOf: shortcutItems(target: target))

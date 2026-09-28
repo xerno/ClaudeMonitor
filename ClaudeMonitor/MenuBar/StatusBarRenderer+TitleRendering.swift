@@ -34,7 +34,6 @@ extension StatusBarRenderer {
         let parts = NSMutableAttributedString()
         let analysisByKey = Dictionary(uniqueKeysWithValues: windowAnalyses.map { ($0.entry.storageIdentity, $0) })
 
-        // Pre-compute desaturated variants once when stale to avoid repeated HSL conversion per window.
         let theme = ColorTheme(
             label: isStale ? NSColor.labelColor.desaturatedForStale() : NSColor.labelColor,
             orange: isStale ? NSColor.systemOrange.desaturatedForStale() : NSColor.systemOrange,
@@ -81,7 +80,6 @@ extension StatusBarRenderer {
             if let analysis = analysisByKey[entry.storageIdentity] {
                 shouldShow = Formatting.shouldShowInMenuBar(projectedAtReset: analysis.projectedAtReset)
             } else {
-                // Fallback for usageTitle's default windowAnalyses: [] (tests, previews). Production callers always provide populated analyses.
                 shouldShow = Formatting.shouldShowInMenuBar(
                     utilization: entry.window.utilization,
                     resetsAt: entry.window.resetsAt,
@@ -110,7 +108,6 @@ extension StatusBarRenderer {
         if let analysis = analysisByKey[key] {
             style = analysis.style
         } else {
-            // Fallback for usageTitle's default windowAnalyses: [] (tests, previews). Production callers always provide populated analyses.
             style = Formatting.usageStyle(
                 utilization: window.utilization,
                 resetsAt: window.resetsAt,

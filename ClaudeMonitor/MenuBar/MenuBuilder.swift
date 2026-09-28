@@ -19,21 +19,17 @@ struct UsageCache {
 
 @MainActor
 enum MenuBuilder {
-    // Usage items
     static let usageSectionTag = 10
     static let usageBaseTag = 100
     static let usagePlaceholderTag = 199
 
-    // Services items
     static let servicesSectionTag = 20
     static let serviceBaseTag = 300
     static let servicesPlaceholderTag = 310
 
-    // Incidents items
     static let incidentsSectionTag = 30
     static let incidentBaseTag = 400
 
-    // Controls items
     static let updatedTag = 200
     static let historyHealthTag = 210
     static let footerActionsTag = 600
@@ -41,12 +37,9 @@ enum MenuBuilder {
     static let preferencesTag = 602
     static let quitTag = 604
 
-    // Graph view
     static let usageGraphTag = 700
 
-    // Connectivity banner
     static let connectivityBannerTag = 50
-    // Separators
     static let separatorAfterUsageTag = 501
     static let separatorAfterServicesTag = 502
     static let separatorIncidentsTag = 503
