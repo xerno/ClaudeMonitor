@@ -3,10 +3,8 @@ import Foundation
 import IOKit
 import Security
 
-/// Encrypted credential storage using UserDefaults + AES-GCM.
-/// Encryption key is derived from the machine's hardware UUID,
-/// so the data is unreadable on other machines or by simple plist readers.
-/// Can be swapped to Keychain when the app is properly code-signed.
+/// Encryption key derives from the hardware UUID: data is unreadable on other machines or by plist readers.
+/// Stands in for the Keychain until the app is code-signed.
 nonisolated enum EncryptedDefaultsService {
     nonisolated(unsafe) private static let defaults = UserDefaults.standard
 

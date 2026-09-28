@@ -14,8 +14,7 @@ final class DataCoordinator {
     private var histories: [String: UsageHistory] = [:]
     var statusPollTask: Task<Void, Never>?
     var demoRotationIndex = 0
-    /// Reads Claude Code's local logs on its own cadence — see EnergyMonitor for why it is not on
-    /// the network poll. Never started from here; MenuBarController starts it at launch.
+    /// Not on the network poll; MenuBarController starts it, never the coordinator.
     let energyMonitor: EnergyMonitor
     var demoFrame: DemoData.DemoFrame?
     var demoWindowAnalyses: [WindowAnalysis] = []

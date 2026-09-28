@@ -28,14 +28,10 @@ struct PollingScheduler {
             || usageState.consecutiveFailures >= Constants.Retry.failureThreshold {
             let statusRetry = retryInterval(for: statusState)
             let usageRetry = retryInterval(for: usageState)
-            // When both failures are non-retryable (e.g. authFailure/permanent), both retry
-            // intervals are nil AND both services are at the failure threshold. In that case,
-            // floor the interval at baseInterval to avoid polling faster than intended —
-            // this path only applies to non-retryable failures; transient/rateLimited failures
-            // use their own backoff and may return intervals below baseInterval.
-            // Note: retryInterval(for:) also returns nil when a service is below the threshold
-            // (healthy), so we must check consecutiveFailures explicitly to avoid conflating a
-            // healthy service with a non-retryable failure.
+            // Both non-retryable (auth/permanent): floor at baseInterval. Transient/rate-limited
+            // backoff may go below it.
+            // The failure count is checked too because retryInterval(for:) is also nil for a
+            // healthy service.
             let statusNonRetryable = statusState.consecutiveFailures >= Constants.Retry.failureThreshold && statusRetry == nil
             let usageNonRetryable = usageState.consecutiveFailures >= Constants.Retry.failureThreshold && usageRetry == nil
             if statusNonRetryable && usageNonRetryable {
@@ -89,9 +85,6 @@ struct PollingScheduler {
         )
 
         let computed = max(Constants.Polling.minInterval, min(desired, upperBound))
-        // When a general window is blocked, utilization won't change until reset.
-        // Floor the interval at blockedBaseInterval so we don't waste API quota;
-        // the post-reset 1s snap in nextPollInterval handles recovery automatically.
         let generalBlocked = Formatting.hasBlockingGeneralWindow(windowAnalyses.map(\.entry))
         effectivePollingInterval = generalBlocked
             ? max(computed, Constants.Polling.blockedBaseInterval)

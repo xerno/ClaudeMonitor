@@ -38,11 +38,7 @@ final class AccountMonitor {
         self.usageService = usageService
         self.systemIdleProvider = systemIdleProvider
         self.pathMonitor = pathMonitor
-        // Runs pruneArchives() once at launch and then on Constants.History.pruneInterval
-        // thereafter, independent of network/credential state — pruning is calendar-driven and
-        // has nothing to do with whether a fetch ever succeeds. This is in addition to (not a
-        // replacement for) the existing prune-after-detected-boundary call in
-        // detectAndStoreResets, which now runs far more often than that alone did.
+        // Not tied to fetch success: retention is calendar-driven.
         maintenanceTask = Task { [weak self, usageHistory] in
             await self?.runLegacyArchiveMigrationAndPrune()
             while !Task.isCancelled {
@@ -79,9 +75,6 @@ final class AccountMonitor {
         maintenanceTask = nil
     }
 
-    /// Migrates this organization's legacy archives, prunes retention-expired archives and
-    /// quarantine debris, and refreshes the cached quarantine count — the one-time-per-organization
-    /// history maintenance pass.
     func runLegacyArchiveMigrationAndPrune() async {
         _ = await usageHistory.migrateLegacyArchives()
         await usageHistory.pruneArchives()
@@ -93,9 +86,8 @@ extension AccountMonitor {
     func refresh(now: Date = Date()) async {
         if !pathMonitor.isSatisfied {
             scheduler.recordUsageFailure(category: .transient)
-            // Don't stamp lastFailedAt for offline ticks: the "Last update failed at HH:MM" row
-            // would advance every tick despite no real attempt being made. Stale banner already
-            // signals the problem at threshold.
+            // No lastFailedAt stamp: no attempt was made, and the "Last update failed" row would
+            // advance every tick.
             commitPollState(now: now, schedulerInterval: scheduler.nextPollInterval(usage: currentUsage))
             return
         }
@@ -106,11 +98,6 @@ extension AccountMonitor {
         if scheduler.usageState.consecutiveFailures == 0 {
             lastFailedAt = nil
         }
-        // Only a FRESH, complete usage response may drive history recording, boundary
-        // detection, and missing-window archiving — never a stale `currentUsage` retained
-        // from a previous successful cycle (see `refreshUsage()`'s doc comment). The UI may
-        // still display stale data (via `monitorState`/`currentUsage`), but stale data must
-        // never be re-recorded as if it were a fresh, confirmed-unchanged observation.
         if case .fresh(let newUsage) = outcome {
             guard isRefreshCurrent(generation: generationAtStart) else { return }
             let genuineBoundaryKeys = await detectAndStoreResets(current: newUsage.entries, at: now)
@@ -143,16 +130,10 @@ extension AccountMonitor {
         usageHistory.generation == generation
     }
 
-    /// Whether a `refreshUsage()` cycle produced a response fresh enough to drive history
-    /// recording (`.fresh`), or is merely retaining a previously-fetched value for display
-    /// while this cycle's fetch didn't happen or failed (`.stale`). `currentUsage` alone can't
-    /// express this distinction — on any non-auth failure it's left holding the PREVIOUS
-    /// successful value, so `if let newUsage = currentUsage` cannot tell a failed cycle apart
-    /// from a fresh success. Callers of `refreshUsage()` must use this return value (not
-    /// `currentUsage`) to decide whether to feed a cycle into `UsageHistory.record`,
-    /// `archiveMissingWindows`, or boundary detection — recording a stale value would
-    /// fabricate a "confirmed unchanged at now" sample that never happened, destroying gap
-    /// detection and violating `archiveMissingWindows`' documented precondition.
+    /// `.stale`: the fetch failed or didn't run, and `currentUsage` may still hold the previous
+    /// success, so it can't tell the two apart. Only `.fresh` may feed `UsageHistory.record`,
+    /// `archiveMissingWindows` or boundary detection: recording stale data fabricates a
+    /// "confirmed unchanged" sample and defeats gap detection.
     enum UsageFetchOutcome: Sendable {
         case fresh(UsageResponse)
         case stale
@@ -160,10 +141,8 @@ extension AccountMonitor {
 
     func refreshUsage() async -> UsageFetchOutcome {
         guard !Task.isCancelled else { return .stale }
-        // Captured BEFORE the fetch's suspension point. `UsageHistory.generation` is bumped by
-        // `clearAll`, which is synchronous and eager, so it can complete while this fetch is
-        // suspended; an in-flight response landing afterwards would repopulate history the user
-        // had just explicitly erased.
+        // Captured before the await: `clearAll` bumps `generation` while the fetch is suspended,
+        // and a late response must not repopulate erased history.
         let generationAtFetch = usageHistory.generation
         do {
             let response = try await usageService.fetch(organizationId: organizationId, cookieString: cookie)
@@ -188,10 +167,8 @@ extension AccountMonitor {
         }
     }
 
-    /// Runs `UsageHistory`'s boundary detection per entry and returns the keys of entries
-    /// that had a genuine new-window boundary this cycle — the single authoritative signal
-    /// consumed both for archive pruning and for `Formatting.detectCriticalReset` (Task 5:
-    /// critical-reset detection no longer re-derives a boundary from raw timestamps).
+    /// Keys of entries with a genuine new-window boundary this cycle: the only boundary signal
+    /// `Formatting.detectCriticalReset` uses.
     @discardableResult
     func detectAndStoreResets(current: [WindowEntry], at now: Date) async -> Set<String> {
         var genuineBoundaryKeys: Set<String> = []
@@ -219,31 +196,13 @@ extension AccountMonitor {
 }
 
 extension AccountMonitor {
-    // Builds the infinitely-looping poll task with only a *weak* capture of self at the
-    // Task-closure level. `pollLoop()` used to be an ordinary instance method called as
-    // `self.pollLoop()`; because that call binds `self` strongly for the entire (never
-    // returning, except on cancellation) execution of the method, wrapping the outer Task
-    // in `[weak self]` did nothing to break the `self -> pollTask -> closure -> self` cycle.
-    //
-    // Here, every iteration confines its strong reference to `self` to the `do` block below —
-    // a `do` without `catch` is purely a scope in Swift, and a local's lifetime ends, by
-    // language guarantee (not merely as an ARC optimization that may or may not fire), at the
-    // closing brace of the scope it was declared in. So the strong `self` bound by `guard let
-    // self` is released right there, *before* either sleep call below ever runs — nothing
-    // used while sleeping (`cycle.delay`, `cycle.isAwayMode`, `cycle.idleProvider`) is, or
-    // refers back to, the monitor. That means the monitor is free to deallocate at
-    // any point during even a long away-mode wait, not merely once per outer cycle: the two
-    // sleep branches below never touch `self` again at all (only the plain values/existential
-    // captured into `cycle`), so the very next time this loop needs `self` — the top of the
-    // next outer iteration — a gone monitor is detected via the weak capture and the task
-    // returns for good.
+    // The strong `self` lives only in the `do` scope and is released at its brace (language guarantee,
+    // not an ARC optimization), before either sleep, so the monitor can deallocate mid-wait. A
+    // long-running method called on `self` would pin it for the whole loop and defeat `[weak self]`.
     private func spawnPollTask() -> Task<Void, Never> {
         Task { [weak self] in
             while !Task.isCancelled {
-                // Declared outside the `do` block so its value survives past it, but only ever
-                // assigned along the path that falls through to the closing brace below — the
-                // only other path (`guard let self else`) returns from this whole Task closure,
-                // so definite-initialization is satisfied without `cycle` needing to be Optional.
+                // Outlives `do`; the only other path returns, so it needn't be Optional.
                 let cycle: (delay: TimeInterval, isAwayMode: Bool, idleProvider: any SystemIdleProviding)
                 do {
                     guard let self else { return }
@@ -252,7 +211,7 @@ extension AccountMonitor {
                     self.onUpdate?()
                     let delay = self.nextPollDate.map { $0.timeIntervalSinceNow } ?? Constants.Polling.baseInterval
                     cycle = (delay, self.scheduler.isAwayMode, self.systemIdleProvider)
-                } // `self` goes out of scope here.
+                }
 
                 guard cycle.delay > 0 else { continue }
 

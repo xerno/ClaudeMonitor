@@ -2,36 +2,28 @@ import Foundation
 
 /// Reads Claude Code's session logs (`~/.claude/projects/**/*.jsonl`, one JSON object per line).
 ///
-/// Reads incrementally. A full scan of the archive takes seconds and, done naively — whole file into
-/// a `String` — peaks at 173 MB resident, which is not acceptable in a menu bar app. Streaming fixed
-/// size chunks with an `autoreleasepool` per file, and remembering a byte offset per file, brings a
-/// repeat scan down to reading only what was appended.
+/// Streams chunks: reading whole files into a `String` peaked at 173 MB resident.
 enum TokenLogReader {
     enum ParseResult: Equatable {
         case entry(TokenLogEntry)
-        /// A well-formed line that is not an assistant response — user turns, attachments, session
-        /// metadata. Fifteen of the sixteen line types in real logs.
         case notAnAssistantResponse
-        /// Unreadable JSON. Expected in normal operation, not only on corruption: Claude Code
-        /// appends to these files while the app reads them.
+        /// Expected in normal operation, not only on corruption.
         case unparsable
     }
 
     private static let assistantType = "assistant"
     private static let newline: UInt8 = 0x0A
-    /// `"usage"` — the marker every assistant response carries and nothing cheap else does.
+    /// Every assistant response line contains it.
     private static let usageMarker = Data(#""usage""#.utf8)
 
     // MARK: - Scanning
 
-    /// Reads everything appended since `state` was produced and returns the updated state.
     static func scan(directory: URL, state: TokenScanState = TokenScanState()) -> TokenScanState {
         var accumulator = TokenAccumulator(state: state)
         var offsets = state.offsets
 
         for file in logFiles(in: directory) {
-            // Without this pool the Foundation temporaries from 1000+ files accumulate until the
-            // whole scan finishes, which is what drives peak memory rather than any single file.
+            // Without the pool, Foundation temporaries from every file accumulate until the scan ends.
             autoreleasepool {
                 let key = offsetKey(for: file)
                 if let offset = readAppended(file: file, from: offsets[key] ?? 0, into: &accumulator) {
@@ -43,26 +35,20 @@ enum TokenLogReader {
         return TokenScanState(offsets: offsets, seen: accumulator.seenHashes, totals: accumulator.totals)
     }
 
-    /// The key a file's byte offset is stored under.
-    ///
-    /// Normalising is not cosmetic. `FileManager`'s enumerator hands back `/private/var/...` while a
-    /// URL built by hand from the same directory reads `/var/...`, and `resolvingSymlinksInPath`
-    /// strips `/private` rather than adding it — so the two spellings never match. Left unnormalised,
-    /// every offset lookup misses and the whole archive is silently re-read on each scan.
+    /// Normalised because `FileManager`'s enumerator yields `/private/var/...` while hand-built URLs
+    /// read `/var/...`; `resolvingSymlinksInPath` strips `/private`, so both map to one key.
+    /// Otherwise every lookup misses and each scan re-reads the whole archive.
     static func offsetKey(for file: URL) -> String {
         file.resolvingSymlinksInPath().standardizedFileURL.path
     }
 
-    /// Returns the new offset, or nil when the file could not be opened.
-    ///
-    /// The offset only ever advances to a newline. Committing a mid-line offset would resume in the
-    /// middle of a JSON object and corrupt every later read of that file.
+    /// The offset only advances to a newline: a mid-line offset would resume inside a JSON object.
     static func readAppended(file: URL, from offset: UInt64, into accumulator: inout TokenAccumulator) -> UInt64? {
         guard let handle = try? FileHandle(forReadingFrom: file) else { return nil }
         defer { try? handle.close() }
 
         guard let size = try? handle.seekToEnd() else { return nil }
-        // A file that shrank was rewritten, so the remembered offset means nothing.
+        // A shrunk file was rewritten; the stored offset is stale.
         var start = offset > size ? 0 : offset
         guard start < size else { return start }
         try? handle.seek(toOffset: start)
@@ -79,8 +65,7 @@ enum TokenLogReader {
 
             let consumed = consumeLines(in: buffer, into: &accumulator)
             start += UInt64(consumed)
-            // Whatever follows the last newline is an unterminated line: either mid-write, or a file
-            // that does not end in one. Rebasing into a fresh Data keeps the next chunk contiguous.
+            // The unterminated tail (mid-write, or no trailing newline) carries into the next chunk.
             carry = consumed == buffer.count
                 ? Data()
                 : Data(buffer[(buffer.startIndex + consumed)...])
@@ -88,14 +73,10 @@ enum TokenLogReader {
         return start
     }
 
-    /// Feeds every complete line in `buffer` to `accumulator`, returning bytes consumed including
-    /// the final newline.
+    /// Returns bytes consumed, including the last newline.
     ///
-    /// Newline and marker searches go through `memchr`/`memmem` rather than Swift loops on purpose.
-    /// The release build hid how expensive per-byte Swift is: this scan took 3.7 s built with `-O`
-    /// and 91 s with `-Onone`, which is what `install.sh` produces by default, so the app burned a
-    /// minute and a half of CPU on its first scan. Pushing the search into libc removes the
-    /// difference instead of relying on the optimiser to erase it.
+    /// `memchr`/`memmem` instead of Swift byte loops, which took 3.7 s at `-O` but 91 s at `-Onone`
+    /// (what `install.sh` builds by default).
     private static func consumeLines(in buffer: Data, into accumulator: inout TokenAccumulator) -> Int {
         var consumed = 0
         usageMarker.withUnsafeBytes { needle in
@@ -148,10 +129,8 @@ enum TokenLogReader {
               let message = decoded.message,
               let usage = message.usage else { return .notAnAssistantResponse }
 
-        // `message.id` is the primary key rather than `requestId`: it is present on strictly more
-        // lines (31 331 distinct ids vs 31 307 request ids, and 23 assistant lines carry no
-        // requestId at all). `uuid` is the last resort so a response is never counted twice merely
-        // because both ids were missing.
+        // `message.id` before `requestId`: present on more lines (23 assistant lines have no
+        // requestId). `uuid` is the last resort.
         guard let key = message.id ?? decoded.requestId ?? decoded.uuid else { return .unparsable }
 
         return .entry(TokenLogEntry(
@@ -169,10 +148,8 @@ enum TokenLogReader {
 
     // MARK: - Wire format
     //
-    // Only the fields the energy estimate needs. `iterations`, `output_tokens_details`,
-    // `cache_creation`, `service_tier` and `speed` are deliberately not decoded: `iterations` never
-    // held more than one element in real logs and its sums matched the top-level counts, so reading
-    // it could only ever double-count.
+    // `iterations` is deliberately not decoded: its sums match the top-level counts, so reading it
+    // would double-count.
 
     private struct RawLine: Decodable {
         let type: String?

@@ -10,10 +10,7 @@ enum DemoData {
         let hasRecentFailure: Bool
         let lastFailedAt: Date?
         let pollInterval: TimeInterval
-        /// Whether this frame depicts a just-happened critical-window reset, driving the
-        /// demo's reset sound/animation. Explicit per scenario — never inferred from
-        /// comparing utilization/resets_at against the previous frame (a utilization drop
-        /// alone is never a valid reset signal; see UsageHistory.detectAndHandleReset).
+        /// Set per scenario, never inferred from a utilization drop, which is not a reset signal.
         let isCriticalReset: Bool
     }
 

@@ -1,10 +1,7 @@
 import Foundation
 
-/// An energy estimate as the three quartiles its anchor actually measured.
-///
-/// Deliberately not a single number. The published per-query figures this is built on span a factor
-/// of 3.75 between quartiles, and the choice of accounting boundary spans a factor of 43 on top of
-/// that, so a single figure would claim a precision nobody has.
+/// Quartiles rather than one number: the published per-query figures span 3.75× between quartiles,
+/// and the choice of accounting boundary adds another 43×.
 struct EnergyEstimate: Equatable, Sendable {
     /// Watt-hours.
     let low: Double
@@ -14,21 +11,14 @@ struct EnergyEstimate: Equatable, Sendable {
     static let zero = EnergyEstimate(low: 0, median: 0, high: 0)
 }
 
-/// Converts token counts into estimated datacentre electricity.
+/// Whole-datacentre electricity (compute, host CPU/DRAM, idle capacity, power/cooling overhead),
+/// not silicon draw. See `Constants.Energy` for the anchor and why PUE is not applied twice.
 ///
-/// Scope: the whole datacentre — compute, host CPU and DRAM, idle capacity and power/cooling
-/// overhead — because the question being answered is what the electricity meter saw, not what the
-/// silicon drew. See `Constants.Energy` for the anchor and why PUE is not applied twice.
-///
-/// Known limitation: the anchor assumes short prompts and treats output length as the only driver.
-/// Real agentic traffic reads a very large cached context on every generated token — measured on
-/// this machine's logs, energy tracks `context × output`, and a flat per-output-token coefficient
-/// understates the total by around a third. This estimate therefore reads low for long-context work,
-/// and `TokenTotals.contextOutputProduct` is accumulated so that correction can be added without
-/// re-reading the logs.
+/// Known limitation: the anchor assumes short prompts, so long-context agentic work reads low
+/// (a flat per-output-token coefficient understates the total by ~34%).
+/// `TokenTotals.contextOutputProduct` is accumulated so a correction needs no rescan.
 enum EnergyModel {
 
-    /// Watt-hours per output token, derived from the anchor's per-query figures.
     static var whPerOutputToken: (low: Double, median: Double, high: Double) {
         (
             Constants.Energy.anchorWhPerQueryLow / Constants.Energy.anchorOutputTokensPerQuery,
@@ -57,37 +47,24 @@ enum EnergyModel {
 // MARK: - Formatting
 
 extension EnergyEstimate {
-    /// What the menu shows: the single best estimate, e.g. `~17 kWh`.
-    ///
-    /// One number rather than the quartile range it was derived from. The uncertainty here is
-    /// systematic, not random — the coefficient is a constant, so if it is wrong it is wrong by the
-    /// same factor every time and comparisons between days stay correct, which is what a menu bar
-    /// reading is actually used for. The published spread is also interquartile variation across
-    /// models and deployments rather than measurement error about this one deployment, so printing
-    /// it as this number's error bar would misrepresent what it says. The tilde marks an estimate;
-    /// `rangeDescription` carries the spread for anywhere the provenance needs stating.
-    ///
-    /// Purely numeric — no words — so it needs no localized string, which would otherwise mean
-    /// editing thirty translation files.
+    /// Best estimate only, e.g. `~17 kWh`: the error is systematic (constant coefficient), so
+    /// day-to-day comparisons hold, and the published spread is variation across models and
+    /// deployments, not an error bar for this one. Purely numeric, so it needs no localized string.
     var description: String {
         guard median > 0 else { return "0 Wh" }
         let unit = EnergyUnit.fitting(wattHours: median)
         return "~\(unit.format(median, decimals: unit.decimals(for: median))) \(unit.symbol)"
     }
 
-    /// The underlying quartile spread, e.g. `8.6–32 kWh`. Not shown in the menu; used where the
-    /// number's provenance and its uncertainty have to be stated in full.
     var rangeDescription: String {
         guard high > 0 else { return "0 Wh" }
         let unit = EnergyUnit.fitting(wattHours: high)
-        // One precision for the whole range, taken from the upper end: "8.5–32 kWh" reads as two
-        // different precisions for one quantity.
+        // Precision from the upper end for both ends; "8.5–32 kWh" would mix precisions.
         let decimals = unit.decimals(for: high)
         return "\(unit.format(low, decimals: decimals))–\(unit.format(high, decimals: decimals)) \(unit.symbol)"
     }
 }
 
-/// Unit the estimate is rendered in. Steps at 1000 so the number stays at most four digits.
 enum EnergyUnit: Equatable {
     case wattHours
     case kilowattHours
@@ -115,8 +92,7 @@ enum EnergyUnit: Equatable {
         }
     }
 
-    /// One decimal below 10, whole numbers above — a tenth of a kWh is well inside the noise once
-    /// the range itself spans a factor of nearly four.
+    /// One decimal below 10, whole numbers above; finer is inside the noise of a ~4× spread.
     func decimals(for wattHours: Double) -> Int {
         wattHours / divisor < 10 ? 1 : 0
     }

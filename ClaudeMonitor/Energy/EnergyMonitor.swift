@@ -1,11 +1,7 @@
 import Foundation
 
-/// Keeps the token-derived energy estimate current.
-///
-/// Runs on its own timer rather than riding the usage poll. That poll is network-driven: it backs
-/// off on failure, pauses when the user is away, and stops entirely when the API is unreachable.
-/// None of that applies to reading local files, and an estimate that froze because claude.ai was
-/// down would be wrong for no reason.
+/// Own loop rather than the usage poll, which backs off, pauses when the user is away and stops
+/// when claude.ai is unreachable — none of which applies to local files.
 @MainActor
 final class EnergyMonitor {
     private(set) var estimate: EnergyEstimate?
@@ -28,7 +24,7 @@ final class EnergyMonitor {
 
     // MARK: - Production locations
 
-    /// The single place the log location is constructed; callers must not build the path themselves.
+    /// The only place the log path is built.
     static var productionLogsDirectory: URL {
         URL(fileURLWithPath: NSString(string: Constants.Energy.logsDirectory).expandingTildeInPath)
     }
@@ -42,8 +38,8 @@ final class EnergyMonitor {
 
     // MARK: - Lifecycle
 
-    /// Begins scanning. Deliberately not called from `init`: a default-constructed coordinator must
-    /// not start reading hundreds of megabytes, which is exactly what the test suite does.
+    /// Not started from `init`: a default-constructed instance, as tests create, must not read
+    /// hundreds of megabytes.
     func start() {
         guard task == nil else { return }
         guardAgainstProductionUseUnderTest()
@@ -62,8 +58,7 @@ final class EnergyMonitor {
         persist()
     }
 
-    /// One scan. The file reading happens off the main actor — a cold scan of a full archive is
-    /// seconds of work and must never block the menu.
+    /// Scans off the main actor: a cold scan takes seconds and must not block the menu.
     func refresh() async {
         let directory = logsDirectory
         let previous = state
@@ -107,8 +102,6 @@ final class EnergyMonitor {
         lastPersisted = Date()
     }
 
-    /// Mirrors the guard in `UsageHistory.init`: under the project's own test runner, touching the
-    /// real logs or the real Application Support state is a bug, not a slow test.
     private func guardAgainstProductionUseUnderTest() {
         guard ProcessInfo.processInfo.environment[BuildInfo.underTestEnvVar] != nil else { return }
         if logsDirectory == Self.productionLogsDirectory || stateFile == Self.productionStateFile {

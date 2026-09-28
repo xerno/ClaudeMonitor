@@ -49,9 +49,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.mainMenu = mainMenu
     }
 
-    /// Keyboard shortcuts for Cut/Copy/Paste work through Edit menu key equivalents,
-    /// but only when the app has an active menu bar (.regular policy). Since this app
-    /// runs as .accessory most of the time, we intercept ⌘X/C/V/A/Z directly.
+    /// Edit menu key equivalents only work under the .regular policy; the app is mostly
+    /// .accessory, so ⌘X/C/V/A/Z are intercepted directly.
     private func setupEditingShortcuts() {
         eventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
             guard event.modifierFlags.contains(.command) else { return event }

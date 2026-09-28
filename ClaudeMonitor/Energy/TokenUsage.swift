@@ -1,14 +1,9 @@
 import Foundation
 
-/// Token counts for a single API response, as Claude Code records them in its session logs.
+/// No `thinking` field on purpose: `output_tokens_details.thinking_tokens` is a subset of
+/// `output_tokens`, so counting it separately would double-count.
 ///
-/// There is no `thinking` field on purpose: `output_tokens_details.thinking_tokens` is a subset of
-/// `output_tokens`, so counting it separately would count it twice. Checked two ways — across every
-/// logged response carrying the field the ratio reaches 0.999 but never exceeds 1, and the API
-/// documents it as reporting how many of the *billed output tokens* were internal reasoning.
-///
-/// `input`, `cacheCreation` and `cacheRead` are three disjoint counters (`input_tokens` counts only
-/// uncached tokens), so the whole prompt is their sum.
+/// `input`, `cacheCreation` and `cacheRead` are disjoint (`input_tokens` counts only uncached tokens).
 struct TokenUsage: Equatable, Sendable, Codable {
     var input: Int = 0
     var cacheCreation: Int = 0
@@ -17,8 +12,6 @@ struct TokenUsage: Equatable, Sendable, Codable {
 
     var total: Int { input + cacheCreation + cacheRead + output }
 
-    /// Everything the model had to read for this response — the whole prompt, cached or not.
-    /// The energy estimate needs this as a context length, not as a billable quantity.
     var contextRead: Int { input + cacheCreation + cacheRead }
 
     static func + (lhs: TokenUsage, rhs: TokenUsage) -> TokenUsage {
@@ -37,41 +30,31 @@ struct TokenUsage: Equatable, Sendable, Codable {
 
 // MARK: - Entry
 
-/// One deduplicated API response worth of tokens.
 struct TokenLogEntry: Equatable, Sendable {
     let dedupKey: String
     let model: String
     let timestamp: Date?
     let usage: TokenUsage
 
-    /// Energy scales with the product of context length and generated tokens, because every
-    /// generated token re-reads the whole context. Measured on real traffic, treating cached tokens
-    /// as a flat per-token cost understates the total by 34% and individual responses by up to 3.8×.
+    /// Energy scales with context × output: every generated token re-reads the whole context.
     var contextOutputProduct: Int { usage.contextRead * usage.output }
 }
 
 // MARK: - Totals
 
-/// Aggregated token counts plus the bookkeeping needed to trust them.
-///
-/// `skippedDuplicates` and `unparsableLines` are surfaced rather than swallowed: both are large in
-/// real data, so a caller seeing a suspicious number can tell which one produced it.
 struct TokenTotals: Equatable, Sendable, Codable {
     var usage = TokenUsage()
     var requests = 0
     var byModel: [String: TokenUsage] = [:]
     var skippedDuplicates = 0
     var unparsableLines = 0
-    /// Σ(context × output), carried separately because it cannot be recovered from the sums above.
+    /// Σ(context × output); not recoverable from the sums above.
     var contextOutputProduct = 0
 }
 
 // MARK: - Scan state
 
-/// Deterministic 64-bit hash (FNV-1a).
-///
-/// Swift's `Hasher` is seeded per process, so `hashValue` must never be persisted: a dedup set
-/// written on one launch would match nothing on the next, and every response would be recounted.
+/// `hashValue` is seeded per process, so it cannot back the persisted dedup set.
 enum StableHash {
     static func fnv1a(_ string: String) -> UInt64 {
         var hash: UInt64 = 0xcbf2_9ce4_8422_2325
@@ -83,13 +66,10 @@ enum StableHash {
     }
 }
 
-/// What a scan needs to remember so the next one can read only what was appended.
-///
-/// Storing hashes rather than the id strings keeps this at 8 bytes per response instead of ~40.
-/// With ~32 000 responses in a 2^64 space the chance of a collision is around 3e-14, which is far
-/// below the error already carried by the energy coefficients.
+/// `seen` holds 64-bit hashes, not id strings: 8 bytes per response instead of ~40, with a
+/// collision chance around 3e-14 at ~32 000 responses.
 struct TokenScanState: Equatable, Codable, Sendable {
-    /// Bytes already consumed per log file. Only whole lines are ever counted as consumed.
+    /// Bytes consumed per log file; only ever ends after a newline.
     var offsets: [String: UInt64] = [:]
     var seen: Set<UInt64> = []
     var totals = TokenTotals()
@@ -97,11 +77,8 @@ struct TokenScanState: Equatable, Codable, Sendable {
 
 // MARK: - Accumulator
 
-/// Accumulates log lines, collapsing responses it has already counted.
-///
-/// Deduplication is not optional. Claude Code rewrites a session's history into later files, so the
-/// same response appears many times: on real logs, ~66 000 assistant lines carry only ~32 000
-/// distinct responses, and summing the raw lines overstates output tokens by 2.76×.
+/// Deduplicates because Claude Code rewrites a session's history into later files; summing raw
+/// lines overstates output tokens by 2.76×.
 struct TokenAccumulator {
     private(set) var totals: TokenTotals
     private var seen: Set<UInt64>
@@ -113,7 +90,7 @@ struct TokenAccumulator {
 
     var seenHashes: Set<UInt64> { seen }
 
-    /// Bytes that were not valid UTF-8, counted without going through `parse`.
+    /// For lines that are not valid UTF-8 and so never reach `parse`.
     mutating func noteUnparsable() {
         totals.unparsableLines += 1
     }
