@@ -6,14 +6,10 @@ source "${PROJECT_DIR}/scripts/build-config.sh"
 APP_NAME="ClaudeMonitor"
 PRODUCT="ClaudeMonitorTestRunner"
 
-# Generate Localizable.xcstrings so SPM can include it as a module resource.
-# String(localized:) in Swift 6 uses the module bundle, which SPM builds from
-# declared resources — without this file the localization falls back to raw keys.
 echo "Generating build files..."
 bash "${PROJECT_DIR}/scripts/generate-build-info.sh"
-# Pass Generated/Translations/ as second arg to also write per-language .lproj/Localizable.strings files.
-# SPM auto-discovers .lproj dirs as localized resources; Foundation reads .strings at runtime
-# (the .xcstrings JSON is not readable by Foundation without Xcode compilation).
+# The dir argument also writes .lproj files, which SPM bundles as localized resources;
+# without them String(localized:) returns raw keys.
 swift "${PROJECT_DIR}/scripts/generate-xcstrings.swift" "${PROJECT_DIR}/ClaudeMonitor/Generated/Translations"
 
 echo "Running ${APP_NAME} tests..."
@@ -24,15 +20,13 @@ BIN="$(swift build --product "${PRODUCT}" --show-bin-path)/${PRODUCT}"
 LOG="$(mktemp)"
 trap 'rm -f "${LOG}"' EXIT
 
-# UNDER_TEST_ENV_VAR (from build-config.sh) is propagated into BuildInfo.swift by
-# generate-build-info.sh; UsageHistory.init checks it to guard against production writes.
 env "${UNDER_TEST_ENV_VAR}=1" "${BIN}" 2>&1 | tee "${LOG}"
 STATUS="${PIPESTATUS[0]}"
 
 if [ "${STATUS}" -ne 0 ]; then
     echo ""
     echo "==> Failed test details:"
-    # Drop the run-summary "✘" line (no location/expectation detail); keep per-issue ones.
+    # Skip the run-summary line: it has no location or expectation detail.
     grep "✘" "${LOG}" | grep -v "^✘ Test run with " || true
 fi
 

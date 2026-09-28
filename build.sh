@@ -15,9 +15,6 @@ done
 BUILD_DIR="${PROJECT_DIR}/.build"
 BUNDLE="${BUILD_DIR}/${APP_NAME}.app"
 CONTENTS="${BUNDLE}/Contents"
-## BUNDLE_ID, APP_NAME, VERSION sourced from scripts/build-config.sh
-
-# --- Prerequisites
 
 if ! command -v swiftc &>/dev/null; then
     echo "Error: swiftc not found. Install Command Line Tools: xcode-select --install"
@@ -32,16 +29,10 @@ fi
 
 ARCH=$(uname -m)
 
-# --- Clean & prepare
-
 rm -rf "${BUILD_DIR}"
 mkdir -p "${CONTENTS}/MacOS" "${CONTENTS}/Resources"
 
-# --- 1. Generated sources
-
 bash "${PROJECT_DIR}/scripts/generate-build-info.sh"
-
-# --- 2. Compile
 
 if [ "${RELEASE}" = true ]; then
     echo "Compiling ${APP_NAME} (${ARCH}, Swift ${SWIFT_VERSION}, Release)..."
@@ -63,8 +54,6 @@ swiftc $(find "${SRC_DIR}" -name "*.swift") \
     -framework IOKit \
     -framework ServiceManagement \
     ${OPT_FLAGS}
-
-# --- 3. Info.plist
 
 cat > "${CONTENTS}/Info.plist" << PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -93,8 +82,6 @@ cat > "${CONTENTS}/Info.plist" << PLIST
 </plist>
 PLIST
 
-# --- 4. Resources
-
 SVG_SRC="${SRC_DIR}/Assets.xcassets/RefreshUsage.imageset/refresh-usage.svg"
 if [ -f "${SVG_SRC}" ]; then
     cp "${SVG_SRC}" "${CONTENTS}/Resources/RefreshUsage.svg"
@@ -105,12 +92,8 @@ if [ -f "${DEMO_SAMPLES}" ]; then
     cp "${DEMO_SAMPLES}" "${CONTENTS}/Resources/DemoSamples.json"
 fi
 
-# --- 5. Localization
-
 echo "Generating localization from Translations/..."
 swift "${PROJECT_DIR}/scripts/generate-xcstrings.swift" "${CONTENTS}/Resources"
-
-# --- 6. Code sign
 
 codesign --force --sign - "${BUNDLE}"
 

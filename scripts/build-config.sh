@@ -1,8 +1,4 @@
-# BuildConfig.sh — single source of truth for build settings.
-#
-# Sourced by: build.sh, install.sh
-# Must be kept in sync with: Xcode project (project.pbxproj), Package.swift
-# See CLAUDE.md for details.
+# Single source of truth for build settings. Keep in sync by hand: Xcode project (project.pbxproj), Package.swift.
 
 APP_NAME="ClaudeMonitor"
 BUNDLE_ID="com.dancingZdenda.ClaudeMonitor"
@@ -12,12 +8,8 @@ SWIFT_VERSION="6"
 DEFAULT_ISOLATION="nonisolated"
 UPCOMING_FEATURES="MemberImportVisibility"
 
-# Env var test.sh exports before launching the test binary. UsageHistory.init (via the
-# generated BuildInfo.underTestEnvVar) uses this to detect it's running under our own
-# test runner — see CLAUDE.md's anti-production-write guard.
+# Exported by test.sh; UsageHistory.init traps on production storage when it is set.
 UNDER_TEST_ENV_VAR="CLAUDEMONITOR_UNDER_TEST"
 
-# Opt-in env var gating IntegrationTests.swift's real-network tests (via the generated
-# BuildInfo.runIntegrationTestsEnvVar). Unset by default so ./test.sh never depends on
-# network reachability; a developer sets it explicitly to exercise the live endpoints.
+# Opt-in: enables the real-network tests in IntegrationTests.swift. Unset by default so ./test.sh never depends on the network.
 RUN_INTEGRATION_TESTS_ENV_VAR="CLAUDEMONITOR_RUN_INTEGRATION_TESTS"

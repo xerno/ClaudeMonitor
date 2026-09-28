@@ -8,21 +8,13 @@ let translationsDir = projectDir.appendingPathComponent("Translations")
 let outputPath = projectDir.appendingPathComponent("ClaudeMonitor/Generated/Translations/Localizable.xcstrings")
 let lprojDir = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : nil
 
-/// A single language's value for one key. Most keys are `.plain` — unchanged from before
-/// plural support existed. A key whose JSON value is an object instead of a string is `.plural`:
-/// its whole value IS the pluralized text (there is no surrounding literal text baked into the
-/// same key — see e.g. `prefs.retention.years_suffix`), keyed by CLDR plural category
-/// ("zero", "one", "two", "few", "many", "other"). The app supplies the count separately when
-/// resolving these keys (see PreferencesWindowController).
+/// `.plural` maps CLDR plural categories to text and is the key's entire value: no literal text can surround it.
 enum LocalizedValue {
     case plain(String)
     case plural([String: String])
 }
 
-/// Any failure while loading a Translations/*.json file: unreadable file, malformed JSON,
-/// or a value shape this format doesn't support. These must fail the whole generation run
-/// (see `loadJSON` below) rather than be silently skipped — a silently-skipped key ships
-/// with a missing translation and no diagnostic signal at all.
+/// Malformed input must fail the whole run: a silently skipped key ships untranslated with no signal.
 struct LocalizationError: LocalizedError {
     let message: String
     var errorDescription: String? { message }
@@ -54,12 +46,7 @@ func loadJSON(_ url: URL) throws -> [String: LocalizedValue] {
     return result
 }
 
-// _comments.json has no plural entries — always plain strings. Comments are optional (the file
-// legitimately doesn't have to exist — a repo with no dev comments yet is a supported state), so
-// a missing file silently yields no comments. But if the file IS present, it must be readable and
-// shaped as {key: string} like every other Translations/*.json file; a present-but-broken file
-// fails the whole run for the same reason `loadJSON` does — silently discarding comments due to a
-// malformed file would ship with no diagnostic signal at all.
+// An absent _comments.json is a supported state; a present but broken one must fail, not silently drop comments.
 func loadComments(_ url: URL) throws -> [String: String] {
     guard fm.fileExists(atPath: url.path) else { return [:] }
     guard let data = try? Data(contentsOf: url) else {
@@ -90,7 +77,6 @@ do {
 
     let allKeys = Set(languages.values.flatMap(\.keys)).sorted()
 
-    // Build xcstrings
     var strings: [String: Any] = [
         "_GENERATED": [
             "comment": "DO NOT READ OR EDIT THIS FILE. Generated from Translations/*.json by scripts/generate-xcstrings.swift. To add or change translations, edit the JSON source files and run the generate script.",
@@ -126,17 +112,13 @@ do {
     try data.write(to: outputPath)
     print("Generated xcstrings: \(allKeys.count) keys × \(languages.count) languages")
 
-    // Write .lproj/.strings (+ .stringsdict for any plural keys) for CLI builds
+    // Foundation can't read .xcstrings without Xcode compilation, so CLI builds get .lproj/.strings (+ .stringsdict for plurals).
     if let lprojDir {
         for (lang, values) in languages.sorted(by: { $0.key < $1.key }) {
             let dir = "\(lprojDir)/\(lang).lproj"
             try fm.createDirectory(atPath: dir, withIntermediateDirectories: true)
 
             var stringsOut = ""
-            // NSStringLocalizedFormatKey ("value" below) is the fixed name of this key's sole
-            // substitution variable — see the schema note on LocalizedValue.plural above: a
-            // plural key's entire value is just the substitution token, with no other literal
-            // text sharing the key.
             var stringsdictPlist: [String: Any] = [:]
             for key in allKeys {
                 guard let value = values[key] else { continue }

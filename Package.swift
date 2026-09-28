@@ -2,8 +2,7 @@
 import Foundation
 import PackageDescription
 
-// Resolve Testing framework path from the active toolchain so the framework
-// version matches the compiler (prevents SDK mismatch on CI runners).
+// From the active toolchain so the Testing framework matches the compiler (SDK mismatch on CI runners).
 let testingFrameworkPath: String = {
     let task = Process()
     task.executableURL = URL(fileURLWithPath: "/usr/bin/xcode-select")
@@ -25,7 +24,7 @@ let testingFrameworkPath: String = {
     return "/Library/Developer/CommandLineTools/Library/Developer/Frameworks"
 }()
 
-// Keep in sync with scripts/build-config.sh (single source of truth for build settings).
+// Keep in sync with scripts/build-config.sh.
 let commonSwiftSettings: [SwiftSetting] = [
     .swiftLanguageMode(.v6),
     .enableUpcomingFeature("MemberImportVisibility"),
@@ -48,12 +47,11 @@ let package = Package(
                 .process("Resources/DemoSamples.json"),
             ],
             swiftSettings: commonSwiftSettings + [
-                // Enable @testable import for the TestRunner executable target.
+                // Lets the TestRunner target use @testable import.
                 .unsafeFlags(["-enable-testing"]),
             ]
         ),
-        // TestRunner is an executable that calls Testing.__swiftPMEntryPoint() directly.
-        // On macOS 26 beta, swift test's bundle-based runner doesn't work; this bypasses it.
+        // Calls Testing.__swiftPMEntryPoint() directly: swift test's bundle-based runner doesn't work on macOS 26 beta.
         .executableTarget(
             name: "ClaudeMonitorTestRunner",
             dependencies: ["ClaudeMonitor"],

@@ -13,11 +13,7 @@ for arg in "$@"; do
     esac
 done
 
-# --- Build
-
 "${PROJECT_DIR}/build.sh"
-
-# --- Test
 
 if [ "${SKIP_TESTS}" = false ]; then
     echo ""
@@ -29,9 +25,6 @@ if [ "${SKIP_TESTS}" = false ]; then
     echo ""
 fi
 
-# --- Migrate sandbox preferences
-
-## BUNDLE_ID sourced from scripts/build-config.sh
 SANDBOX_PREFS="${HOME}/Library/Containers/${BUNDLE_ID}/Data/Library/Preferences/${BUNDLE_ID}.plist"
 REGULAR_PREFS="${HOME}/Library/Preferences/${BUNDLE_ID}.plist"
 
@@ -39,8 +32,6 @@ if [ -f "${SANDBOX_PREFS}" ] && [ ! -f "${REGULAR_PREFS}" ]; then
     echo "Migrating preferences from sandbox container..."
     cp "${SANDBOX_PREFS}" "${REGULAR_PREFS}"
 fi
-
-# --- Install & launch
 
 BUNDLE="${PROJECT_DIR}/.build/${APP_NAME}.app"
 
