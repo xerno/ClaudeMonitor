@@ -54,9 +54,6 @@ struct ServiceHealth: Sendable, Equatable {
     }
 }
 
-/// Mirrors `UsageHistory`'s persistence-failure and quarantine-count state (Defect 5/4) into
-/// the value-type state pipeline, so the menu layer can surface it without reaching into
-/// `usageHistory` directly.
 struct HistoryHealth: Sendable, Equatable {
     let lastSaveSucceeded: Bool
     let persistenceFailingSince: Date?
@@ -89,9 +86,7 @@ struct MonitorState: Sendable, Equatable {
     let polling: PollingState
     let history: HistoryHealth
     let profiles: ProfileSnapshot
-    /// Estimated datacentre electricity derived from Claude Code's local logs; nil until the first
-    /// scan finishes. Carried here rather than read from a service so the menu stays a pure
-    /// function of this value type.
+    /// Derived from Claude Code's local logs; nil until the first scan finishes.
     let energy: EnergyEstimate?
     let lastRefreshed: Date?
     let hasCredentials: Bool

@@ -60,7 +60,7 @@ enum WindowKeyParser {
         var numberValue: Int?
         var consumed = 0
 
-        // Try two-word compound number first (e.g., "twenty_four")
+        // Compound ("twenty_four") first: "twenty" alone would match and leave "four" as the unit.
         if parts.count >= 3, let tens = compoundTens[parts[0]], let ones = numberWords[parts[1]], ones < 10 {
             numberValue = tens + ones
             consumed = 2

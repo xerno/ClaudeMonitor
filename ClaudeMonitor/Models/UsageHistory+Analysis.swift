@@ -10,8 +10,7 @@ extension UsageHistory {
 
         var result: [SampleSegment] = []
 
-        // If first sample is significantly after window start, add an inferred segment
-        // from 0% (window resets to 0) to the first real sample.
+        // A window starts at 0%: bridge a late first sample with an inferred segment.
         if samples[0].timestamp > windowStart.addingTimeInterval(Constants.History.inferredSegmentMinGap) {
             let inferredStart = UtilizationSample(utilization: 0, timestamp: windowStart)
             result.append(SampleSegment(kind: .inferred, samples: [inferredStart, samples[0]]))
@@ -43,15 +42,10 @@ extension UsageHistory {
         return result
     }
 
-    /// - Parameter events: mid-window usage credits (see `UsageEvent`) for this window
-    ///   instance. A credit resets the numerator (`currentUtilization` reflects consumption
-    ///   only since the credit) without moving `resetsAt` — so measuring `timeElapsed` from
-    ///   the window's start (as if no credit had happened) would divide a post-credit
-    ///   utilization by a much-too-large denominator, producing a falsely low implied rate and
-    ///   an over-optimistic projection right when the user starts spending a newly granted
-    ///   credit. When one or more credits are present, `timeElapsed` is measured from the MOST
-    ///   RECENT credit's `at` instead of from the window start. Windows with no credits are
-    ///   unaffected — `events` defaults to empty and behavior is identical to before.
+    /// - Parameter events: usage credits. A credit lowers `currentUtilization` without moving
+    ///   `resetsAt`, so with credits `timeElapsed` is measured from the most recent credit, not
+    ///   the window start: a post-credit utilization over the full elapsed time understates the
+    ///   rate exactly when a fresh credit starts being spent.
     nonisolated static func computeRate(
         windowDuration: TimeInterval,
         currentUtilization: Int,
@@ -65,16 +59,12 @@ extension UsageHistory {
 
         let timeElapsed: TimeInterval
         if let creditAt = mostRecentCredit?.at {
-            // Floor the denominator when the rate is measured from a credit: seconds after a
-            // credit, dividing by the true (tiny) elapsed time would produce an absurd spike
-            // from a single data point (see Constants.Projection.minRateElapsedAfterCredit's
-            // doc comment).
+            // Floored: seconds after a credit, the true elapsed time would turn one data point
+            // into an absurd spike.
             timeElapsed = max(now.timeIntervalSince(creditAt), Constants.Projection.minRateElapsedAfterCredit)
         } else {
-            // No credit: identical to the original (pre-Task-2) formula — deliberately NOT
-            // rewritten in terms of `now - windowStart`, which would (unlike this) grow
-            // unbounded past `windowDuration` once `now` overtakes `resetsAt` (see
-            // `rateWhenNowIsAfterResetsAt`, which pins this exact clamping behavior).
+            // Not `now - windowStart`: that grows past `windowDuration` once `now` overtakes
+            // `resetsAt`, while this is clamped.
             timeElapsed = windowDuration - max(0, resetsAt.timeIntervalSince(now))
         }
         guard timeElapsed > 0 else { return (0, .insufficient) }
@@ -134,7 +124,7 @@ extension UsageHistory {
 
             if deltaUtil < 0 {
                 previous = current
-                continue  // treat negative delta as zero-rate tick, skip EMA update
+                continue  // utilization drop, not consumption
             }
 
             let instantaneous = deltaUtil / deltaTime
