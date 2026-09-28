@@ -28,7 +28,7 @@ struct UICompositionTests {
         @objc func didSelectProfile(id: String) {}
     }
 
-    // MARK: - Test 1: usageTitle reads style from WindowAnalysis (analysisByKey lookup path)
+    // MARK: - usageTitle reads style from WindowAnalysis (analysisByKey lookup path)
 
     @Test func usageTitleUsesStyleFromWindowAnalysisWhenProvided() {
         let now = Date()
@@ -68,7 +68,7 @@ struct UICompositionTests {
         #expect(fallbackColor == .labelColor)
     }
 
-    // MARK: - Test 2: populate → refreshTimes round-trip updates menu item titles
+    // MARK: - populate → refreshTimes round-trip updates menu item titles
 
     @Test func populateThenRefreshTimesUpdatesMenuItemTitles() {
         let now = Date()
@@ -107,7 +107,7 @@ struct UICompositionTests {
         }
     }
 
-    // MARK: - Test 3: populate called twice reconciles in place (no item count explosion)
+    // MARK: - populate called twice reconciles in place (no item count explosion)
 
     @Test func populateCalledTwiceReconcilesMutatesExistingItems() {
         let now = Date()

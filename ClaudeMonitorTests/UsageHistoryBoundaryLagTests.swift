@@ -243,7 +243,7 @@ import Testing
                 "A legacy event with unknown origin whose `at` precedes the boundary must be archived, not dropped.")
     }
 
-    // MARK: - Defect 6: a dedup-skipped observation must not stale-date a credit event's origin
+    // MARK: - A dedup-skipped observation must not stale-date a credit event's origin
 
     @Test @MainActor func dedupSkippedObservationDoesNotStaleDateACreditAcrossABoundary() async throws {
         let fixture = UsageHistoryTestFixture()
@@ -286,7 +286,7 @@ import Testing
         #expect(decoded.events.isEmpty, "The event must not end up archived either — it belongs entirely to the current window.")
     }
 
-    // MARK: - Defect 2: a straddling event against a DERIVED boundary must be kept, not dropped
+    // MARK: - A straddling event against a derived boundary is kept, not dropped
 
     @Test @MainActor func legacyReconstructionKeepsStraddlingEventAssignedByAtRatherThanDropping() async throws {
         let fixture = UsageHistoryTestFixture()

@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import ClaudeMonitor
 
-// MARK: - Task 6: legacy (v1) file deletion must never outrun a verified v2 write
+// MARK: - Legacy (v1) file deletion must never outrun a verified write
 
 @Suite @MainActor struct LegacyDeletionSafetyTests {
 
@@ -87,7 +87,7 @@ import Testing
                 "A single malformed [epoch,util] pair must fail the entire decode.")
     }
 
-    // MARK: - Defect 4: legacy-content containment must be multiset-, not set-, aware
+    // MARK: - Legacy-content containment is multiset-, not set-, aware
 
     @Test func legacyFileWithDuplicateKeyNotFullyCoveredByASingleVerifiedSampleIsPreserved() async throws {
         let fixture = UsageHistoryTestFixture()
@@ -114,7 +114,7 @@ import Testing
                 "A legacy file claiming a key TWICE must not be deleted when the verified current-format file can only back it ONCE.")
     }
 
-    // MARK: - Defect 1: clearAll()/save() quarantine handling must be deliberate, not incidental
+    // MARK: - clearAll()/save() quarantine handling is deliberate, not incidental
 
     @Test func saveOrphanSweepPreservesPreviouslyQuarantinedFile() async throws {
         let fixture = UsageHistoryTestFixture()
@@ -153,7 +153,7 @@ import Testing
     }
 }
 
-// MARK: - Defect 3: environmental write failures must never trap the process
+// MARK: - Environmental write failures never trap the process
 
 @Suite @MainActor struct UnwritableDirectoryTests {
 

@@ -22,7 +22,7 @@ extension Formatting {
         }
     }
 
-    // MARK: - usageStyle (original signature, projection-based logic)
+    // MARK: - usageStyle
 
     static func usageStyle(
         utilization: Int,
@@ -100,7 +100,7 @@ extension Formatting {
         return UsageStyle(level: .normal, isBold: false)
     }
 
-    // MARK: - shouldShowInMenuBar (original signature, projection-based logic)
+    // MARK: - shouldShowInMenuBar
 
     static func shouldShowInMenuBar(
         utilization: Int,
@@ -124,7 +124,7 @@ extension Formatting {
         projectedAtReset >= Constants.Projection.boldThreshold
     }
 
-    // MARK: - Unchanged functions
+    // MARK: - Blocking and critical-reset checks
 
     private static func isBlockingGeneralEntry(_ entry: WindowEntry) -> Bool {
         entry.modelScope == nil && entry.window.utilization >= Constants.Projection.blockedUtilization

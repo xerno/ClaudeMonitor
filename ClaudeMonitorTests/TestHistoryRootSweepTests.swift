@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import ClaudeMonitor
 
-// MARK: - Task 3: sweep must not delete a still-live run's directory
+// MARK: - Sweep must not delete a still-live run's directory
 
 // Fabricated containers, never the real one, so the real once-per-process sweep is undisturbed.
 // No teardown by design: a failed run's directories must survive for post-mortem.

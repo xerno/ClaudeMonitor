@@ -4,8 +4,7 @@ import Testing
 
 @Suite struct ResetDetectionTests {
 
-    // MARK: - Task 1: genuine boundary requires BOTH a forward move AND that the old
-    // reset moment has actually passed.
+    // MARK: - Genuine boundary requires both a forward move and that the old reset moment has passed
 
     @Test @MainActor func forwardMoveWithNowPastStoredIsGenuineBoundaryAndArchives() async throws {
         let fixture = UsageHistoryTestFixture()
@@ -96,7 +95,7 @@ import Testing
         #expect(history.samples(for: entry).count == 1)
     }
 
-    // MARK: - Task 2: stored == nil (no persisted boundary state)
+    // MARK: - stored == nil (no persisted boundary state)
 
     @Test @MainActor func unverifiedNilStoredResetsAtWithEmptySamplesIsAdopted() async {
         let fixture = UsageHistoryTestFixture()
@@ -142,7 +141,7 @@ import Testing
         #expect(archiveFiles.isEmpty, "Nothing precedes windowStart, so nothing is archived.")
     }
 
-    // MARK: - Defect 2: the GENUINE-boundary branch must report `false` when nothing archives
+    // MARK: - The genuine-boundary branch reports `false` when nothing archives
 
     /// The return value triggers critical-reset detection, so it must be false when nothing is archived.
     @Test @MainActor func genuineBoundaryWithEmptyPriorPartitionArchivesNothingAndReturnsFalse() async throws {

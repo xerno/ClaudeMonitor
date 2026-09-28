@@ -225,7 +225,7 @@ import Testing
         #expect(weeklyDecoded.samples.last == UtilizationSample(utilization: 5, timestamp: Date(timeIntervalSince1970: 1_784_241_425)))
     }
 
-    // MARK: - Defect 1: pre-existing target is verified, never trusted on existence alone
+    // MARK: - Pre-existing target is verified, never trusted on existence alone
 
     @Test func corruptTargetIsQuarantinedAndGoodLegacyDataBecomesAuthoritative_zeroLength() async throws {
         try await assertCorruptTargetIsReplacedByGoodLegacyData(corruptTargetContents: Data())
@@ -318,7 +318,7 @@ import Testing
         #expect(try Data(contentsOf: targetURL) == targetEncoded, "The target must be byte-for-byte untouched")
     }
 
-    // MARK: - Defect 1: a failed quarantine attempt must never be followed by a write/remove
+    // MARK: - A failed quarantine attempt must never be followed by a write/remove
 
     @Test func failedQuarantineOfCorruptTargetLeavesBothFilesUntouchedAndCounted() async throws {
         let fixture = UsageHistoryTestFixture()
@@ -384,7 +384,7 @@ import Testing
         #expect(contentsAfter == badContentsBefore, "The undecodable legacy file must be left byte-for-byte in place when its quarantine failed")
     }
 
-    // MARK: - Defect 2: concurrent migrateLegacyArchives() calls are coalesced, never doubled
+    // MARK: - Concurrent migrateLegacyArchives() calls are coalesced, never doubled
 
     @Test func concurrentMigrationCallsCoalesceIntoOneRun() async throws {
         let fixture = UsageHistoryTestFixture()

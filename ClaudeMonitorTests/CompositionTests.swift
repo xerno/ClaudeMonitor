@@ -22,7 +22,7 @@ import AppKit
         )
     }
 
-    // MARK: - Test 1: JSON decode → WindowKeyParser → WindowEntry → analyze → scheduler
+    // MARK: - JSON decode → WindowKeyParser → WindowEntry → analyze → scheduler
 
     @Test func testCriticalProjectionFromDecodedAPIResponse() async throws {
         let resetsAt = Date().addingTimeInterval(9000)
@@ -55,7 +55,7 @@ import AppKit
         #expect(analyses[0].projectedAtReset >= Constants.Projection.criticalThreshold)
     }
 
-    // MARK: - Test 2: WindowAnalysis accumulates history across refreshes
+    // MARK: - WindowAnalysis accumulates history across refreshes
 
     @Test func testWindowAnalysisAccumulatesHistoryAcrossRefreshes() async throws {
         let resetsAt = Date().addingTimeInterval(9000)
@@ -88,7 +88,7 @@ import AppKit
         #expect(tslc < 1.0, "timeSinceLastChange should be nearly zero (< 1s) for back-to-back refreshes; got \(tslc)s")
     }
 
-    // MARK: - Test 3: monitorState.currentPollInterval reflects scheduler state
+    // MARK: - monitorState.currentPollInterval reflects scheduler state
 
     @Test func testMonitorStateCurrentPollIntervalReflectsSchedulerState() async throws {
         let fixture = UsageHistoryTestFixture()
@@ -104,7 +104,7 @@ import AppKit
         #expect(state.polling.currentPollInterval! == monitor.scheduler.effectivePollingInterval)
     }
 
-    // MARK: - Test 4: usageTitle always shows first entry regardless of projection
+    // MARK: - usageTitle always shows first entry regardless of projection
 
     @Test func testUsageTitleAlwaysShowsFirstEntryRegardlessOfProjection() {
         let resetsAt = Date().addingTimeInterval(18000 * 0.95)
@@ -123,7 +123,7 @@ import AppKit
         #expect(color == .labelColor)
     }
 
-    // MARK: - Test 5: Scheduler cooldown from real WindowAnalysis with stable history
+    // MARK: - Scheduler cooldown from real WindowAnalysis with stable history
 
     @Test func testSchedulerCooldownFromRealAnalysis() {
         let now = Date()
@@ -155,7 +155,7 @@ import AppKit
         #expect(scheduler.effectivePollingInterval == Constants.Polling.maxIdleInterval)
     }
 
-    // MARK: - Test 5b: Scheduler cooldown mid-ramp is strictly between bounds
+    // MARK: - Scheduler cooldown mid-ramp is strictly between bounds
 
     /// Guards against the ramp collapsing into a step from baseInterval to maxIdleInterval at cooldownStart.
     @Test func testSchedulerCooldownMidRampIsStrictlyBetweenBounds() {
@@ -187,7 +187,7 @@ import AppKit
                 "mid-ramp interval must be strictly less than the fully-idle cap")
     }
 
-    // MARK: - Test 6: restartPolling resets currentPollInterval in MonitorState
+    // MARK: - restartPolling resets currentPollInterval in MonitorState
 
     @Test func testRestartPollingResetsCurrentPollIntervalInMonitorState() async throws {
         let fixture = UsageHistoryTestFixture()
@@ -202,7 +202,7 @@ import AppKit
         #expect(monitor.scheduler.effectivePollingInterval == Constants.Polling.baseInterval)
     }
 
-    // MARK: - Test 7: windowAnalyses consistency with currentUsage
+    // MARK: - windowAnalyses consistency with currentUsage
 
     @Test func testWindowAnalysesClearedAfterAuthFailure() async {
         let fixture = UsageHistoryTestFixture()

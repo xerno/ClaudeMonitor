@@ -61,7 +61,7 @@ import Testing
         #expect(samples.count == 3)
     }
 
-    // MARK: - Task F regression cases
+    // MARK: - Credits and a missing resets_at never split or merge a window
 
     @Test @MainActor func midWindowCreditDoesNotSplitOrArchiveTheWindow() async {
         let fixture = UsageHistoryTestFixture()

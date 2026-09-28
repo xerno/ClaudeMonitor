@@ -4,7 +4,7 @@ import Foundation
 
 @MainActor struct PollingCompositionTests {
 
-    // MARK: - Test 1: Cooldown via real UsageHistory.record() → samples() → analyze()
+    // MARK: - Cooldown via real UsageHistory.record() → samples() → analyze()
 
     @Test func cooldownViaUsageHistoryRecordAndSamplesPath() async throws {
         let fixture = UsageHistoryTestFixture()
@@ -49,7 +49,7 @@ import Foundation
 
     }
 
-    // MARK: - Test 1b: Cooldown mid-ramp via UsageHistory.record()/samples() is strictly between bounds
+    // MARK: - Cooldown mid-ramp via UsageHistory.record()/samples() is strictly between bounds
 
     @Test func cooldownMidRampViaUsageHistoryIsStrictlyBetweenBounds() async throws {
         let fixture = UsageHistoryTestFixture()
@@ -83,7 +83,7 @@ import Foundation
                 "mid-ramp interval must be strictly less than the fully-idle cap")
     }
 
-    // MARK: - Test 4: Org change on the same profile drops the old monitor and starts a fresh one
+    // MARK: - Org change on the same profile drops the old monitor and starts a fresh one
 
     @Test func orgChangeOnSameProfileStartsAFreshEmptyMonitor() async throws {
         let mockStatus = MockStatusService()
@@ -128,7 +128,7 @@ import Foundation
         #expect(monitorBeta !== monitorAlpha)
     }
 
-    // MARK: - Test 5: UsageHistory.switchOrganization clears history and analyses
+    // MARK: - UsageHistory.switchOrganization clears history and analyses
 
     @Test func switchOrganizationClearsHistoryAndProducesEmptyAnalysis() async {
         let fixture = UsageHistoryTestFixture()
@@ -169,7 +169,7 @@ import Foundation
 
     }
 
-    // MARK: - Test 6: an in-flight fetch under the old org lands only in its own (dropped) monitor
+    // MARK: - an in-flight fetch under the old org lands only in its own (dropped) monitor
 
     /// A fetch in flight under org A while the profile switches to org B lands only in A's orphaned
     /// monitor and history, never in B's monitor, history or the coordinator's facades.

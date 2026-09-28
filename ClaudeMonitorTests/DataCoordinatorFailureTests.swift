@@ -173,7 +173,7 @@ import Foundation
         #expect(coordinator.currentUsage == nil)
     }
 
-    // MARK: - Task: Defect 3 — a stale retained currentUsage must never be re-recorded
+    // MARK: - A stale retained currentUsage must never be re-recorded
 
     /// `currentUsage` survives a transient failure; re-recording it would fabricate an "unchanged" sample.
     @Test func transientUsageFailureAfterSuccessDoesNotRecordAStaleSample() async throws {

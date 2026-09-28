@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import ClaudeMonitor
 
-// MARK: - Task 2: restart-across-boundary regression
+// MARK: - Restart across a boundary
 
 @Suite struct RestartBoundaryTests {
 
@@ -85,7 +85,7 @@ import Testing
     }
 }
 
-// MARK: - Task 3: v2 binary codec
+// MARK: - Binary codec
 
 @Suite struct WindowInstanceCodecTests {
 
@@ -175,7 +175,7 @@ import Testing
         }
     }
 
-    // MARK: - Task: v3 CRC coverage (Defect 2 — sampleCount/version must be CRC-covered)
+    // MARK: - v3 CRC covers sampleCount and version
 
     @Test func corruptedSampleCountIsDetectedViaCRC() throws {
         let samples = sampleSet()
@@ -285,7 +285,7 @@ import Testing
     }
 }
 
-// MARK: - Task: Defect 2 — the v2-compatibility read path against genuine v2 bytes
+// MARK: - v2 read path against genuine v2 bytes
 
 /// Real v2 files recovered from a user's disk, never round-tripped through `encode()` (v3 only),
 /// so the v2 read path is checked against genuine bytes. Expected values were decoded by hand
@@ -335,7 +335,7 @@ import Testing
     }
 }
 
-// MARK: - Task 4: plateau collapse on archive
+// MARK: - Plateau collapse on archive
 
 @Suite struct PlateauCollapseTests {
 

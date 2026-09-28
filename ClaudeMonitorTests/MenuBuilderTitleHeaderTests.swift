@@ -63,7 +63,7 @@ struct MenuBuilderTitleHeaderTests {
         #expect(labels(in: MenuBuilder.makeTitleHeaderView(title: MenuBuilder.appTitle)).count == 1)
     }
 
-    // MARK: - The switcher survives the redesign
+    // MARK: - Account switcher
 
     @Test func twoAccountsPutTheSwitcherInTheTitleRow() throws {
         let profiles = [

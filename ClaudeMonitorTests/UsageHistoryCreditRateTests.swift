@@ -11,7 +11,7 @@ struct UsageHistoryCreditRateTests {
         UsageEvent(at: at, kind: .credit, from: from, to: to, fromTimestamp: nil)
     }
 
-    // MARK: - Direction: pre-fix under-reporting vs. post-fix accurate post-credit rate
+    // MARK: - Rate after a credit reflects consumption since the credit
 
     @Test func creditAdjustedRateReflectsPostCreditConsumptionNotWindowStart() {
         let windowDuration: TimeInterval = 7 * Constants.Time.secondsPerDay
@@ -106,7 +106,7 @@ struct UsageHistoryCreditRateTests {
         #expect(rate < naiveRate)
     }
 
-    // MARK: - No credits: behavior unchanged
+    // MARK: - No credits
 
     @Test func noCreditsMatchesOriginalWindowStartBasedRate() {
         let windowDuration: TimeInterval = 604800

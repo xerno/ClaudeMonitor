@@ -9,7 +9,7 @@ import Testing
         return calendar.date(from: DateComponents(year: 2026, month: 6, day: 15, hour: 12))!
     }()
 
-    // MARK: - Task 1: calendar-based cutoff
+    // MARK: - Calendar-based cutoff
 
     @Test func retentionCutoffUsesCalendarYearsNotFixedSeconds() {
         // 2024-03-01 minus one year spans Feb 29: a 365-day approximation lands a day off.
@@ -82,7 +82,7 @@ import Testing
         #expect(!fm.fileExists(atPath: oneSecondOlder.path), "An archive one second older than the cutoff must be deleted")
     }
 
-    // MARK: - Task 1: defensive clamping on read
+    // MARK: - Defensive clamping on read
 
     @Test func retentionYearsClampsCorruptOrAbsentValuesToDefault() {
         let suiteName = TestPreferencesRoot.makeSuiteName("UsageHistoryRetentionTests.clamp")
@@ -113,7 +113,7 @@ import Testing
         #expect(Constants.History.clampRetentionYears(1000) == Constants.History.maxRetentionYears)
     }
 
-    // MARK: - Task 4: would-delete count computed without deleting
+    // MARK: - Would-delete count computed without deleting
 
     @Test func archivedWindowCountMatchesWhatWouldBeDeletedAndDeletesNothing() async throws {
         let fixture = UsageHistoryTestFixture()
@@ -162,7 +162,7 @@ import Testing
         #expect(fm.fileExists(atPath: survivor.path))
     }
 
-    // MARK: - Task 5: windows that vanish from the API
+    // MARK: - Windows that vanish from the API
 
     @Test func windowAbsentBeyondThresholdIsArchived() async throws {
         let fixture = UsageHistoryTestFixture()

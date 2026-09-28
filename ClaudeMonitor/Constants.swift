@@ -232,7 +232,7 @@ enum Constants {
             min(max(value, minRetentionYears), maxRetentionYears)
         }
 
-        // MARK: - Missing-window archiving (Task 5)
+        // MARK: - Missing-window archiving
 
         /// How long, as a multiple of its duration, a window key must stay absent from successful,
         /// complete fetches before archiving: a live window would have reset and reappeared within one.

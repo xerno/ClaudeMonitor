@@ -13,7 +13,7 @@ import Foundation
         ])
     }
 
-    // MARK: - Test 1: JSON decode → coordinator pipeline
+    // MARK: - JSON decode → coordinator pipeline
 
     @Test func jsonDecodeFlowsThroughCoordinatorWithCorrectDuration() async throws {
         let resetsAt = Date().addingTimeInterval(9000)
@@ -47,7 +47,7 @@ import Foundation
         #expect(analyses[0].entry.window.utilization == 42)
     }
 
-    // MARK: - Test 2: onCriticalReset callback wiring via coordinator
+    // MARK: - onCriticalReset callback wiring via coordinator
 
     @Test func onCriticalResetCallbackFiredExactlyOnceAfterReset() async {
         let duration: TimeInterval = 18000
@@ -96,7 +96,7 @@ import Foundation
 
     }
 
-    // MARK: - Test 2b: Task 5 regression — a 90s resets_at nudge must not fire a critical reset
+    // MARK: - A 90s resets_at nudge must not fire a critical reset
 
     /// 90s exceeds `resetBoundaryTolerance` (60s), but the old window has not ended, so the move is drift.
     @Test func ninetySecondResetsAtNudgeDoesNotFireCriticalReset() async {
@@ -138,7 +138,7 @@ import Foundation
         #expect(criticalResetCount == 0, "A 90s resets_at nudge that isn't a genuine boundary must never fire the critical reset.")
     }
 
-    // MARK: - Test 3: Style equivalence between analyze() and inline usageStyle()
+    // MARK: - Style equivalence between analyze() and inline usageStyle()
 
     /// The usageStyle overload that recomputes the projection and the one analyze() feeds a precomputed
     /// projection must agree at every threshold.
@@ -172,7 +172,7 @@ import Foundation
         }
     }
 
-    // MARK: - Test 4: Multi-entry reset isolates only the affected key
+    // MARK: - Multi-entry reset isolates only the affected key
 
     @Test func detectAndHandleResetDoesNotAffectOtherKeys() async {
         let fixture = UsageHistoryTestFixture()
@@ -213,7 +213,7 @@ import Foundation
 
     }
 
-    // MARK: - Test 5: org change on the same profile clears state
+    // MARK: - org change on the same profile clears state
 
     @Test func orgChangeOnSameProfileClearsWindowAnalyses() async throws {
         let orgA = "test-org-a-\(UUID().uuidString)"
