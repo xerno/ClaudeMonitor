@@ -1,8 +1,6 @@
 import AppKit
 
-/// Rasterises an image and counts pixels close to `target`. The bug this guards against is a
-/// badge symbol painted in one colour: the glyph then vanishes into the disc and the count is 0.
-/// Shared because the sunburst mark needs the same measurement as the status badges.
+/// Catches a badge symbol painted in one colour: it vanishes into the disc and the count is 0.
 @MainActor
 func pixelCount(in image: NSImage, matching target: NSColor, tolerance: CGFloat = 0.12) -> Int {
     let scale = 3.0

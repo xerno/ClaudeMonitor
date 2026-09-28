@@ -2,9 +2,7 @@ import Testing
 import Foundation
 @testable import ClaudeMonitor
 
-/// Incremental scanning: offsets, partial lines, and dedup surviving across scans. A repeat scan
-/// that silently re-reads a whole file still produces plausible-looking totals, so these check the
-/// observable consequence — a re-read shows up as skipped duplicates.
+/// A re-read of a file is invisible in the totals (dedup absorbs it), so tests assert on `skippedDuplicates`.
 struct EnergyIncrementalScanTests {
 
     private func line(id: String, output: Int = 100, cacheRead: Int = 1000) -> String {
@@ -15,8 +13,7 @@ struct EnergyIncrementalScanTests {
         """
     }
 
-    /// The repo's per-run root: swept at the start of the NEXT run, never torn down by this one, so
-    /// a failing assertion leaves its files behind for post-mortem. See TestHistoryRoot.
+    /// Never torn down: swept at the start of the next run, so a failing test leaves its files for post-mortem.
     private func makeTempDirectory() throws -> URL {
         TestHistoryRoot.makeSubdirectory()
     }
@@ -47,7 +44,6 @@ struct EnergyIncrementalScanTests {
         let second = TokenLogReader.scan(directory: dir, state: first)
 
         #expect(second.totals.requests == 2)
-        // The decisive assertion: re-reading line A would have collapsed it as a duplicate.
         #expect(second.totals.skippedDuplicates == 0, "a non-zero count means the file was re-read from the start")
         #expect(second.totals.usage.output == 200)
     }
@@ -64,8 +60,7 @@ struct EnergyIncrementalScanTests {
 
     // MARK: - Partial lines
 
-    /// Claude Code appends while the app reads, so catching a half-written final line is routine.
-    /// The offset must stop before it, and the line must be counted once it is complete.
+    /// Claude Code appends while the app reads, so a half-written final line is routine.
     @Test func partialFinalLineIsLeftForTheNextScanAndCountedOnce() throws {
         let dir = try makeTempDirectory()
         let file = dir.appendingPathComponent("s.jsonl")
@@ -106,7 +101,6 @@ struct EnergyIncrementalScanTests {
         let first = TokenLogReader.scan(directory: dir)
         #expect(first.totals.requests == 2)
 
-        // Rewritten shorter, with a response the previous scan never saw.
         try write(line(id: "C") + "\n", to: file)
         let second = TokenLogReader.scan(directory: dir, state: first)
 
@@ -116,7 +110,7 @@ struct EnergyIncrementalScanTests {
 
     // MARK: - Dedup across files
 
-    /// Most duplicates sit inside one file, but some span several, so per-file dedup is not enough.
+    /// Some duplicates span files, so per-file dedup is not enough.
     @Test func sameResponseInTwoFilesIsCountedOnce() throws {
         let dir = try makeTempDirectory()
         try write(line(id: "A") + "\n", to: dir.appendingPathComponent("one.jsonl"))
@@ -140,9 +134,7 @@ struct EnergyIncrementalScanTests {
 
     // MARK: - Persisted state
 
-    /// The whole incremental scheme breaks if the dedup key is not stable across launches, and it
-    /// breaks silently: every response is simply recounted. `Hasher` is seeded per process, hence
-    /// FNV-1a with a pinned expected value.
+    /// `Hasher` is seeded per process, so dedup uses FNV-1a; pinned values catch a key that drifts between launches.
     @Test func dedupHashIsStableAcrossProcessesNotJustWithinOne() {
         #expect(StableHash.fnv1a("msg_ABC") == 12_345_039_227_892_135_049)
         #expect(StableHash.fnv1a("") == 14_695_981_039_346_656_037)
@@ -156,16 +148,13 @@ struct EnergyIncrementalScanTests {
         let restored = try JSONDecoder().decode(TokenScanState.self, from: JSONEncoder().encode(state))
         #expect(restored == state)
 
-        // And a scan resumed from the decoded state must behave like one resumed from the original.
         let again = TokenLogReader.scan(directory: dir, state: restored)
         #expect(again.totals.requests == 1)
         #expect(again.totals.skippedDuplicates == 0)
     }
 
-    /// Regression: the same file reached through two spellings of its directory must share one
-    /// offset. `FileManager`'s enumerator returns `/private/var/...` where a hand-built URL says
-    /// `/var/...`; keyed on the raw path, every scan re-read the entire archive and nothing about
-    /// the totals looked wrong, because dedup quietly absorbed it.
+    /// `FileManager`'s enumerator returns `/private/var/...` where a hand-built URL says `/var/...`;
+    /// keyed on the raw path, every scan re-read everything and dedup hid it.
     @Test func offsetSurvivesTheDirectoryBeingSpelledDifferently() throws {
         let dir = try makeTempDirectory()
         try write(line(id: "A") + "\n", to: dir.appendingPathComponent("s.jsonl"))
@@ -181,8 +170,7 @@ struct EnergyIncrementalScanTests {
 
     // MARK: - Product term
 
-    /// Σ(context × output) cannot be recovered from the summed columns, so it is accumulated during
-    /// the scan. Two responses with swapped shapes have equal column sums but different products.
+    /// Swapped-shape responses have equal column sums but different Σ(context × output).
     @Test func contextOutputProductIsAccumulatedNotDerivable() throws {
         let dir = try makeTempDirectory()
         try write(
@@ -190,7 +178,7 @@ struct EnergyIncrementalScanTests {
             to: dir.appendingPathComponent("s.jsonl")
         )
         let state = TokenLogReader.scan(directory: dir)
-        // context = cacheRead + input(1); products: 1001×10 + 11×1000 = 10 010 + 11 000
+        // context = cacheRead + input (1): 1001×10 + 11×1000
         #expect(state.totals.contextOutputProduct == 21_010)
         let flat = state.totals.usage.contextRead * (state.totals.usage.output / state.totals.requests)
         #expect(flat != state.totals.contextOutputProduct, "a flat estimate must not coincide with the true product here")

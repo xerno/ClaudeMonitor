@@ -4,11 +4,8 @@ import Testing
 
 // MARK: - Task 3: sweep must not delete a still-live run's directory
 
-// Exercises `TestHistoryRoot.sweepPreviousRuns` directly against a fabricated container
-// directory (never the real `NSTemporaryDirectory()/ClaudeMonitorTests` container that
-// `TestHistoryRoot.current` manages) so these tests can't interfere with, or be
-// interfered with by, the real once-per-process sweep. No cleanup() teardown here by
-// design — see CLAUDE.md's requirement that post-mortem data survive a run.
+// Fabricated containers, never the real one, so the real once-per-process sweep is undisturbed.
+// No teardown by design: a failed run's directories must survive for post-mortem.
 @Suite struct TestHistoryRootSweepTests {
 
     private func makeContainer(_ name: String) throws -> URL {
@@ -27,8 +24,6 @@ import Testing
         return dir
     }
 
-    /// Builds the real `"<pid> <sec> <usec>"` marker content for `pid`, using its actual
-    /// kernel-reported start time — the same format `TestHistoryRoot` itself writes.
     private func realMarker(forPID pid: pid_t) throws -> String {
         let start = try #require(TestHistoryRoot.processStartTime(pid: pid))
         return "\(pid) \(start.tv_sec) \(start.tv_usec)"
@@ -48,7 +43,7 @@ import Testing
 
     @Test func sweepRemovesDirectoryWithDeadPIDMarker() throws {
         let container = try makeContainer("dead")
-        // PID_MAX on macOS is 99998; this is never a live process, so any start time works.
+        // Above macOS's PID_MAX, so never a live process: the start time is irrelevant.
         let deadDir = try makeRunDir(in: container, name: "dead-run", marker: "999999 0 0")
 
         TestHistoryRoot.sweepPreviousRuns(container: container)
@@ -90,13 +85,10 @@ import Testing
                 "A directory with an unparsable marker must be swept.")
     }
 
-    /// Guards against the exact production bug: a marker whose PID is genuinely alive
-    /// (the OS reused it) but whose recorded start time no longer matches that live
-    /// process's actual start time must still be treated as dead and swept.
     @Test func sweepRemovesDirectoryWhosePIDIsLiveButIdentityDoesNotMatch() throws {
         let container = try makeContainer("pid-reuse")
         let ownPID = ProcessInfo.processInfo.processIdentifier
-        // Live PID, but a start time that cannot be this process's real one.
+        // Live PID with a start time (epoch + 1 s) this process cannot have.
         let mismatchedDir = try makeRunDir(in: container, name: "reused-pid-run", marker: "\(ownPID) 1 0")
 
         TestHistoryRoot.sweepPreviousRuns(container: container)
@@ -109,7 +101,6 @@ import Testing
         let container = try makeContainer("nested")
         let dir = try makeRunDir(in: container, name: "nested-run", marker: "999999 0 0")
 
-        // Mirror the real 57-entry-tree shape: several nested subdirectories, each with files.
         let fm = FileManager.default
         for i in 0..<3 {
             let sub = dir.appendingPathComponent("subdir-\(i)", isDirectory: true)
@@ -125,10 +116,6 @@ import Testing
                 "A non-empty directory tree with nested subdirectories and files must be fully removed.")
     }
 
-    /// Reproduces the exact real-world wedge: a subdirectory (mirroring `UsageHistory`'s
-    /// "live" directory) that was made read-only — as a test exercising a write-failure
-    /// path would do — and left that way. The sweep must still fully remove the tree by
-    /// restoring write permission and retrying, not leave it to wedge every future sweep.
     @Test func sweepFullyRemovesTreeContainingReadOnlySubdirectory() throws {
         let container = try makeContainer("readonly-subdir")
         let dir = try makeRunDir(in: container, name: "stale-run", marker: "999999 0 0")
@@ -136,9 +123,7 @@ import Testing
         let readOnlySub = dir.appendingPathComponent("live", isDirectory: true)
         try FileManager.default.createDirectory(at: readOnlySub, withIntermediateDirectories: true)
         try "stale-data".write(to: readOnlySub.appendingPathComponent("18000.json"), atomically: true, encoding: .utf8)
-        // dr-x------: readable/traversable by the owner, but not writable — this is what
-        // makes deleting the files inside it (and thus the whole tree) fail without the
-        // sweep's permission-restoring retry.
+        // Not writable, so deleting its files fails without the sweep's permission-restoring retry.
         try FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: readOnlySub.path)
 
         TestHistoryRoot.sweepPreviousRuns(container: container)

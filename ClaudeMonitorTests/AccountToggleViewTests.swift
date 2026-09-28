@@ -2,8 +2,6 @@ import AppKit
 import Testing
 @testable import ClaudeMonitor
 
-/// The account switcher is drawn, not built from `NSSegmentedControl`, so nothing but these
-/// measurements stands between the coral and a future edit that quietly drops it.
 @MainActor
 struct AccountToggleViewTests {
     private let names = ["Rennie", "Marek"]
@@ -23,22 +21,18 @@ struct AccountToggleViewTests {
         #expect(pixelCount(in: image, matching: ClaudeGlyph.color) > 0)
     }
 
-    /// The label has to survive the fill it sits on. White would be 3.2:1 here, which is why the
-    /// dark glyph colour is used — this fails if someone swaps it back.
+    /// White on the coral is only 3.2:1, hence the dark `selectedText`.
     @Test func theActiveLabelIsReadableOnTheCoral() {
         let image = AccountTogglePill.image(labels: names, selectedIndex: 0)
         #expect(pixelCount(in: image, matching: AccountTogglePill.selectedText) > 0)
     }
 
-    /// Without this, `theActiveSegmentCarriesTheMarksCoral` could pass for the wrong reason — a
-    /// pill that painted coral everywhere, or a stray coral pixel from the track, would satisfy it.
+    /// Negative control: a pill painted coral everywhere would also pass `theActiveSegmentCarriesTheMarksCoral`.
     @Test func aPillWithNothingSelectedHasNoCoralAtAll() {
         let image = AccountTogglePill.image(labels: names, selectedIndex: -1)
         #expect(pixelCount(in: image, matching: ClaudeGlyph.color) == 0)
     }
 
-    /// The fill has to follow the selection, not flood the pill. Measured with two very different
-    /// label widths: filling the wide segment must cover far more than filling the narrow one.
     @Test func theFillFollowsTheSelectedSegmentRatherThanTheWholePill() {
         let labels = ["A", "Considerably longer"]
         let narrow = pixelCount(in: AccountTogglePill.image(labels: labels, selectedIndex: 0),
@@ -51,8 +45,8 @@ struct AccountToggleViewTests {
 
     // MARK: - Geometry
 
-    /// The header sizes the switcher from `fittingSize`. A drawn view has no constraints, so
-    /// without `intrinsicContentSize` it collapses to nothing and vanishes from the header.
+    /// The header sizes the switcher from `fittingSize`; a drawn view has no constraints, so
+    /// without `intrinsicContentSize` it collapses to nothing.
     @Test func theViewReportsARealSizeSoTheHeaderCanPlaceIt() {
         let view = AccountToggleView(frame: .zero)
         view.configure(with: switcher(names, selectedIndex: 0))
@@ -82,8 +76,7 @@ struct AccountToggleViewTests {
         #expect(view.currentSegments.map(\.label) == names)
     }
 
-    /// An index outside the set must not be stored — the builder maps the index back to a profile
-    /// id, so a stale one would switch to the wrong account.
+    /// The builder maps the index back to a profile id, so a stale one would switch to the wrong account.
     @Test func configureIgnoresASelectionOutsideTheSegments() {
         let view = AccountToggleView(frame: .zero)
         view.configure(with: switcher(names, selectedIndex: 0))

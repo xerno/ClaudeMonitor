@@ -2,7 +2,6 @@ import AppKit
 import Testing
 @testable import ClaudeMonitor
 
-/// The dropdown's title block: the mark, the app name, the account switcher and the status badge.
 @MainActor
 struct MenuBuilderTitleHeaderTests {
 
@@ -48,8 +47,7 @@ struct MenuBuilderTitleHeaderTests {
         #expect(!badge.text.isEmpty)
     }
 
-    /// No countdown in the badge: it is redrawn on a poll, which can be five minutes apart, and the
-    /// row right below already carries "resets in …".
+    /// A clock would go stale: the badge is only redrawn on a poll, up to five minutes apart.
     @Test func theBadgeCarriesNoClock() throws {
         let badge = try #require(MenuBuilder.usageBadge(state: state(blocked: true)))
         #expect(!badge.text.contains(":"))

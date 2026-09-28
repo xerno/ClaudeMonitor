@@ -60,17 +60,14 @@ struct PollIntervalTests {
     @Test func nextPollIntervalNearReset() {
         var scheduler = PollingScheduler()
         scheduler.adjustPollingRate(windowAnalyses: [])
-        // Window resets in 30s — within 60s effective interval
         let nearResetUsage = usage(utilization: 42, resetsIn: 30)
         let interval = scheduler.nextPollInterval(usage: nearResetUsage)
-        // Should be ~31s (30 + 1 padding)
         #expect(interval > 28 && interval < 35)
     }
 
     @Test func nextPollIntervalResetBeyondEffectiveInterval() {
         var scheduler = PollingScheduler()
         scheduler.adjustPollingRate(windowAnalyses: [])
-        // Reset 300s out — well beyond 60s interval → no snapping
         let farUsage = usage(utilization: 42, resetsIn: 300)
         #expect(scheduler.nextPollInterval(usage: farUsage) == Constants.Polling.baseInterval)
     }
@@ -85,7 +82,6 @@ struct PollIntervalTests {
                         window: UsageWindow(utilization: 18, resetsAt: Date().addingTimeInterval(20))),
         ])
         let interval = scheduler.nextPollInterval(usage: multiWindowUsage)
-        // Nearest is 20s → 20+1=21
         #expect(interval > 18 && interval < 25)
     }
 
@@ -125,7 +121,7 @@ struct PollIntervalTests {
 
     @Test func isUsageDataExpiredReturnsFalseWithNoSuccess() {
         let scheduler = PollingScheduler()
-        #expect(!scheduler.isUsageDataExpired) // guard let fails → false
+        #expect(!scheduler.isUsageDataExpired)
     }
 
     @Test func isUsageDataExpiredReturnsFalseAfterFreshSuccess() {

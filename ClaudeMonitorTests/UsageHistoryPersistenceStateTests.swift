@@ -2,18 +2,9 @@ import Foundation
 import Testing
 @testable import ClaudeMonitor
 
-/// Defect 4/4-revised: quarantined files used to accumulate in `liveDirectory` forever — the
-/// only removal path was the user's "Clear History", which erases ALL history, making genuine
-/// recovery impossible in practice. `pruneQuarantinedFiles` (wired into `pruneArchives`) gives
-/// them the same retention treatment archives already get, and `quarantinedFileCount` exposes
-/// their existence/count for a future UI.
-///
-/// The quarantine moment is encoded in the FILENAME (`.corrupt_<timestamp>`), never read from a
-/// filesystem attribute: a `setAttributes` mtime stamp can silently fail (read-only volume,
-/// unsupported attribute, permission race), leaving the file's inherited mtime — typically the
-/// ORIGINAL (possibly ancient) file's mtime — as the only clock, which could prune the file
-/// almost immediately or make it immortal. These tests therefore construct filenames directly
-/// rather than manipulating mtime.
+/// Quarantine age comes from the `.corrupt_<timestamp>` filename, never mtime: a failed
+/// `setAttributes` leaves the original file's inherited mtime, which would prune the file at
+/// once or never.
 @Suite @MainActor struct UsageHistoryQuarantineRetentionTests {
 
     @Test func oldTimestampedQuarantinedFileIsPrunedRecentOneSurvives() async throws {
@@ -32,8 +23,7 @@ import Testing
         let oldStamp = formatter.string(from: cutoff.addingTimeInterval(-3600))
         let oldQuarantined = liveDir.appendingPathComponent("18000.dat.corrupt_\(oldStamp)")
         try Data([0xDE, 0xAD]).write(to: oldQuarantined)
-        // Give it an arbitrary, unrelated mtime to prove pruning derives age from the filename,
-        // never from the filesystem attribute.
+        // Decoy mtime, opposite to the filename's age.
         try fm.setAttributes([.modificationDate: now], ofItemAtPath: oldQuarantined.path)
 
         let recentStamp = formatter.string(from: cutoff.addingTimeInterval(3600))
@@ -54,9 +44,6 @@ import Testing
     }
 
     @Test func oldShapeQuarantinedFileWithNoEncodedTimestampIsNeverPruned() async throws {
-        // A file quarantined before this scheme existed (or otherwise unparseable) has unknown
-        // age. Deleting it on a guess (e.g. its mtime) would be the destructive mistake this
-        // scheme replaces, so it must survive regardless of how old its mtime looks.
         let fixture = UsageHistoryTestFixture()
         let history = fixture.history
         history.switchOrganization(UUID().uuidString)
@@ -83,9 +70,6 @@ import Testing
     }
 
     @Test func pruneArchivesAlsoPrunesQuarantinedFiles() async throws {
-        // `pruneArchives` is the existing, already-wired-up entry point (called at launch,
-        // periodically, and after every detected boundary) — quarantine cleanup must not
-        // require a new call site to remember to add.
         let fixture = UsageHistoryTestFixture()
         let history = fixture.history
         history.switchOrganization(UUID().uuidString)
@@ -107,10 +91,6 @@ import Testing
     }
 
     @Test func quarantineEncodesTimestampInFilenameNotFilesystemAttribute() async throws {
-        // The quarantine moment must be recoverable from the NAME alone — never depend on a
-        // `setAttributes` call, which can silently fail. This drives the real `quarantine()`
-        // path (via an undecodable legacy file) and asserts the resulting name parses to a
-        // recent timestamp, then that a prune using "now" does not delete it.
         let fixture = UsageHistoryTestFixture()
         let history = fixture.history
         history.switchOrganization(UUID().uuidString)
@@ -118,7 +98,6 @@ import Testing
         let liveDir = history.liveDirectory
         try fm.createDirectory(at: liveDir, withIntermediateDirectories: true)
 
-        // An undecodable legacy file whose own file-system age is already ancient.
         let legacyURL = liveDir.appendingPathComponent("18000.json")
         try Data([0xFF, 0x00, 0xDE, 0xAD]).write(to: legacyURL)
         try fm.setAttributes([.modificationDate: Date(timeIntervalSince1970: 0)], ofItemAtPath: legacyURL.path)
@@ -133,17 +112,12 @@ import Testing
         let encodedTimestamp = try #require(UsageHistory.quarantineTimestamp(quarantinedURL))
         #expect(encodedTimestamp.timeIntervalSinceNow > -60, "The encoded timestamp must reflect quarantine time, not the original file's ancient modification date.")
 
-        // With the quarantine clock correctly encoded, a prune using "now" must not delete it,
-        // even though its mtime (inherited from the ancient legacy file) says otherwise.
+        // The rename keeps the ancient mtime; only the filename timestamp protects the file.
         await history.pruneQuarantinedFiles()
         #expect(fm.fileExists(atPath: quarantinedURL.path))
     }
 }
 
-/// Defect 5: a permanently failing `save()` (full disk, read-only volume, revoked sandbox
-/// permission) used to fail completely silently, forever — with no signal that a whole
-/// session's history was never persisted. `lastSaveSucceeded`/`persistenceFailingSince` expose
-/// that state for a future UI to surface.
 @Suite @MainActor struct UsageHistoryPersistenceFailureStateTests {
 
     @Test func successfulSaveReportsSuccessWithNoFailureClock() async throws {
@@ -170,8 +144,7 @@ import Testing
         try FileManager.default.createDirectory(at: liveDir, withIntermediateDirectories: true)
         try FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: liveDir.path)
         defer {
-            // Restore write permission unconditionally — see UnwritableDirectoryTests for why
-            // this must never be skipped (it would wedge TestHistoryRoot's own cleanup sweep).
+            // Must restore: a read-only directory left behind wedges the test-root sweep.
             try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: liveDir.path)
         }
 
@@ -179,8 +152,6 @@ import Testing
         #expect(!history.lastSaveSucceeded)
         let firstFailureTime = try #require(history.persistenceFailingSince)
 
-        // A second consecutive failure must not reset the clock — it should still report
-        // "failing since" the FIRST failure, not the most recent one.
         await history.save()
         #expect(!history.lastSaveSucceeded)
         #expect(history.persistenceFailingSince == firstFailureTime)

@@ -55,8 +55,7 @@ import Testing
         #expect(history.samples(for: makeEntry(key: "five_hour", utilization: 50, resetsAt: oldResetsAt)).count > 0)
 
         let newResetsAt = now.addingTimeInterval(duration)
-        // Old window's resets_at (oldResetsAt = now+3600) must have actually arrived for
-        // this to be a genuine boundary — pass an explicit `at:` just past it.
+        // `at:` must be past the old resets_at, or this is drift rather than a genuine boundary.
         await history.detectAndHandleReset(
             entry: makeEntry(key: "five_hour", utilization: 50, resetsAt: newResetsAt),
             newResetsAt: newResetsAt,
@@ -111,7 +110,7 @@ import Testing
 
             let nextResetsAt = currentResetsAt.addingTimeInterval(duration * 0.6)
             let resetEntry = makeEntry(key: "five_hour", utilization: baseUtil + 8, resetsAt: nextResetsAt)
-            // currentResetsAt must have actually arrived for this to be a genuine boundary.
+            // `at:` must be past currentResetsAt for a genuine boundary.
             await history.detectAndHandleReset(
                 entry: resetEntry,
                 newResetsAt: nextResetsAt,

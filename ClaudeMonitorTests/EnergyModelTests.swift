@@ -2,14 +2,12 @@ import Testing
 import Foundation
 @testable import ClaudeMonitor
 
-/// The energy estimate. Every number here is wrong in a way that still looks plausible if the
-/// derivation drifts, so the tests pin the derivation itself, not just the output shape.
+/// A drifting derivation still yields plausible numbers, so these pin the derivation, not just the output shape.
 struct EnergyModelTests {
 
     // MARK: - Anchor derivation
 
-    /// The whole estimate hangs off one published figure. If someone edits the constants, this says
-    /// what they were: Joule's median 0.31 Wh per query at 300 output tokens.
+    /// The estimate hangs off one published figure: Joule's median 0.31 Wh per query at 300 output tokens.
     @Test func perTokenCoefficientsComeFromThePublishedPerQueryFigures() {
         let perToken = EnergyModel.whPerOutputToken
         #expect(abs(perToken.low - 0.16 / 300) < 1e-12)
@@ -19,8 +17,6 @@ struct EnergyModelTests {
         #expect(perToken.median < perToken.high)
     }
 
-    /// A query of exactly the anchor's shape must reproduce the anchor's own number, otherwise the
-    /// derivation has drifted away from the source it claims.
     @Test func anchorShapedQueryReproducesTheAnchorValue() {
         let estimate = EnergyModel.estimate(outputTokens: 300)
         #expect(abs(estimate.median - 0.31) < 1e-9)
@@ -28,16 +24,14 @@ struct EnergyModelTests {
         #expect(abs(estimate.high - 0.60) < 1e-9)
     }
 
-    /// PUE is inside the anchor already. Set to anything but 1.0 here and every figure is inflated
-    /// a second time — which would look like a plausible number, not like a bug.
+    /// PUE is already inside the anchor; anything but 1.0 would inflate every figure a second time.
     @Test func pueIsNotAppliedOnTopOfAFullNodeAnchor() {
         #expect(Constants.Energy.pue == 1.0)
     }
 
     // MARK: - Scale
 
-    /// Real totals from this machine's logs: ~16.0M output tokens across ~32k responses. Pins the
-    /// order of magnitude that gets shown in the menu.
+    /// Real totals from this machine's logs: ~16.0M output tokens across ~32k responses.
     @Test func realWorldTotalsLandInTheExpectedKilowattHourRange() {
         let estimate = EnergyModel.estimate(outputTokens: 16_023_921)
         #expect(estimate.low > 8_000 && estimate.low < 9_000)      // Wh
@@ -59,8 +53,6 @@ struct EnergyModelTests {
         #expect(EnergyEstimate.zero.description == "0 Wh")
     }
 
-    /// Only output tokens drive the current estimate, but the totals carry the product term so the
-    /// long-context correction can be added later. This checks the wiring reads from `usage.output`.
     @Test func estimateReadsOutputTokensFromTotals() {
         var totals = TokenTotals()
         totals.usage = TokenUsage(input: 9_999_999, cacheCreation: 9_999_999, cacheRead: 9_999_999, output: 300)
@@ -76,16 +68,12 @@ struct EnergyModelTests {
         #expect(EnergyUnit.fitting(wattHours: 1_000_000) == .megawattHours)
     }
 
-    /// The unit comes from the upper end, so both ends of the range share one scale and the reader
-    /// compares two numbers rather than two units.
     @Test func bothEndsOfTheRangeShareOneUnit() {
-        // low 533 Wh, high 2000 Wh — straddles the kWh boundary.
+        // low 533 Wh, high 2000 Wh: straddles the kWh boundary.
         let estimate = EnergyModel.estimate(outputTokens: 1_000_000)
         #expect(estimate.rangeDescription == "0.5–2.0 kWh")
     }
 
-    /// The displayed value is the median, not either quartile. Showing a quartile would read as a
-    /// best estimate while being one by construction.
     @Test func displayedNumberIsTheMedianNotAQuartile() {
         let estimate = EnergyModel.estimate(outputTokens: 16_112_710)
         #expect(estimate.description == "~17 kWh")
@@ -105,8 +93,6 @@ struct EnergyModelTests {
         #expect(EnergyUnit.wattHours.format(7.26, decimals: 1) == "7.3")
     }
 
-    /// Both ends must carry the same number of decimals. "8.5–32 kWh" reads as two precisions for
-    /// one quantity, which is how this first rendered.
     @Test func rangeDoesNotMixPrecisionBetweenItsEnds() {
         let text = EnergyModel.estimate(outputTokens: 16_023_921).rangeDescription
         let ends = text.replacingOccurrences(of: " kWh", with: "").split(separator: "–")
@@ -114,8 +100,6 @@ struct EnergyModelTests {
         #expect(ends.allSatisfy { !$0.contains(".") } || ends.allSatisfy { $0.contains(".") })
     }
 
-    /// Purely numeric, so it needs no localized string — the reason it can ship without editing
-    /// thirty translation files.
     @Test func rangeContainsNoWordsThatWouldNeedTranslating() {
         let text = EnergyModel.estimate(outputTokens: 16_023_921).description
         let allowed = Set("0123456789.~  WhkM")

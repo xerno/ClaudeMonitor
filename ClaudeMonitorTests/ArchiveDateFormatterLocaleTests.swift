@@ -2,27 +2,14 @@ import Foundation
 import Testing
 @testable import ClaudeMonitor
 
-/// Regression tests pinning `UsageHistory.archiveDateFormatter`'s locale.
+/// Archive and quarantine filenames are written and parsed by `UsageHistory.archiveDateFormatter`, and the
+/// parsed date decides what retention deletes. An unpinned `locale` falls back to `Locale.current`, which
+/// governs calendar and numbering even with an explicit `dateFormat`.
 ///
-/// Archive and quarantine FILENAMES are written and parsed back by this one formatter, and the
-/// parsed date decides what the retention policy DELETES. The formatter previously set only
-/// `dateFormat` and `timeZone`, leaving `locale` to fall back to `Locale.current` — which
-/// governs the calendar and the numbering system even when `dateFormat` is explicit.
-///
-/// **Honest note on what these tests can and cannot do.** A purely behavioural test cannot fail
-/// on a machine whose current locale already uses the Gregorian calendar and ASCII digits —
-/// which is most machines, including every one this suite is likely to run on. So this file
-/// deliberately does two different things:
-///
-/// - `archiveDateFormatterIsPinnedToPOSIX` inspects the formatter's own configuration. It fails
-///   the instant someone deletes the `locale` line, on ANY machine, which is the only way to
-///   make this regression catchable here at all.
-/// - The remaining tests prove the underlying mechanism is real rather than hypothetical, by
-///   building the *unpinned* formatter this code used to have and showing it diverges under a
-///   non-Gregorian-calendar locale — including the dangerous case where parsing SUCCEEDS and
-///   silently yields a date centuries away.
+/// A behavioural test cannot fail on a machine whose locale is already Gregorian with ASCII digits, so
+/// `archiveDateFormatterIsPinnedToPOSIX` inspects the configuration directly. The other tests build an
+/// unpinned formatter to show the mechanism, including a parse that succeeds with a date centuries off.
 @Suite struct ArchiveDateFormatterLocaleTests {
-    /// A fixed instant with an unambiguous UTC representation: 2026-08-17 21:40 UTC.
     private static let knownInstant: Date = {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "UTC")!
@@ -31,13 +18,9 @@ import Testing
         )!
     }()
 
-    /// The exact filename component the app has written for `knownInstant` since the format was
-    /// introduced — hardcoded, not recomputed from the formatter under test.
+    /// Hardcoded, not recomputed: the on-disk name for `knownInstant` must not track the formatter under test.
     private static let knownFilenameComponent = "2026-08-17T2140Z"
 
-    /// The unpinned formatter as it existed before the fix, reproduced here so the tests below
-    /// can demonstrate what it does. Takes an explicit locale so the damage is reproducible on
-    /// any machine rather than only on a Thai/Arabic-configured one.
     private func unpinnedFormatter(locale: Locale) -> DateFormatter {
         let formatter = DateFormatter()
         formatter.locale = locale
@@ -46,8 +29,6 @@ import Testing
         return formatter
     }
 
-    /// Fails immediately if the `locale` pin is ever removed, regardless of the machine's own
-    /// locale. This is the test that actually guards the regression.
     @Test func archiveDateFormatterIsPinnedToPOSIX() {
         let formatter = UsageHistory.archiveDateFormatter
         #expect(formatter.locale.identifier == "en_US_POSIX")
@@ -55,8 +36,6 @@ import Testing
         #expect(formatter.timeZone.secondsFromGMT() == 0)
     }
 
-    /// Round-trips a known instant through the real formatter and compares against a hardcoded
-    /// string — so a change to `dateFormat` itself is caught too, not only a locale change.
     @Test func archiveDateFormatterRoundTripsKnownInstantExactly() throws {
         let formatter = UsageHistory.archiveDateFormatter
         #expect(formatter.string(from: Self.knownInstant) == Self.knownFilenameComponent)
@@ -65,9 +44,6 @@ import Testing
         #expect(parsed == Self.knownInstant)
     }
 
-    /// The formatter must be immune to the ambient locale. Proven by formatting the same instant
-    /// with the real formatter while a hostile locale is in play elsewhere — the real formatter
-    /// carries its own locale, so the result cannot move.
     @Test(arguments: ["th_TH", "ar_SA", "hi_IN", "ja_JP", "en_CA"])
     func archiveDateFormatterOutputIsIndependentOfAmbientLocale(localeID: String) {
         let hostile = unpinnedFormatter(locale: Locale(identifier: localeID))
@@ -77,16 +53,8 @@ import Testing
                 == Self.knownFilenameComponent)
     }
 
-    /// Whatever a hostile locale writes, the outcome is one of exactly two disasters — never a
-    /// harmless difference. This test asserts that dichotomy directly rather than guessing which
-    /// branch a given locale takes.
-    ///
-    /// Written after the first version of this test asserted the wrong branch and failed,
-    /// revealing something worse than assumed: `ar_SA` defaults to the ISLAMIC calendar, so the
-    /// unpinned formatter wrote `1448-03-04T2140Z` for a 2026 instant — in plain ASCII digits.
-    /// The pinned parser then reads that back with no error at all, as Gregorian year 1448. A
-    /// silent 578-year misdating is precisely the input that makes `pruneArchives` delete a
-    /// current archive on its next run.
+    /// `ar_SA` defaults to the Islamic calendar: the unpinned formatter writes `1448-03-04T2140Z` in ASCII
+    /// digits, which the pinned parser reads back without error as Gregorian 1448.
     @Test(arguments: ["ar_SA", "th_TH", "ar_SA@numbers=arab", "fa_IR", "ja_JP@calendar=japanese"])
     func unpinnedFormatterEitherWritesUnparseableOrWildlyMisdatedNames(localeID: String) {
         let hostile = unpinnedFormatter(locale: Locale(identifier: localeID))
@@ -94,10 +62,7 @@ import Testing
 
         guard written != Self.knownFilenameComponent else { return }
 
-        // The invariant: a name written under a hostile locale can NEVER read back as the
-        // instant it was meant to record. Either it fails to parse (archive becomes invisible
-        // to retention forever) or it parses to a date centuries adrift (archive is deleted on
-        // the next prune). Both are catastrophic; neither may silently look correct.
+        // Unparseable names are invisible to retention forever; misdated ones are pruned as ancient.
         let reparsed = UsageHistory.archiveDateFormatter.date(from: written)
         #expect(reparsed != Self.knownInstant,
                 "A hostile-locale name must never round-trip to the correct instant.")
@@ -109,10 +74,7 @@ import Testing
         }
     }
 
-    /// Demonstrates failure mode 2, the dangerous one: under a Buddhist-calendar locale the
-    /// unpinned formatter parses the SAME ASCII digits without error and returns a date roughly
-    /// 543 years away. `retentionCutoff` computes with an explicit Gregorian calendar, so such a
-    /// date is far past any cutoff and the archive is deleted on the next prune.
+    /// `th_TH` defaults to the Buddhist calendar: the same digits parse without error, centuries early.
     @Test func unpinnedBuddhistCalendarParsesSameDigitsToAWildlyDifferentDate() throws {
         let buddhist = unpinnedFormatter(locale: Locale(identifier: "th_TH"))
         let misparsed = try #require(buddhist.date(from: Self.knownFilenameComponent))

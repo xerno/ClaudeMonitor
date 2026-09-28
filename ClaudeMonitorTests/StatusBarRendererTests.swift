@@ -86,7 +86,7 @@ import AppKit
         )
         let icon = StatusBarRenderer.resolveIcon(status: mixed, hasRefreshWarning: false)
         #expect(icon.symbolName == "exclamationmark.circle.fill")
-        #expect(icon.color == .systemOrange) // partialOutage is worst
+        #expect(icon.color == .systemOrange)
     }
 
     @Test func resolveIconEmptyComponents() {
@@ -109,9 +109,7 @@ import AppKit
         #expect(pixelCount(in: image, matching: icon.color) > 0)
     }
 
-    /// Pins down why the two-colour palette is needed at all: drawn in a single colour, the same
-    /// symbol renders the checkmark in the disc's own colour, so nothing of the glyph is visible.
-    /// Without this, `healthyIconDrawsAVisibleCheckmark` could pass for the wrong reason.
+    /// Control: drawn in one colour the checkmark takes the disc's colour and vanishes, hence the two-colour palette.
     @Test func singleColourBadgeHidesItsGlyph() throws {
         let icon = StatusBarRenderer.healthyIcon
         let flat = try #require(StatusBarRenderer.makeImage(symbolName: icon.symbolName, color: icon.color))
@@ -138,8 +136,8 @@ import AppKit
         #expect(pixelCount(in: image, matching: glyph) > 0)
     }
 
-    /// `wrench.and.screwdriver.fill` has no enclosing shape — its two layers are the wrench and the
-    /// screwdriver — so a second palette colour would recolour half the tool, not a glyph.
+    /// `wrench.and.screwdriver.fill`'s two layers are the wrench and the screwdriver, not shape and glyph:
+    /// a second colour would recolour half the tool.
     @Test func maintenanceIconStaysSingleColour() {
         let icon = StatusBarRenderer.resolveIcon(status: status(with: .underMaintenance), hasRefreshWarning: false)
         #expect(icon.glyph == nil)
@@ -197,7 +195,7 @@ import AppKit
         let blockedUntil = now.addingTimeInterval(3600)
         let title = StatusBarRenderer.blockedTitle(blockedUntil: blockedUntil, now: now)
         let fullString = title.string
-        // Find the countdown text (skip any attachment characters)
+        // Skip any attachment characters.
         let countdownStart = fullString.firstIndex(where: { $0.isNumber || $0.isLetter }) ?? fullString.startIndex
         let idx = fullString.distance(from: fullString.startIndex, to: countdownStart)
         if idx < title.length {
@@ -223,7 +221,6 @@ import AppKit
     }
 
     @Test func usageTitleMultipleWindowsWithOutpacing() {
-        // Second window is outpacing → should appear with separator
         let usage = UsageResponse(entries: [
             .make(key: "five_hour", utilization: 42, resetsAt: Date().addingTimeInterval(3600))!,
             .make(key: "seven_day", utilization: 65, resetsAt: Date().addingTimeInterval(604_800 * 0.4))!,
@@ -235,7 +232,6 @@ import AppKit
     }
 
     @Test func usageTitleSecondWindowNotOutpacingIsHidden() {
-        // Second window: 8% used, 90% time remaining (10% elapsed) → 8 ≤ 10, not outpacing
         let usage = UsageResponse(entries: [
             .make(key: "five_hour", utilization: 42, resetsAt: Date().addingTimeInterval(3600))!,
             .make(key: "seven_day", utilization: 8, resetsAt: Date().addingTimeInterval(604_800 * 0.9))!,
@@ -246,7 +242,6 @@ import AppKit
     }
 
     @Test func usageTitleBoldWhenOutpacing() {
-        // 60% used, 30% time remaining (70% elapsed) → projected = 60 + (60/12600)*5400 ≈ 85.7 → bold (≥80)
         let usage = UsageResponse(entries: [
             .make(key: "five_hour", utilization: 60, resetsAt: Date().addingTimeInterval(18000 * 0.3))!,
         ])
@@ -257,7 +252,6 @@ import AppKit
     }
 
     @Test func usageTitleRegularWhenNotOutpacing() {
-        // 10% used, 80% remaining (duration=18000) → elapsed=3600, rate=10/3600, projected=10+(10/3600)*14400=50 → normal, not bold
         let usage = UsageResponse(entries: [
             .make(key: "five_hour", utilization: 10, resetsAt: Date().addingTimeInterval(18000 * 0.8))!,
         ])
@@ -268,7 +262,6 @@ import AppKit
     }
 
     @Test func usageTitleCriticalUsesRedColor() {
-        // 65% used, 50% remaining (duration=18000) → projected = 65+(65/9000)*9000 = 130 → critical → red
         let usage = UsageResponse(entries: [
             .make(key: "five_hour", utilization: 65, resetsAt: Date().addingTimeInterval(9000))!,
         ])
@@ -278,7 +271,6 @@ import AppKit
     }
 
     @Test func usageTitleWarningUsesOrangeColor() {
-        // 55% used, 50% remaining (duration=18000) → projected = 55+(55/9000)*9000 = 110 → warning → orange
         let usage = UsageResponse(entries: [
             .make(key: "five_hour", utilization: 55, resetsAt: Date().addingTimeInterval(9000))!,
         ])
@@ -288,7 +280,6 @@ import AppKit
     }
 
     @Test func usageTitleNormalUsesLabelColor() {
-        // 20% utilization → normal
         let usage = UsageResponse(entries: [
             .make(key: "five_hour", utilization: 20, resetsAt: Date().addingTimeInterval(18000 * 0.8))!,
         ])
@@ -312,12 +303,11 @@ import AppKit
     }
 
     @Test func usageTitleWithStaleDimsPercentageColor() {
-        // 65% used, 50% remaining → critical → red, but desaturated when stale
         let usage = UsageResponse(entries: [
             .make(key: "five_hour", utilization: 65, resetsAt: Date().addingTimeInterval(9000))!,
         ])
         let title = StatusBarRenderer.usageTitle(usage: usage, isStale: true)
-        // "! 65%" — percentage starts at index 2
+        // "! 65%": the percentage starts at index 2.
         let percentIdx = 2
         let color = title.attribute(.foregroundColor, at: percentIdx, effectiveRange: nil) as? NSColor
         #expect(color == NSColor.systemRed.desaturatedForStale())
@@ -332,12 +322,11 @@ import AppKit
     }
 
     @Test func staleDoesNotAffectBoldness() {
-        // 65% used, 50% remaining → critical → bold stays bold when stale
         let usage = UsageResponse(entries: [
             .make(key: "five_hour", utilization: 65, resetsAt: Date().addingTimeInterval(9000))!,
         ])
         let title = StatusBarRenderer.usageTitle(usage: usage, isStale: true)
-        // "! 65%" — percentage starts at index 2
+        // "! 65%": the percentage starts at index 2.
         let percentIdx = 2
         let font = title.attribute(.font, at: percentIdx, effectiveRange: nil) as? NSFont
         #expect(font == StatusBarRenderer.boldFont)
@@ -386,7 +375,6 @@ import AppKit
     }
 
     @Test func blockedTakesPriorityOverStale() {
-        // 100% utilization → blocked; even with isStale = true, updateText must produce blockedTitle
         let blockedUntil = Date().addingTimeInterval(3600)
         let usage = UsageResponse(entries: [
             .make(key: "five_hour", utilization: 100, resetsAt: blockedUntil)!,

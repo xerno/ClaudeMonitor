@@ -2,17 +2,10 @@ import Foundation
 import Testing
 @testable import ClaudeMonitor
 
-/// Tests for `UsageHistory.migrateLegacyArchives()` — the one-time migration of legacy (v1,
-/// LZMA-compressed JSON) `archive/<identity>/<start>_<end>.json.lzma` files to the current v3
-/// binary format. See that function's doc comment (UsageHistory+LegacyArchiveMigration.swift)
-/// for the exact per-file ordering and crash-recovery guarantees these tests exercise.
 @Suite @MainActor struct LegacyArchiveMigrationTests {
 
-    /// Writes a synthetic legacy archive: a bare (uncompressed) JSON array, which
-    /// `WindowInstanceCodec.decode` accepts identically to an LZMA-compressed one (its LZMA
-    /// decompression attempt is wrapped in `try?` and falls back to treating the bytes as raw
-    /// JSON on failure) — so this exercises the exact same decode path real compressed legacy
-    /// archives take, without needing to compress anything.
+    /// Writes uncompressed JSON: the decoder falls back to raw JSON when LZMA decompression
+    /// fails, so this takes the same path as real compressed archives.
     @discardableResult
     private func writeLegacyArchive(history: UsageHistory, identity: String, filename: String, samples: [UtilizationSample]) throws -> URL {
         let dir = history.archiveDirectory.appendingPathComponent(identity)
@@ -94,7 +87,6 @@ import Testing
         let history = fixture.history
         history.switchOrganization(UUID().uuidString)
 
-        // Only a current-format archive present — no legacy artifact anywhere.
         let identityDir = history.archiveDirectory.appendingPathComponent("18000")
         try FileManager.default.createDirectory(at: identityDir, withIntermediateDirectories: true)
         let datURL = identityDir.appendingPathComponent("2026-01-01T0000Z_2026-01-01T0500Z.\(Constants.History.windowInstanceFileExtension)")
@@ -117,8 +109,6 @@ import Testing
         let identityDir = history.archiveDirectory.appendingPathComponent("18000")
         try FileManager.default.createDirectory(at: identityDir, withIntermediateDirectories: true)
 
-        // A pre-existing current-format archive, for a DIFFERENT span, sitting alongside the
-        // legacy one.
         let existingDatURL = identityDir.appendingPathComponent("2020-01-01T0000Z_2020-01-01T0500Z.\(Constants.History.windowInstanceFileExtension)")
         let existingSamples = makeSamples(count: 2, startEpoch: 1_577_836_800)
         let existingEncoded = try WindowInstanceCodec.encode(id: UUID(), resetsAt: nil, firstObservedAt: Date(timeIntervalSince1970: 1_577_836_800), events: [], samples: existingSamples)
@@ -132,7 +122,6 @@ import Testing
         #expect(result.migratedCount == 1)
         #expect(result.quarantinedCount == 0)
 
-        // The pre-existing current-format archive must be completely untouched.
         let existingAfter = try Data(contentsOf: existingDatURL)
         #expect(existingAfter == existingEncoded, "A pre-existing current-format archive must never be rewritten by migration")
 
@@ -173,7 +162,6 @@ import Testing
         let badDir = history.archiveDirectory.appendingPathComponent("604800")
         try FileManager.default.createDirectory(at: badDir, withIntermediateDirectories: true)
         let badURL = badDir.appendingPathComponent(badName)
-        // Garbage bytes: not valid JSON, not valid LZMA — WindowInstanceCodec.decode must fail.
         let badContentsBefore = Data([0xFF, 0x00, 0xDE, 0xAD, 0xBE, 0xEF])
         try badContentsBefore.write(to: badURL)
 
@@ -182,15 +170,12 @@ import Testing
         #expect(result.migratedCount == 1, "The good archive in the SAME run must still migrate — one bad file must not block another")
         #expect(result.quarantinedCount == 1)
 
-        // The good archive was migrated normally.
         let goodDat = history.archiveDirectory.appendingPathComponent("18000")
             .appendingPathComponent("2026-01-01T0000Z_2026-01-01T0500Z.\(Constants.History.windowInstanceFileExtension)")
         #expect(FileManager.default.fileExists(atPath: goodDat.path))
         let goodDecoded = try WindowInstanceCodec.decode(try Data(contentsOf: goodDat))
         #expect(goodDecoded.samples == goodSamples)
 
-        // The bad archive was quarantined — never deleted, bytes preserved verbatim — not left
-        // in place, and not migrated.
         #expect(!FileManager.default.fileExists(atPath: badURL.path), "The undecodable archive must no longer sit at its original path")
         let fm = FileManager.default
         let siblings = try fm.contentsOfDirectory(at: badDir, includingPropertiesForKeys: nil)
@@ -242,14 +227,6 @@ import Testing
 
     // MARK: - Defect 1: pre-existing target is verified, never trusted on existence alone
 
-    /// A target `.dat` can exist at the computed path and still be corrupt (zero-length,
-    /// truncated, bit-rotted) — e.g. left over from an interrupted write in an older build.
-    /// Before this fix, step 1 quarantined the (perfectly good) legacy original the instant the
-    /// target merely EXISTED, permanently substituting the corrupt target for the good legacy
-    /// data. These three shapes must all: (a) never quarantine the good legacy original on the
-    /// strength of the corrupt target's mere existence, (b) quarantine the CORRUPT TARGET
-    /// instead, and (c) still end up with the legacy's own data as the authoritative content at
-    /// the target path.
     @Test func corruptTargetIsQuarantinedAndGoodLegacyDataBecomesAuthoritative_zeroLength() async throws {
         try await assertCorruptTargetIsReplacedByGoodLegacyData(corruptTargetContents: Data())
     }
@@ -259,8 +236,7 @@ import Testing
             id: UUID(), resetsAt: nil, firstObservedAt: Date(timeIntervalSince1970: 1_650_000_000),
             events: [], samples: makeSamples(count: 6, startEpoch: 1_650_000_000)
         )
-        // Cut off partway through — long enough to not be the "too short to even read the CRC
-        // field" special case, short enough to guarantee a CRC/truncation failure.
+        // Long enough to clear the codec's too-short-for-CRC guard, so it fails as a CRC mismatch.
         try await assertCorruptTargetIsReplacedByGoodLegacyData(corruptTargetContents: validButUnrelated.prefix(validButUnrelated.count - 6))
     }
 
@@ -269,8 +245,7 @@ import Testing
             id: UUID(), resetsAt: nil, firstObservedAt: Date(timeIntervalSince1970: 1_650_000_000),
             events: [], samples: makeSamples(count: 6, startEpoch: 1_650_000_000)
         )
-        // Flip a byte squarely inside the CRC-protected body (not the trailing CRC field
-        // itself) — simulates bit rot rather than truncation.
+        // Byte inside the CRC-covered body, not the trailing CRC field itself.
         validButUnrelated[validButUnrelated.index(validButUnrelated.startIndex, offsetBy: validButUnrelated.count - 8)] ^= 0xFF
         try await assertCorruptTargetIsReplacedByGoodLegacyData(corruptTargetContents: validButUnrelated)
     }
@@ -287,9 +262,6 @@ import Testing
         let identityDir = history.archiveDirectory.appendingPathComponent("18000")
         let targetURL = identityDir.appendingPathComponent("\(span).\(Constants.History.windowInstanceFileExtension)")
         try corruptTargetContents.write(to: targetURL)
-        // Sanity check: the corrupt bytes we're about to test against really do fail to decode
-        // (or decode to nothing), otherwise this test wouldn't be exercising the corrupt-target
-        // path at all.
         let targetDecodesToNonEmptySamples = (try? WindowInstanceCodec.decode(corruptTargetContents).samples.isEmpty) == false
         #expect(!targetDecodesToNonEmptySamples, "Test setup bug: the 'corrupt' target must not actually decode to non-empty samples")
 
@@ -301,19 +273,13 @@ import Testing
         #expect(result.conflictCount == 0)
         #expect(result.failedWriteCount == 0)
 
-        // The legacy original must be GONE from its own path (migrated, not left in place) —
-        // and never itself quarantined.
         let legacyURL = identityDir.appendingPathComponent("\(span).json.lzma")
         #expect(!FileManager.default.fileExists(atPath: legacyURL.path), "The good legacy original must have been consumed by a successful migration, not left in place")
 
-        // The target now holds the LEGACY's own data, proven by decoding it — the corrupt
-        // bytes were never trusted, and the good data is now authoritative at that path.
         #expect(FileManager.default.fileExists(atPath: targetURL.path))
         let finalDecoded = try WindowInstanceCodec.decode(try Data(contentsOf: targetURL))
         #expect(finalDecoded.samples == goodSamples, "The good legacy data must end up authoritative at the target path")
 
-        // The corrupt target's own bytes were preserved under quarantine, never silently
-        // discarded — it sits alongside the (now correct) target under the same identity dir.
         let siblings = try FileManager.default.contentsOfDirectory(at: identityDir, includingPropertiesForKeys: nil)
         let quarantinedTarget = try #require(siblings.first {
             UsageHistory.isQuarantineFile($0) && $0.deletingPathExtension().lastPathComponent == targetURL.lastPathComponent
@@ -321,11 +287,8 @@ import Testing
         #expect(try Data(contentsOf: quarantinedTarget) == corruptTargetContents, "The corrupt target's original bytes must be preserved verbatim under quarantine")
     }
 
-    /// The target decodes successfully and holds real, non-empty samples — but those samples
-    /// genuinely DISAGREE with the legacy original's own decoded content. This is NOT the
-    /// "corrupt target" case (the target is perfectly readable); it's an unresolvable conflict,
-    /// and the least-destructive choice is to touch NEITHER file rather than guess which one is
-    /// right.
+    /// A readable target that disagrees with the legacy data is a conflict, not corruption:
+    /// neither file is touched rather than guessing which is right.
     @Test func conflictingTargetLeavesBothFilesUntouched() async throws {
         let fixture = UsageHistoryTestFixture()
         let history = fixture.history
@@ -357,13 +320,6 @@ import Testing
 
     // MARK: - Defect 1: a failed quarantine attempt must never be followed by a write/remove
 
-    /// If the quarantine MOVE itself fails (simulated here by making the identity directory
-    /// read-only, so the rename is denied at the filesystem level — a stand-in for a transient
-    /// I/O error or a permission race), this file's migration must bail out entirely: the
-    /// corrupt target must NOT be overwritten by the shared write path (that would silently
-    /// destroy the still-unquarantined corrupt bytes with no trace), and the good legacy
-    /// original must be left completely untouched, to be retried (including re-attempting
-    /// quarantine) on a future run. The failure must be counted, never silently dropped.
     @Test func failedQuarantineOfCorruptTargetLeavesBothFilesUntouchedAndCounted() async throws {
         let fixture = UsageHistoryTestFixture()
         let history = fixture.history
@@ -375,20 +331,15 @@ import Testing
 
         let identityDir = history.archiveDirectory.appendingPathComponent("18000")
         let targetURL = identityDir.appendingPathComponent("\(span).\(Constants.History.windowInstanceFileExtension)")
-        // Zero-length: an ordinary corrupt-target shape (see the other corrupt-target tests
-        // above) — decodes to nothing, so migration will attempt to quarantine this TARGET.
         try Data().write(to: targetURL)
 
         let legacyURL = identityDir.appendingPathComponent("\(span).json.lzma")
         let legacyContentsBefore = try Data(contentsOf: legacyURL)
 
         let fm = FileManager.default
-        // Read-only (no write bit): a rename within this directory (which is exactly what
-        // quarantining does — moveItem to a sibling filename) is denied by the filesystem,
-        // without needing to fabricate any application-level error path.
+        // Denies the quarantine rename.
         try fm.setAttributes([.posixPermissions: 0o555], ofItemAtPath: identityDir.path)
-        // CRITICAL: restore the permission unconditionally, even if an assertion below fails —
-        // a previous incident wedged the test-root sweep by leaving a read-only directory behind.
+        // Must restore: a read-only directory left behind wedges the next run's test-root sweep.
         defer {
             try? fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: identityDir.path)
         }
@@ -406,9 +357,6 @@ import Testing
         #expect(legacyAfter == legacyContentsBefore, "The legacy original must be left completely untouched when the target's quarantine failed")
     }
 
-    /// The same failure mode as above, but for an ordinary legacy file (not a target) whose
-    /// bytes are themselves undecodable — the quarantine attempt on the legacy original itself
-    /// fails, and must be counted and left in place rather than silently treated as quarantined.
     @Test func failedQuarantineOfUndecodableLegacyFileLeavesItInPlaceAndCounted() async throws {
         let fixture = UsageHistoryTestFixture()
         let history = fixture.history
@@ -438,13 +386,6 @@ import Testing
 
     // MARK: - Defect 2: concurrent migrateLegacyArchives() calls are coalesced, never doubled
 
-    /// Two calls to `migrateLegacyArchives()` launched without awaiting the first must not each
-    /// spawn an independent migration run over the same directory — the second must coalesce
-    /// with (await the result of) the first rather than racing it. This is asserted indirectly:
-    /// a set of legacy files is migrated exactly once (idempotent counts), and both concurrent
-    /// callers observe the SAME outcome, consistent with one shared underlying run rather than
-    /// two independent ones that could otherwise double-process or interleave over the same
-    /// files.
     @Test func concurrentMigrationCallsCoalesceIntoOneRun() async throws {
         let fixture = UsageHistoryTestFixture()
         let history = fixture.history
@@ -457,9 +398,7 @@ import Testing
         async let second = history.migrateLegacyArchives()
         let (resultA, resultB) = await (first, second)
 
-        // Exactly one file existed: if both calls had independently migrated it, one of them
-        // would find nothing left (a `.none` no-op) while the other did the real work — the two
-        // results would then disagree. Coalescing means both observe the identical outcome.
+        // One file: an uncoalesced second run would find nothing (`.none`) and disagree with the first.
         #expect(resultA == resultB, "Concurrent calls must coalesce onto the same run rather than each independently migrating (or racing over) the same files")
         #expect(resultA.migratedCount == 1)
 
@@ -472,15 +411,8 @@ import Testing
 
     // MARK: - Prune/migration structural exclusion
 
-    /// A prune requested while a legacy migration is still in flight over the SAME directory
-    /// must wait for that migration to finish before deleting anything — otherwise a legacy
-    /// `.json.lzma` archive past the retention cutoff could be deleted out from under a
-    /// migration that is still reading it, or has already decoded it but not yet written and
-    /// verified its replacement. Simulates "migration in flight" by manually installing a
-    /// controlled `inFlightLegacyMigration` task that only completes once this test signals it,
-    /// then asserts the past-retention legacy file survives while that task is still pending
-    /// and is only deleted once prune is allowed to proceed after the simulated migration
-    /// finishes.
+    /// Prune must wait for the migration: it could otherwise delete a past-retention legacy file
+    /// before its replacement is written and verified.
     @Test func pruneWaitsForInFlightMigrationBeforeDeletingLegacyFile() async throws {
         let fixture = UsageHistoryTestFixture()
         let history = fixture.history
@@ -489,13 +421,12 @@ import Testing
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         let years = 2
         let cutoff = try #require(UsageHistory.retentionCutoff(years: years, now: now))
-        let end = cutoff.addingTimeInterval(-3600) // past cutoff — eligible for prune's deletion
+        let end = cutoff.addingTimeInterval(-3600)
         let start = end.addingTimeInterval(-18000)
         let formatter = UsageHistory.archiveDateFormatter
         let legacyName = "\(formatter.string(from: start))_\(formatter.string(from: end)).json.lzma"
         let legacyURL = try writeLegacyArchive(history: history, identity: "18000", filename: legacyName, samples: makeSamples(count: 4, startEpoch: 1_700_000_000))
 
-        // Simulate an in-flight migration with a task whose completion this test controls.
         let (stream, continuation) = AsyncStream<Void>.makeStream()
         history.inFlightLegacyMigration = Task<LegacyArchiveMigrationResult, Never> {
             for await _ in stream { break }
@@ -504,8 +435,7 @@ import Testing
 
         let pruneTask = Task { await history.pruneArchives(retentionYears: years, now: now) }
 
-        // Give pruneArchives every opportunity to run (incorrectly) while the migration is
-        // still in flight, before this test allows the simulated migration to finish.
+        // Time for a wrongly unblocked prune to delete the file.
         try await Task.sleep(for: .milliseconds(200))
         #expect(FileManager.default.fileExists(atPath: legacyURL.path), "Prune must not delete a past-retention legacy archive while a migration is still in flight over the same directory")
 
@@ -517,11 +447,6 @@ import Testing
 
     // MARK: - Multi-file realism (developer's real corpus: 11 five-hour + 1 weekly)
 
-    /// A single run migrating a set the size of the developer's real corpus (11 five-hour
-    /// archives under one identity + 1 weekly archive under another), reusing the two real
-    /// fixtures across 12 distinct filenames, with a MIX of outcomes in the SAME run: most
-    /// succeed, one is quarantined (undecodable), one has an unparseable filename. Every file's
-    /// outcome is asserted independently.
     @Test func realisticMultiFileRunProducesIndependentPerFileOutcomes() async throws {
         let fixture = UsageHistoryTestFixture()
         let history = fixture.history
@@ -533,27 +458,22 @@ import Testing
         let fiveHourDir = history.archiveDirectory.appendingPathComponent("18000")
         try FileManager.default.createDirectory(at: fiveHourDir, withIntermediateDirectories: true)
 
-        // 9 good five-hour archives (distinct spans), all reusing the same real fixture bytes.
         var goodFiveHourNames: [String] = []
         for day in 1...9 {
             let name = String(format: "2026-06-%02dT1130Z_2026-06-%02dT1630Z.json.lzma", day, day)
             try smallestData.write(to: fiveHourDir.appendingPathComponent(name))
             goodFiveHourNames.append(name)
         }
-        // 1 undecodable five-hour archive — garbage bytes, must be quarantined.
         let badName = "2026-06-10T1130Z_2026-06-10T1630Z.json.lzma"
         try Data([0xDE, 0xAD, 0xBE, 0xEF]).write(to: fiveHourDir.appendingPathComponent(badName))
-        // 1 five-hour archive with an unparseable filename — must be left completely untouched.
         let unparseableName = "not-a-window-span.json.lzma"
         try smallestData.write(to: fiveHourDir.appendingPathComponent(unparseableName))
 
-        // 1 good weekly archive, under a different identity.
         let weeklyDir = history.archiveDirectory.appendingPathComponent("604800")
         try FileManager.default.createDirectory(at: weeklyDir, withIntermediateDirectories: true)
         let weeklyName = "2026-07-11T2048Z_2026-07-18T1959Z.json.lzma"
         try weeklyData.write(to: weeklyDir.appendingPathComponent(weeklyName))
 
-        // 12 legacy files total: 9 + 1 bad + 1 unparseable + 1 weekly.
         let result = await history.migrateLegacyArchives()
 
         #expect(result.migratedCount == 10, "9 good five-hour + 1 good weekly")
@@ -562,7 +482,6 @@ import Testing
         #expect(result.conflictCount == 0)
         #expect(result.failedWriteCount == 0)
 
-        // Every good five-hour file's outcome, independently.
         for name in goodFiveHourNames {
             let stem = String(name.dropLast(".json.lzma".count))
             let datURL = fiveHourDir.appendingPathComponent("\(stem).\(Constants.History.windowInstanceFileExtension)")
@@ -572,16 +491,13 @@ import Testing
             #expect(decoded.samples.count == 79, "\(name) must round-trip the real fixture's 79 samples")
         }
 
-        // The bad file: quarantined, never migrated, bytes preserved.
         #expect(!FileManager.default.fileExists(atPath: fiveHourDir.appendingPathComponent(badName).path))
         let badSiblings = try FileManager.default.contentsOfDirectory(at: fiveHourDir, includingPropertiesForKeys: nil)
         #expect(badSiblings.contains { UsageHistory.isQuarantineFile($0) && $0.deletingPathExtension().lastPathComponent == badName })
 
-        // The unparseable-name file: completely untouched, not even quarantined.
         #expect(FileManager.default.fileExists(atPath: fiveHourDir.appendingPathComponent(unparseableName).path))
         #expect(try Data(contentsOf: fiveHourDir.appendingPathComponent(unparseableName)) == smallestData)
 
-        // The weekly file: migrated under its own identity.
         let weeklyDat = weeklyDir.appendingPathComponent("2026-07-11T2048Z_2026-07-18T1959Z.\(Constants.History.windowInstanceFileExtension)")
         #expect(FileManager.default.fileExists(atPath: weeklyDat.path))
         #expect(!FileManager.default.fileExists(atPath: weeklyDir.appendingPathComponent(weeklyName).path))
@@ -591,11 +507,6 @@ import Testing
 
     // MARK: - End-to-end v2 -> v3 live file (load() -> save() -> decode)
 
-    /// The exact operation that will run on the developer's real v2 live files on first launch
-    /// of a v3 build: `load()` reads a real v2-format `.dat` file, then `save()` re-encodes it
-    /// in the current v3 format. This must be lossless for the sample sequence — previously
-    /// untested end to end (only the codec's `decode()` alone was tested against real v2
-    /// bytes).
     @Test func realV2LiveFileSurvivesLoadThenSaveRoundTripUnchanged() async throws {
         let fixture = UsageHistoryTestFixture()
         let history = fixture.history

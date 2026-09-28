@@ -2,15 +2,12 @@ import Testing
 import AppKit
 @testable import ClaudeMonitor
 
-/// The stats row under the graph shares one line with the energy reading, so every branch of its
-/// text has to fit the width left over. This is the check that was missing when the row first
-/// overflowed and truncated mid-date.
+/// The stats row shares one line with the energy reading, so every text branch must fit the width left over.
 @MainActor
 struct StatsRowWidthTests {
 
-    /// What the layout actually leaves for the stats text, taken from a real view carrying a
-    /// realistic reading rather than recomputed from the constants — the split is dynamic now, so a
-    /// formula here could agree with itself while disagreeing with what is drawn.
+    /// Measured from a real view, not recomputed from constants: the split is dynamic, so a formula
+    /// could agree with itself and not with what is drawn.
     private var availableWidth: CGFloat {
         let view = UsageGraphView()
         view.update(energy: EnergyModel.estimate(outputTokens: 16_112_710))
@@ -47,14 +44,13 @@ struct StatsRowWidthTests {
         )
     }
 
-    /// Fixed instant so the rendered text is the same on every run.
     private static let now: Date = {
         var c = DateComponents()
         c.year = 2026; c.month = 9; c.day = 16; c.hour = 10; c.minute = 30
         return Calendar.current.date(from: c)!
     }()
 
-    /// Every branch of `statsLabelTextCore`, at values that make each one the widest it gets.
+    /// Each branch of `statsLabelTextCore`, at values chosen to make it widest.
     private func everyBranch() -> [(name: String, text: String)] {
         let now = Self.now
         var out: [(String, String)] = []
@@ -90,13 +86,11 @@ struct StatsRowWidthTests {
     }
 
     @Test func theEnergyReadingFitsItsOwnReservation() {
-        // Widest the formatter can produce: three digits and the largest unit.
+        // Three digits and the largest unit.
         let widest = UsageGraphView.energyText(for: EnergyEstimate(low: 1, median: 123_000_000, high: 200_000_000))
         #expect(width(widest) <= GraphDrawer.Layout.energyLabelWidth, "\(widest) is \(width(widest)) pt")
     }
 
-    /// The clock time names when the limit is reached, not when the window resets — the old wording
-    /// said "before reset (at 17:44)", which reads as the reset time and was simply wrong.
     @Test func limitTextNamesWhenTheLimitIsHitNotWhenTheWindowResets() {
         let now = Self.now
         let a = analysis(utilization: 62, resetsIn: 40_000, rate: 16.4 / 3600, projected: 140,
@@ -115,8 +109,7 @@ struct StatsRowWidthTests {
     }
 }
 
-/// The stats row splits its width between the two labels at run time. These pin that split, because
-/// a fixed reserve is what made a Croatian string overflow by under two points.
+/// The two labels split the row's width at run time: a fixed reserve overflows long translations (Croatian).
 @MainActor
 struct StatsRowLayoutTests {
 
@@ -143,7 +136,6 @@ struct StatsRowLayoutTests {
         #expect(stats.frame.maxX <= energy.frame.minX)
     }
 
-    /// Before the first scan there is no reading, and the whole row belongs to the stats text.
     @Test func withNoReadingTheStatsTextGetsTheWholeRow() {
         let view = UsageGraphView()
         view.update(energy: nil)
@@ -152,7 +144,6 @@ struct StatsRowLayoutTests {
         #expect(stats.frame.width == view.bounds.width - MenuBuilder.rowTrailingInset * 2)
     }
 
-    /// A reading can never eat the row, however large the number gets.
     @Test func anAbsurdReadingIsCappedSoTheStatsTextSurvives() {
         let view = UsageGraphView()
         view.update(energy: EnergyEstimate(low: 1, median: 999_000_000_000, high: 1_000_000_000_000))
@@ -169,8 +160,7 @@ struct StatsRowLayoutTests {
     }
 }
 
-/// Diagnostics for the energy label's own box: an NSTextField needs slightly more width than the
-/// bare text measures, and a label sized to the text alone clips its last glyph.
+/// An NSTextField needs slightly more width than its bare text measures; sized to the text alone it clips the last glyph.
 @MainActor
 struct EnergyLabelFitTests {
 
@@ -186,7 +176,6 @@ struct EnergyLabelFitTests {
                 "frame \(label.frame.width) pt vs fitting \(label.fittingSize.width) pt for \"\(label.stringValue)\"")
     }
 
-    /// The row should line up with the rows above and below it, which inset by the header padding.
     @Test func labelTrailingEdgeMatchesTheRestOfTheMenu() {
         let view = UsageGraphView()
         view.update(energy: EnergyModel.estimate(outputTokens: 16_112_710))

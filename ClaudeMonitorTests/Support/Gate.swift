@@ -1,8 +1,5 @@
-/// A single-waiter, single-signaller rendezvous used to deterministically suspend a
-/// mock fetch until the test explicitly releases it, and to let the test wait until the
-/// fetch has genuinely started (and is suspended inside it) before proceeding. No
-/// `Task.sleep`/`Task.yield` polling anywhere — both transitions are driven by
-/// `CheckedContinuation`, so the test is deterministic under load.
+/// Single-waiter, single-signaller rendezvous, driven by `CheckedContinuation` rather than
+/// `Task.sleep`/`Task.yield` polling so tests stay deterministic under load.
 actor Gate {
     private var isOpen = false
     private var waiter: CheckedContinuation<Void, Never>?

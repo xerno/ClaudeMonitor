@@ -3,11 +3,8 @@ import Foundation
 import AppKit
 @testable import ClaudeMonitor
 
-/// Tests for `GraphDrawer.timeRange` — the graph's x-axis domain computation
-/// (`GraphDrawer.swift`). Regression coverage for the reported defect: a sample stored before
-/// the window's own start used to stretch the axis backwards (`min(earliestSample, windowStart)`),
-/// which misplaced "now" far to the right of where it belongs on the axis. Follows
-/// `GraphDrawerCreditTests`'s precedent of exercising pure value-returning functions directly.
+/// The axis domain is the window itself: a sample stored before the window start must not stretch it,
+/// or "now" lands too far right.
 struct GraphTimeRangeTests {
     private let fiveHours: TimeInterval = 5 * 60 * 60
     private let sevenDays: TimeInterval = 7 * 24 * 60 * 60
@@ -24,14 +21,9 @@ struct GraphTimeRangeTests {
         #expect(range.upperBound.timeIntervalSince(range.lowerBound) == sevenDays)
     }
 
-    /// This is the regression test for the reported defect. Against the old
-    /// `min(earliestSample, windowStart)` logic, a sample 2.5h before `windowStart` would have
-    /// stretched this 5-hour window's axis out to 7.5 hours. It must not.
     @Test func preWindowSampleDoesNotWidenTheAxis() {
         let resetsAt = Date(timeIntervalSince1970: 100_000)
         let windowStart = resetsAt.addingTimeInterval(-fiveHours)
-        // A sample recorded 2.5h before the window even started — mirrors the user's real,
-        // measured 5-hour window where samples predated `windowStart` by hours.
         let preWindowSampleTime = windowStart.addingTimeInterval(-2.5 * 60 * 60)
         #expect(preWindowSampleTime < windowStart)
 
@@ -40,8 +32,6 @@ struct GraphTimeRangeTests {
         #expect(range.upperBound.timeIntervalSince(range.lowerBound) == fiveHours)
     }
 
-    /// Expressed as the user-visible property: with 4.5h remaining of a 5h window, "now" sits
-    /// one tenth of the way along the axis, not near the middle.
     @Test func nowSitsOneTenthAlongTheAxisWithFourAndHalfHoursRemaining() {
         let resetsAt = Date(timeIntervalSince1970: 100_000)
         let now = resetsAt.addingTimeInterval(-4.5 * 60 * 60)
@@ -61,9 +51,7 @@ struct GraphTimeRangeTests {
         #expect(drawer.xPosition(for: range.upperBound, in: rect, timeRange: range) == rect.maxX)
     }
 
-    /// A credit event timestamped before the (now-unwidened) window start falls outside the
-    /// domain and must be dropped, not clamped onto the left edge — a clamped marker would
-    /// falsely read as "a credit happened right at window start."
+    /// Dropped, not clamped onto the left edge: a clamped marker would read as a credit at window start.
     @Test func creditEventBeforeWindowStartProducesNoMarker() {
         let resetsAt = Date(timeIntervalSince1970: 100_000)
         let range = GraphDrawer.timeRange(resetsAt: resetsAt, duration: fiveHours)
@@ -90,10 +78,7 @@ struct GraphTimeRangeTests {
 
     // MARK: - plottableSamples (segment filtering)
 
-    /// The exact reported case: a segment with samples straddling `windowStart`. Against the
-    /// old unfiltered/clamped behaviour, every pre-window sample would still be "plotted" (at
-    /// `x = rect.minX`); this asserts they are excluded outright and only the genuinely
-    /// in-window samples survive.
+    /// Excluded outright, not plotted clamped at `rect.minX`.
     @Test func segmentStraddlingWindowStartRetainsOnlyInWindowSamples() {
         let resetsAt = Date(timeIntervalSince1970: 100_000)
         let range = GraphDrawer.timeRange(resetsAt: resetsAt, duration: fiveHours)
@@ -109,12 +94,6 @@ struct GraphTimeRangeTests {
         #expect(plotted.allSatisfy { range.contains($0.timestamp) })
     }
 
-    /// A property test with *differing* pre-window utilization values (deliberately not all
-    /// equal, unlike the user's real all-zero idle run) so the assertion has real content
-    /// regardless of what any particular window's data happens to contain: no plotted point's
-    /// timestamp may fall outside the domain. Against clamping (mapping every out-of-domain
-    /// timestamp to `rect.minX`/`rect.maxX` instead of dropping it), this would fail because
-    /// clamped points still carry an in-domain-looking x while their timestamp is not.
     @Test func differingPreWindowUtilizationsAreAllExcludedNotClamped() {
         let resetsAt = Date(timeIntervalSince1970: 100_000)
         let range = GraphDrawer.timeRange(resetsAt: resetsAt, duration: fiveHours)
@@ -132,10 +111,6 @@ struct GraphTimeRangeTests {
         #expect(plotted.count == 2)
     }
 
-    /// A segment lying entirely before `windowStart` must produce no plottable samples at all —
-    /// the eventual path-builder (`buildSegmentPaths`, guarded at `samples.count >= 2`) is thus
-    /// reached with an empty array and draws nothing, rather than a malformed single point or a
-    /// wall at the edge.
     @Test func segmentEntirelyBeforeWindowStartProducesNoPlottableSamples() {
         let resetsAt = Date(timeIntervalSince1970: 100_000)
         let range = GraphDrawer.timeRange(resetsAt: resetsAt, duration: fiveHours)
@@ -148,8 +123,6 @@ struct GraphTimeRangeTests {
         #expect(plotted.isEmpty)
     }
 
-    /// The overwhelmingly common case — a segment fully inside the domain — must be completely
-    /// unaffected by the new filtering.
     @Test func segmentEntirelyInsideDomainIsUnchanged() {
         let resetsAt = Date(timeIntervalSince1970: 100_000)
         let range = GraphDrawer.timeRange(resetsAt: resetsAt, duration: fiveHours)
@@ -165,8 +138,6 @@ struct GraphTimeRangeTests {
 
     // MARK: - clipGapSegment
 
-    /// A gap fully inside the domain draws both the hatch and the connecting dashed line,
-    /// unchanged from before filtering existed.
     @Test func gapFullyInsideDomainKeepsBothHatchAndLine() {
         let resetsAt = Date(timeIntervalSince1970: 100_000)
         let range = GraphDrawer.timeRange(resetsAt: resetsAt, duration: fiveHours)
@@ -180,10 +151,7 @@ struct GraphTimeRangeTests {
         #expect(clipped?.line != nil)
     }
 
-    /// A gap whose `before` endpoint predates the window: the hatch still starts at the domain
-    /// edge (the gap truly continues "no data" up to the window boundary), but the dashed line
-    /// is dropped rather than drawn from an out-of-domain sample's value as though it had been
-    /// observed at `windowStart`.
+    /// The line is dropped: drawing it would present an out-of-domain sample's value as observed at window start.
     @Test func gapStraddlingWindowStartHatchesFromEdgeButDrawsNoLine() {
         let resetsAt = Date(timeIntervalSince1970: 100_000)
         let range = GraphDrawer.timeRange(resetsAt: resetsAt, duration: fiveHours)
@@ -197,8 +165,6 @@ struct GraphTimeRangeTests {
         #expect(clipped?.line == nil)
     }
 
-    /// A gap entirely outside the domain (both endpoints before `windowStart`) is not visible
-    /// at all.
     @Test func gapEntirelyBeforeWindowStartProducesNothing() {
         let resetsAt = Date(timeIntervalSince1970: 100_000)
         let range = GraphDrawer.timeRange(resetsAt: resetsAt, duration: fiveHours)

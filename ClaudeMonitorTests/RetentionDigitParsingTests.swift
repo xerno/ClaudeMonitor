@@ -2,16 +2,8 @@ import Foundation
 import Testing
 @testable import ClaudeMonitor
 
-/// Covers `RetentionDisplay.isDecimalDigit` / `parsedYears`, added because the retention field
-/// previously accepted only the ASCII byte range `0x30...0x39`.
-///
-/// Two defects had to be fixed together, and testing either alone would have hidden the other:
-/// the keystroke guard rejected every character a non-Latin numeric keyboard emits (making the
-/// field appear to accept no input at all), while the commit path read `NSTextField.integerValue`,
-/// which parses ASCII only — so merely relaxing the guard would have let a user type `٩٩` and
-/// silently get 1 stored, because 0 falls through `clampedYears` to the minimum. That is worse
-/// than the original rejection, so `parsedYears` exists to read the field's text under the same
-/// rules the guard accepts.
+/// `isDecimalDigit` (keystroke guard) and `parsedYears` (commit) must agree: `NSTextField.integerValue`
+/// reads ASCII only, so `٩٩` would otherwise commit as 0 and clamp to a stored 1.
 @Suite struct RetentionDigitParsingTests {
     // MARK: - isDecimalDigit
 
@@ -21,9 +13,8 @@ import Testing
         #expect(RetentionDisplay.isDecimalDigit(scalar))
     }
 
-    /// Roman numerals and vulgar fractions are `isNumber == true` but are NOT decimal digits — a
-    /// positional parser cannot read them, so accepting them would let the field hold text
-    /// `parsedYears` must then reject, leaving the guard and the parser disagreeing.
+    /// Roman numerals and vulgar fractions are `isNumber` but not decimal digits: accepting them
+    /// would let the guard admit text `parsedYears` rejects.
     @Test(arguments: ["a", "Z", " ", "-", ".", ",", "+", "½", "Ⅳ", "①"])
     func nonDecimalCharactersAreRejected(character: String) {
         let scalar = Character(character)
@@ -45,8 +36,6 @@ import Testing
         #expect(RetentionDisplay.parsedYears(fromFieldText: "99") == 99)
     }
 
-    /// The core regression: these must parse to the SAME numbers as their ASCII equivalents.
-    /// `NSTextField.integerValue` returns 0 for every one of them.
     @Test func parsesNonASCIIDecimalDigits() {
         #expect(RetentionDisplay.parsedYears(fromFieldText: "٩٩") == 99)
         #expect(RetentionDisplay.parsedYears(fromFieldText: "٤٢") == 42)
@@ -54,8 +43,6 @@ import Testing
         #expect(RetentionDisplay.parsedYears(fromFieldText: "๙") == 9)
     }
 
-    /// Guards against the naive `Int(text)` implementation, which succeeds on ASCII and returns
-    /// nil for Arabic-Indic — the exact asymmetry that caused the bug.
     @Test func nonASCIIParseAgreesWithASCIIForEveryValueInRange() {
         let arabicIndic = ["٠", "١", "٢", "٣", "٤", "٥", "٦", "٧", "٨", "٩"]
         for value in 0...99 {
@@ -79,9 +66,7 @@ import Testing
         #expect(RetentionDisplay.parsedYears(fromFieldText: "1.5") == nil)
     }
 
-    /// `nil` must stay distinguishable from a real 0: the caller turns `nil` into 0 so
-    /// `clampedYears` raises an emptied field to the minimum, but a parser that invented 0 for
-    /// `"abc"` would silently accept garbage as a deliberate zero.
+    /// A parser returning 0 for `"abc"` would pass garbage off as a deliberate zero.
     @Test func emptyAndNonDigitAreNilWhileLiteralZeroParses() {
         #expect(RetentionDisplay.parsedYears(fromFieldText: "") == nil)
         #expect(RetentionDisplay.parsedYears(fromFieldText: "0") != nil)
@@ -90,8 +75,6 @@ import Testing
 
     // MARK: - Composition with the clamp
 
-    /// End-to-end for the commit rule the owner specified: 0, 00 and an emptied field all land on
-    /// the minimum, and a valid typed value survives untouched — in any numbering system.
     @Test func commitRuleAppliesEqualPerNumberingSystem() {
         func committed(_ text: String) -> Int {
             RetentionDisplay.clampedYears(RetentionDisplay.parsedYears(fromFieldText: text) ?? 0)

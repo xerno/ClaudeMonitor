@@ -256,7 +256,6 @@ private final class MockMenuActions: NSObject, MenuActions {
 
         let menu = MenuBuilder.build(state: state, target: target)
 
-        // The graph item must be present and carry the correct view type
         let graphItem = (0..<menu.numberOfItems).compactMap { menu.item(at: $0) }
             .first { $0.tag == MenuBuilder.usageGraphTag }
         #expect(graphItem != nil)
@@ -481,7 +480,6 @@ private final class MockMenuActions: NSObject, MenuActions {
         let afterSecond = rows.map(\.isHighlighted)
         #expect(afterSecond == [false, true])
 
-        // Moving the highlight must clear the row that had it — the stuck-highlight bug.
         let firstItem = menu.item(withTag: MenuBuilder.usageBaseTag)
         MenuBuilder.syncHighlight(in: menu, highlighted: firstItem)
         let afterFirst = rows.map(\.isHighlighted)
@@ -495,8 +493,7 @@ private final class MockMenuActions: NSObject, MenuActions {
         let lit = rows.map(\.isHighlighted)
         #expect(lit == [true, false])
 
-        // What menuDidClose does: a closed menu has no highlighted row, so the highlight
-        // cannot survive into the next time the menu opens.
+        // menuDidClose passes nil: a stale highlight must not survive into the next opening.
         MenuBuilder.syncHighlight(in: menu, highlighted: nil)
         let cleared = rows.map(\.isHighlighted)
         #expect(cleared == [false, false])
@@ -647,15 +644,11 @@ private final class MockMenuActions: NSObject, MenuActions {
 }
 
 
-/// Header shades. A section header's two labels share one quiet shade so the row reads as a single
-/// line — except the Services status, which the redesign gives its own green, and the dropdown's
-/// title, which is the one loud thing at the top.
 @MainActor
 struct MenuBuilderHeaderShadeTests {
 
-    /// Recursive on purpose. The non-recursive version returned `[]` for any header built into a
-    /// container, and `allSatisfy` on an empty array is `true` — the shade tests would have gone on
-    /// passing while checking nothing. Callers assert the count as well, for the same reason.
+    /// Recursive: a direct-subview walk returns `[]` for a nested header and `allSatisfy` on `[]`
+    /// is vacuously true, so callers also assert the count.
     private func labels(in view: NSView) -> [NSTextField] {
         view.subviews.flatMap { subview -> [NSTextField] in
             if let field = subview as? NSTextField { return [field] }
@@ -670,8 +663,6 @@ struct MenuBuilderHeaderShadeTests {
         #expect(found.allSatisfy { $0.textColor == MenuBuilder.headerTextColor })
     }
 
-    /// The subtitle colour is opt-in: a header that does not ask for one still matches every other
-    /// header, so the green below stays the deliberate exception rather than the start of a drift.
     @Test func headersWithoutAnExplicitColourStillMatchEachOther() throws {
         let usage = labels(in: MenuBuilder.makeHeaderView(title: "Usage", subtitle: "Claude Monitor"))
         let services = labels(in: MenuBuilder.makeHeaderView(title: "Services", subtitle: "Operational"))
@@ -679,8 +670,6 @@ struct MenuBuilderHeaderShadeTests {
         #expect(shades.count == 1, "every header label should resolve to the same colour")
     }
 
-    /// The shade is deliberately the same token the "Updated / Interval / Next" line already uses,
-    /// which is the line Marek pointed at as the reference.
     @Test func headerShadeMatchesTheControlRow() throws {
         #expect(MenuBuilder.headerTextColor == .secondaryLabelColor)
         let control = ControlRowView(title: "Updated: 10:00:00")
@@ -696,8 +685,6 @@ struct MenuBuilderHeaderShadeTests {
         #expect(found.allSatisfy { $0.textColor == MenuBuilder.headerTextColor })
     }
 
-    /// Pins the built menu, not just the helper: the services header is the one compact mode relies
-    /// on. The section word stays quiet; only the status it summarises turns green.
     @Test func servicesHeaderKeepsAGreyWordAndAGreenStatus() throws {
         let state = MonitorState(
             service: ServiceHealth(currentStatus: StatusSummary(
@@ -715,9 +702,7 @@ struct MenuBuilderHeaderShadeTests {
         #expect(found.last?.textColor == .restingAccent)
     }
 
-    /// The bar and the services status are meant to be one green, not two that happen to match
-    /// today. Measured against `barFillColor` rather than against the constant, so renaming or
-    /// re-pointing either surface alone fails here.
+    /// Compared against `barFillColor`, not the constant, so re-pointing either surface alone fails.
     @Test func theServicesStatusUsesTheSameGreenAsARestingBar() throws {
         let state = MonitorState(
             service: ServiceHealth(currentStatus: StatusSummary(

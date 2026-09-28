@@ -49,7 +49,6 @@ import Testing
 
         let formatter = archiveDateFormatterForTests()
 
-        // Just outside the 2-year cutoff.
         let cutoff = UsageHistory.retentionCutoff(years: retentionYears, now: now)!
         let oldEnd = cutoff.addingTimeInterval(-86400)
         let oldStart = oldEnd.addingTimeInterval(-fiveHourDuration)

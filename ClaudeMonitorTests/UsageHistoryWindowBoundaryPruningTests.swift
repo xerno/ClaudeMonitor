@@ -2,11 +2,7 @@ import Foundation
 import Testing
 @testable import ClaudeMonitor
 
-// Historically this suite tested `record()`'s derived-windowStart pruning. That pruning
-// was removed: ownership of samples is now by explicit WindowInstance (see WindowInstance
-// in UsageHistory.swift), never re-derived from `resets_at - duration`. These tests now
-// cover instance-ownership semantics instead — samples never disappear except via an
-// explicit archive triggered by detectAndHandleReset.
+// record() never prunes a WindowInstance's samples; only an explicit archive removes them.
 @Suite struct WindowInstanceOwnershipTests {
 
     @Test @MainActor func recordingWithADifferentResetsAtDoesNotDropExistingSamples() async {
@@ -23,8 +19,6 @@ import Testing
         history.record(entries: [makeEntry(key: "five_hour", utilization: 40, resetsAt: oldResetsAt)], at: t2)
         history.record(entries: [makeEntry(key: "five_hour", utilization: 50, resetsAt: oldResetsAt)], at: t3)
 
-        // record() no longer prunes based on resets_at — only detectAndHandleReset
-        // (via an explicit archive) ever removes samples from the current instance.
         let newResetsAt = now.addingTimeInterval(duration)
         let newEntry = makeEntry(key: "five_hour", utilization: 5, resetsAt: newResetsAt)
         history.record(entries: [newEntry], at: now.addingTimeInterval(60))
@@ -70,7 +64,6 @@ import Testing
     // MARK: - Task F regression cases
 
     @Test @MainActor func midWindowCreditDoesNotSplitOrArchiveTheWindow() async {
-        // Real 2026-08-17 incident: 30, 32, then 0, with resets_at UNCHANGED.
         let fixture = UsageHistoryTestFixture()
         let history = fixture.history
         history.switchOrganization(UUID().uuidString)

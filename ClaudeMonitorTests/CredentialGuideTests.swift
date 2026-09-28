@@ -24,13 +24,10 @@ import AppKit
     @Test func singleBoldMarker() {
         let result = CredentialGuide.parseBoldMarkdown("Open **DevTools** now", body: body, bold: bold)
         #expect(result.string == "Open DevTools now")
-        // "Open " at index 0 is regular
         let regularFont = result.attribute(.font, at: 0, effectiveRange: nil) as? NSFont
         #expect(regularFont == NSFont.systemFont(ofSize: 12))
-        // "DevTools" starts at index 5, is bold
         let boldFont = result.attribute(.font, at: 5, effectiveRange: nil) as? NSFont
         #expect(boldFont == NSFont.boldSystemFont(ofSize: 12))
-        // " now" at index 13 is regular
         let afterFont = result.attribute(.font, at: 13, effectiveRange: nil) as? NSFont
         #expect(afterFont == NSFont.systemFont(ofSize: 12))
     }
@@ -81,7 +78,6 @@ import AppKit
         let input = "2. Open **DevTools** (⌥⌘I) → **Network** tab"
         let result = CredentialGuide.parseBoldMarkdown(input, body: body, bold: bold)
         #expect(result.string == "2. Open DevTools (⌥⌘I) → Network tab")
-        // "DevTools" starts at index 8
         let devToolsFont = result.attribute(.font, at: 8, effectiveRange: nil) as? NSFont
         #expect(devToolsFont == NSFont.boldSystemFont(ofSize: 12))
     }

@@ -2,9 +2,6 @@ import AppKit
 import Testing
 @testable import ClaudeMonitor
 
-/// The "Updated / Interval / Next" line. It used to be one string padded with eight literal spaces,
-/// which only lined up at one menu width and could not survive thirty languages. These pin that the
-/// readings now find the row's real edges, whatever that width turns out to be.
 @MainActor
 struct ControlRowLayoutTests {
 
@@ -21,8 +18,7 @@ struct ControlRowLayoutTests {
         return row
     }
 
-    /// Direct subviews, no container: the shade test reaches for the first NSTextField in
-    /// `subviews`, and wrapping the labels would hide every one of them.
+    /// Direct subviews, no container: `headerShadeMatchesTheControlRow` searches `subviews` non-recursively.
     @Test func everyReadingIsItsOwnDirectSubview() {
         let found = labels(of: ControlRowView(segments: segments))
         #expect(found.count == 3)
@@ -37,8 +33,6 @@ struct ControlRowLayoutTests {
         #expect(abs(found[2].frame.maxX - (460 - inset)) < 0.5)
     }
 
-    /// The point of the whole change: the row stays anchored to both edges as the menu widens,
-    /// instead of huddling at the left with a gap on the right.
     @Test func theReadingsFollowTheRowAsItWidens() {
         let narrow = labels(of: laidOut(width: 360))
         let wide = labels(of: laidOut(width: 520))
@@ -52,14 +46,13 @@ struct ControlRowLayoutTests {
         #expect(abs(middle.frame.midX - 260) < 1)
     }
 
-    /// Squeezed, the middle reading gives up being centred rather than overlapping a neighbour.
     @Test func theReadingsNeverOverlapWhenTheRowIsTight() {
         let found = labels(of: laidOut(width: ControlRowView(segments: segments).frame.width))
         #expect(found[0].frame.maxX <= found[1].frame.minX)
         #expect(found[1].frame.maxX <= found[2].frame.minX)
     }
 
-    /// A single reading (no poll interval yet) keeps the old left-aligned behaviour.
+    /// A single reading (no poll interval yet) stays left-aligned.
     @Test func oneReadingStaysOnTheLeadingInset() {
         let row = ControlRowView(title: "Updated: 8:20:39")
         row.frame.size.width = 460
@@ -69,7 +62,7 @@ struct ControlRowLayoutTests {
         #expect(found[0].frame.minX == MenuBuilder.rowTrailingInset)
     }
 
-    /// Same reading count in, same labels reused — the row is rebuilt only when the count changes.
+    /// The labels are rebuilt only when the reading count changes.
     @Test func updatingInPlaceKeepsTheSameLabels() {
         let row = ControlRowView(segments: segments)
         let before = labels(of: row)

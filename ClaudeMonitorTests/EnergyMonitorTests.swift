@@ -2,13 +2,10 @@ import Testing
 import AppKit
 @testable import ClaudeMonitor
 
-/// The monitor and its route to the menu. These cover the wiring, not the arithmetic —
-/// `EnergyModelTests` owns the numbers.
 @MainActor
 struct EnergyMonitorTests {
 
-    /// The repo's per-run root: swept at the start of the NEXT run, never torn down by this one, so
-    /// a failing assertion leaves its files behind for post-mortem. See TestHistoryRoot.
+    /// Never torn down: swept at the start of the next run, so a failing test leaves its files for post-mortem.
     private func makeTempDirectory() throws -> URL {
         TestHistoryRoot.makeSubdirectory()
     }
@@ -58,8 +55,7 @@ struct EnergyMonitorTests {
 
     // MARK: - Persistence
 
-    /// A restored monitor must show a number before it has scanned anything, otherwise every launch
-    /// reads as "no data" for as long as a cold scan takes.
+    /// Without a restore, every launch reads as "no data" until a cold scan finishes.
     @Test func persistedStateIsRestoredWithoutScanning() async throws {
         let root = try makeTempDirectory()
         let logs = root.appendingPathComponent("logs")
@@ -70,7 +66,6 @@ struct EnergyMonitorTests {
         await first.refresh()
         first.persist()
 
-        // Second monitor pointed at an empty log directory: anything it reports came from disk.
         let emptyLogs = root.appendingPathComponent("empty")
         try FileManager.default.createDirectory(at: emptyLogs, withIntermediateDirectories: true)
         let second = makeMonitor(logs: emptyLogs, root: root)
@@ -102,8 +97,6 @@ struct EnergyMonitorTests {
 
     // MARK: - Route into the menu
 
-    /// End to end through the value type the menu is built from: an estimate on `MonitorState` has
-    /// to reach the label under the graph.
     @Test func estimateOnStateReachesTheGraphView() {
         let view = UsageGraphView()
         let menu = NSMenu()
@@ -127,8 +120,6 @@ struct EnergyMonitorTests {
 
     // MARK: - Layout
 
-    /// The energy label must not sit on top of the stats text. Both live on one 20 pt row, so an
-    /// overlap would render as two strings drawn over each other rather than as a visible error.
     @Test func statsAndEnergyLabelsDoNotOverlap() {
         let view = UsageGraphView()
         let labels = view.subviews.compactMap { $0 as? NSTextField }
@@ -141,7 +132,6 @@ struct EnergyMonitorTests {
         #expect(stats.frame.minY == energy.frame.minY, "both belong on the same row")
     }
 
-    /// The reserved width has to fit the widest reading the formatter can produce.
     @Test func reservedWidthFitsTheWidestReading() {
         let widest = UsageGraphView.energyText(for: EnergyEstimate(low: 500_000, median: 1_500_000, high: 2_000_000))
         let measured = NSAttributedString(

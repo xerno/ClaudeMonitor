@@ -62,7 +62,6 @@ struct PollingRateTests {
     // MARK: - Rate-driven ramp-up (activityFactor = 1.0, tslc ≤ grace)
 
     @Test func lowRateStaysAtBase() {
-        // recentRate=0.01 %/s → desired=1/0.01=100s → clamped to base 60s
         var scheduler = PollingScheduler()
         let analysis = makeAnalysis(timeSinceLastChange: 60, recentRate: 0.01)
         scheduler.adjustPollingRate(windowAnalyses: [analysis])
@@ -70,7 +69,7 @@ struct PollingRateTests {
     }
 
     @Test func moderateRateGivesExactInterval() {
-        // recentRate=0.02 %/s → desired=1/0.02=50s (50 > minInterval=24, < base=60) → 50s
+        // desired = 1 / rate = 50s
         var scheduler = PollingScheduler()
         let analysis = makeAnalysis(timeSinceLastChange: 60, recentRate: 0.02)
         scheduler.adjustPollingRate(windowAnalyses: [analysis])
@@ -78,7 +77,6 @@ struct PollingRateTests {
     }
 
     @Test func highRateHitsMinFloor() {
-        // recentRate=0.1 %/s → desired=1/0.1=10s → clamped to minInterval=24s
         var scheduler = PollingScheduler()
         let analysis = makeAnalysis(timeSinceLastChange: 60, recentRate: 0.1)
         scheduler.adjustPollingRate(windowAnalyses: [analysis])
@@ -86,7 +84,6 @@ struct PollingRateTests {
     }
 
     @Test func maxRateAcrossWindowsWins() {
-        // Two windows: 0.005 and 0.02. Max=0.02 → desired=50s
         var scheduler = PollingScheduler()
         let a1 = makeAnalysis(timeSinceLastChange: 60, recentRate: 0.005)
         let a2 = makeAnalysis(timeSinceLastChange: 60, recentRate: 0.02)
@@ -97,7 +94,6 @@ struct PollingRateTests {
     // MARK: - activityFactor decay
 
     @Test func graceFullFactor() {
-        // tslc=200s (< grace=300s) → factor=1.0, recentRate=0.02 → desired=50s → 50s
         var scheduler = PollingScheduler()
         let analysis = makeAnalysis(timeSinceLastChange: 200, recentRate: 0.02)
         scheduler.adjustPollingRate(windowAnalyses: [analysis])
@@ -105,8 +101,7 @@ struct PollingRateTests {
     }
 
     @Test func midDecayHalfFactor() {
-        // tslc=900s: afterGrace=600, decay=1200 → factor=0.5
-        // effectiveRate=0.02*0.5=0.01 → desired=100s → clamped to base 60s
+        // factor 0.5 halves the rate: desired 100s, clamped to base
         var scheduler = PollingScheduler()
         let analysis = makeAnalysis(timeSinceLastChange: 900, recentRate: 0.02)
         scheduler.adjustPollingRate(windowAnalyses: [analysis])
@@ -114,8 +109,7 @@ struct PollingRateTests {
     }
 
     @Test func postDecayZeroFactor() {
-        // tslc=1800s > grace+decay(1500s) → factor=0 → desired=∞
-        // cooldownInterval(1800): 1800 < cooldownStart(2100) → base=60s → 60s
+        // factor 0 → desired ∞; tslc < cooldownStart, so the upper bound is base
         var scheduler = PollingScheduler()
         let analysis = makeAnalysis(timeSinceLastChange: 1800, recentRate: 0.02)
         scheduler.adjustPollingRate(windowAnalyses: [analysis])
@@ -123,7 +117,6 @@ struct PollingRateTests {
     }
 
     @Test func graceBoundaryIncludesEndpoint() {
-        // tslc = exactly activityGrace (300s) → factor=1.0 (inclusive upper bound of grace).
         var scheduler = PollingScheduler()
         let analysis = makeAnalysis(timeSinceLastChange: Constants.Polling.activityGrace, recentRate: 0.02)
         scheduler.adjustPollingRate(windowAnalyses: [analysis])
@@ -131,8 +124,6 @@ struct PollingRateTests {
     }
 
     @Test func decayEndBoundaryReachesZeroFactor() {
-        // tslc = exactly activityGrace + activityDecay (1500s) → factor=0 (inclusive upper bound of decay).
-        // effectiveRate=0 → desired=∞, upperBound=baseInterval (tslc < cooldownStart).
         var scheduler = PollingScheduler()
         let tslc = Constants.Polling.activityGrace + Constants.Polling.activityDecay
         let analysis = makeAnalysis(timeSinceLastChange: tslc, recentRate: 0.02)
@@ -143,7 +134,6 @@ struct PollingRateTests {
     // MARK: - Cooldown (tslc ≥ cooldownStart)
 
     @Test func cooldownStartBoundary() {
-        // tslc=2100 → exactly at cooldownStart → t=0 → baseInterval=60s
         var scheduler = PollingScheduler()
         let analysis = makeAnalysis(timeSinceLastChange: Constants.Polling.cooldownStart, recentRate: nil)
         scheduler.adjustPollingRate(windowAnalyses: [analysis])
@@ -151,7 +141,6 @@ struct PollingRateTests {
     }
 
     @Test func cooldownMidpoint() {
-        // tslc=3900: midpoint of cooldownStart(2100)..cooldownEnd(5700) → t=0.5 → 60+0.5*240=180s
         var scheduler = PollingScheduler()
         let midpoint = (Constants.Polling.cooldownStart + Constants.Polling.cooldownEnd) / 2
         let analysis = makeAnalysis(timeSinceLastChange: midpoint, recentRate: nil)
@@ -161,7 +150,6 @@ struct PollingRateTests {
     }
 
     @Test func cooldownEndReachesMaxIdle() {
-        // tslc=5700 (cooldownEnd) → t=1 → maxIdleInterval=300s
         var scheduler = PollingScheduler()
         let analysis = makeAnalysis(timeSinceLastChange: Constants.Polling.cooldownEnd, recentRate: nil)
         scheduler.adjustPollingRate(windowAnalyses: [analysis])
@@ -171,8 +159,6 @@ struct PollingRateTests {
     // MARK: - Safety cap (near limit, not Away)
 
     @Test func nearLimitCapsAt120sInCooldown() {
-        // tslc=5700 (cooldown max=300s), util=85% (≥bold=80), systemIdle=100 (not away)
-        // upperBound = min(300, nearLimitCooldownCap=120) = 120s
         var scheduler = PollingScheduler()
         let analysis = makeAnalysis(utilization: 85, timeSinceLastChange: Constants.Polling.cooldownEnd, recentRate: nil)
         scheduler.adjustPollingRate(windowAnalyses: [analysis], systemIdleTime: 100)
@@ -180,7 +166,6 @@ struct PollingRateTests {
     }
 
     @Test func nearLimitDoesNotAffectBaseCooldownBelowCap() {
-        // tslc=2700: cooldown t=(2700-2100)/3600=1/6 → 60+(1/6)*240=100s < cap=120 → 100s unchanged
         var scheduler = PollingScheduler()
         let tslc: TimeInterval = 2700
         let t = (tslc - Constants.Polling.cooldownStart) / (Constants.Polling.cooldownEnd - Constants.Polling.cooldownStart)
@@ -191,7 +176,6 @@ struct PollingRateTests {
     }
 
     @Test func belowBoldThresholdNoCap() {
-        // tslc=5700, util=70% (< bold=80) → no cap → 300s
         var scheduler = PollingScheduler()
         let analysis = makeAnalysis(utilization: 70, timeSinceLastChange: Constants.Polling.cooldownEnd, recentRate: nil)
         scheduler.adjustPollingRate(windowAnalyses: [analysis], systemIdleTime: 100)
@@ -199,7 +183,6 @@ struct PollingRateTests {
     }
 
     @Test func safetyCapAtExactBoldThreshold() {
-        // tslc=5700, util=80 (exactly at bold=80) → cap applies → 120s
         var scheduler = PollingScheduler()
         let analysis = makeAnalysis(utilization: 80, timeSinceLastChange: Constants.Polling.cooldownEnd, recentRate: nil)
         scheduler.adjustPollingRate(windowAnalyses: [analysis], systemIdleTime: 100)
@@ -207,9 +190,6 @@ struct PollingRateTests {
     }
 
     @Test func highRampUpOverridesSafetyCap() {
-        // tslc=200 (< grace=300), recentRate=0.1, util=85%
-        // desired=10s, baseCooldown=60 (below cooldownStart), nearLimitCap=min(60,120)=60
-        // combined=min(10,60)=10, clamped to minInterval=24s
         var scheduler = PollingScheduler()
         let analysis = makeAnalysis(utilization: 85, timeSinceLastChange: 200, recentRate: 0.1)
         scheduler.adjustPollingRate(windowAnalyses: [analysis], systemIdleTime: 100)
@@ -219,8 +199,6 @@ struct PollingRateTests {
     // MARK: - Away mode
 
     @Test func awayModeActivatesAtCooldownCapAndSystemIdle() {
-        // tslc=5700 → baseCooldown=300=maxIdleInterval → atCooldownCap=true
-        // systemIdle=600 > awayThreshold=300 → awayMode=true, interval > maxIdle
         var scheduler = PollingScheduler()
         let analysis = makeAnalysis(timeSinceLastChange: Constants.Polling.cooldownEnd)
         scheduler.adjustPollingRate(windowAnalyses: [analysis], systemIdleTime: 600)
@@ -229,7 +207,6 @@ struct PollingRateTests {
     }
 
     @Test func awayModeRampsToMax() {
-        // tslc=5700, systemIdle=7200 (= awayRampEnd) → awayT=1 → maxAwayInterval=3600s
         var scheduler = PollingScheduler()
         let analysis = makeAnalysis(timeSinceLastChange: Constants.Polling.cooldownEnd)
         scheduler.adjustPollingRate(windowAnalyses: [analysis], systemIdleTime: Constants.Polling.awayRampEnd)
@@ -238,7 +215,6 @@ struct PollingRateTests {
     }
 
     @Test func awayModeDoesNotActivateBelowCooldownCap() {
-        // tslc=3000: cooldown t=(3000-2100)/3600=0.25 → 60+0.25*240=120s < 300 → atCooldownCap=false
         var scheduler = PollingScheduler()
         let analysis = makeAnalysis(timeSinceLastChange: 3000)
         scheduler.adjustPollingRate(windowAnalyses: [analysis], systemIdleTime: 600)
@@ -246,7 +222,6 @@ struct PollingRateTests {
     }
 
     @Test func awayModeDoesNotActivateWhenSystemActive() {
-        // tslc=5700 → atCooldownCap=true, but systemIdle=100 < awayThreshold=300 → NOT away
         var scheduler = PollingScheduler()
         let analysis = makeAnalysis(timeSinceLastChange: Constants.Polling.cooldownEnd)
         scheduler.adjustPollingRate(windowAnalyses: [analysis], systemIdleTime: 100)
@@ -255,25 +230,21 @@ struct PollingRateTests {
     }
 
     @Test func awayModeDeactivatesWhenSystemBecomesActive() {
-        // Activate away mode first: tslc=5700 (atCooldownCap), systemIdle=600 (> awayThreshold)
         var scheduler = PollingScheduler()
         let analysis = makeAnalysis(timeSinceLastChange: Constants.Polling.cooldownEnd)
         scheduler.adjustPollingRate(windowAnalyses: [analysis], systemIdleTime: 600)
         #expect(scheduler.isAwayMode, "Precondition: away mode must be active before deactivation test")
 
-        // User moves mouse: idle time drops below awayThreshold (300s)
         scheduler.adjustPollingRate(windowAnalyses: [analysis], systemIdleTime: 100)
 
         #expect(!scheduler.isAwayMode)
     }
 
     @Test func awayModeIgnoresNearLimitCap() {
-        // tslc=5700, systemIdle=600, util=85% → Away mode → interval from away ramp (not capped at 120s)
         var scheduler = PollingScheduler()
         let analysis = makeAnalysis(utilization: 85, timeSinceLastChange: Constants.Polling.cooldownEnd, recentRate: nil)
         scheduler.adjustPollingRate(windowAnalyses: [analysis], systemIdleTime: 600)
         #expect(scheduler.isAwayMode)
-        // Away mode: awayT=(600-300)/6900≈0.0435 → upperBound≈300+0.0435*3300≈443s > nearLimitCap(120s)
         #expect(scheduler.nextPollInterval(usage: nil) > Constants.Polling.nearLimitCooldownCap)
     }
 
@@ -289,13 +260,12 @@ struct PollingRateTests {
     }
 
     @Test func nearResetSnappingInCooldown() {
-        // Put scheduler into cooldown state (tslc=cooldownEnd → effectiveInterval=300s)
         var scheduler = PollingScheduler()
         let analysis = makeAnalysis(timeSinceLastChange: Constants.Polling.cooldownEnd)
         scheduler.adjustPollingRate(windowAnalyses: [analysis])
         #expect(scheduler.effectivePollingInterval > Constants.Polling.baseInterval)
 
-        // Reset in 120s: 60 < 120 < 300 → near-reset snap fires
+        // 120s is beyond baseInterval but inside the 300s cooldown interval
         let resetsIn: TimeInterval = 120
         let entry = WindowEntry.make(
             key: "five_hour",
@@ -317,7 +287,6 @@ struct PollingRateTests {
             scheduler.recordUsageFailure(category: .transient)
             scheduler.recordStatusFailure(category: .transient)
         }
-        // initialBackoff=10, doubled threshold times: 10*2^threshold
         let expectedBackoff = Constants.Retry.initialBackoff * pow(2.0, Double(threshold))
         #expect(scheduler.nextPollInterval(usage: nil) == min(expectedBackoff, Constants.Retry.maxBackoff))
     }
@@ -340,8 +309,7 @@ struct PollingRateTests {
 
     @Test func bothNonRetryableFlooredAtBase() {
         var scheduler = PollingScheduler()
-        // Drive effectivePollingInterval below baseInterval using high recentRate within grace
-        let analysis = makeAnalysis(timeSinceLastChange: 60, recentRate: 0.1) // desired=10s → minInterval=24s
+        let analysis = makeAnalysis(timeSinceLastChange: 60, recentRate: 0.1)
         scheduler.adjustPollingRate(windowAnalyses: [analysis])
         #expect(scheduler.effectivePollingInterval < Constants.Polling.baseInterval,
                 "precondition: ramp-up must drive interval below base")
@@ -355,19 +323,15 @@ struct PollingRateTests {
 
     @Test func mixedHealthyAndAuthFailedDoesNotFloor() {
         var scheduler = PollingScheduler()
-        // Drive effectivePollingInterval below baseInterval using high recentRate within grace
-        let analysis = makeAnalysis(timeSinceLastChange: 60, recentRate: 0.1) // desired=10s → minInterval=24s
+        let analysis = makeAnalysis(timeSinceLastChange: 60, recentRate: 0.1)
         scheduler.adjustPollingRate(windowAnalyses: [analysis])
         #expect(scheduler.effectivePollingInterval < Constants.Polling.baseInterval,
                 "precondition: ramp-up must drive interval below base")
 
-        // Only usage hits the threshold with non-retryable auth failure; status is healthy
         for _ in 0..<Constants.Retry.failureThreshold {
             scheduler.recordUsageFailure(category: .authFailure)
         }
-        // retryInterval(for: usageState)==nil (authFailure non-retryable),
-        // retryInterval(for: statusState)==nil (below threshold → healthy)
-        // → picks effectivePollingInterval < baseInterval
+        // Both retry intervals are nil (non-retryable; healthy), but only two failed services floor at base
         #expect(scheduler.nextPollInterval(usage: nil) < Constants.Polling.baseInterval)
     }
 
@@ -388,11 +352,9 @@ struct PollingRateTests {
 
     @Test func mixedErrorCategories() {
         var scheduler = PollingScheduler()
-        // Status: auth failure (no backoff / nil retryInterval)
         for _ in 0..<Constants.Retry.failureThreshold {
             scheduler.recordStatusFailure(category: .authFailure)
         }
-        // Usage: transient (exponential backoff)
         for _ in 0..<Constants.Retry.failureThreshold {
             scheduler.recordUsageFailure(category: .transient)
         }
@@ -430,7 +392,6 @@ struct PollingRateTests {
             modelScope: nil,
             window: UsageWindow(utilization: 45, resetsAt: now.addingTimeInterval(3600))
         )
-        // Constant utilization for >cooldownStart seconds
         let samples = (0..<40).map { i in
             UtilizationSample(utilization: 45, timestamp: now.addingTimeInterval(TimeInterval(-2400 + i * 60)))
         }

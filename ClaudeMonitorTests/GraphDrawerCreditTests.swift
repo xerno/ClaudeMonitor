@@ -3,9 +3,6 @@ import Foundation
 import AppKit
 @testable import ClaudeMonitor
 
-/// Tests for credit-event rendering geometry (`GraphDrawer+Credits.swift`). Follows this
-/// codebase's existing precedent (see `StatusBarRendererTests`) of exercising pure
-/// value-returning functions directly rather than rendering to a real screen.
 struct GraphDrawerCreditTests {
     private let rect = NSRect(x: 0, y: 0, width: 100, height: 200)
     private let windowStart = Date(timeIntervalSince1970: 0)
@@ -37,7 +34,7 @@ struct GraphDrawerCreditTests {
     }
 
     @Test func oneCreditEventProducesMarkerAtExpectedX() {
-        let at = Date(timeIntervalSince1970: 500) // midpoint of the 0...1000 range
+        let at = Date(timeIntervalSince1970: 500)
         let event = UsageEvent(at: at, kind: .credit, from: 32, to: 0, fromTimestamp: nil)
         let markers = drawer(events: [event]).visibleCreditMarkers(in: rect, timeRange: timeRange)
 
@@ -60,7 +57,6 @@ struct GraphDrawerCreditTests {
     }
 
     @Test func eventOutsideVisibleRangeIsNotDrawn() {
-        // Before the window even starts — well outside timeRange.
         let outOfRange = UsageEvent(at: Date(timeIntervalSince1970: -500), kind: .credit, from: 20, to: 0, fromTimestamp: nil)
         let markers = drawer(events: [outOfRange]).visibleCreditMarkers(in: rect, timeRange: timeRange)
         #expect(markers.isEmpty)
@@ -71,7 +67,6 @@ struct GraphDrawerCreditTests {
         let markers = drawer(events: [event]).visibleCreditMarkers(in: rect, timeRange: timeRange)
 
         #expect(markers.count == 1)
-        // 50% is halfway up the rect, 0% is at the bottom.
         #expect(markers[0].yFrom == rect.maxY - rect.height * 0.5)
         #expect(markers[0].yTo == rect.maxY)
     }
@@ -97,9 +92,7 @@ struct GraphDrawerCreditTests {
         let event = UsageEvent(at: Date(timeIntervalSince1970: 500), kind: .credit, from: 32, to: 0, fromTimestamp: nil)
         let creditSuffixThatWouldBeAppended = Formatting.creditDescription(for: event)
 
-        // An empty events array must add no credit description at all: neither the text a
-        // non-empty events array WOULD append, nor the "·" separator statsLabelText uses to
-        // join base text with a credit description.
+        // "·" is the separator statsLabelText puts between the base text and a credit description.
         #expect(!text.contains(creditSuffixThatWouldBeAppended))
         #expect(!text.contains("·"))
     }

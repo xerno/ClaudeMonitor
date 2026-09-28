@@ -175,12 +175,7 @@ import Foundation
 
     // MARK: - Task: Defect 3 — a stale retained currentUsage must never be re-recorded
 
-    /// A successful cycle followed by a transient (non-auth) failure must NOT feed the
-    /// retained-but-stale `currentUsage` into history recording a second time. Before the
-    /// fix, `refresh()` decided whether to record based on `if let newUsage = currentUsage`
-    /// — which stays non-nil on a transient failure (only `.authFailure` nils it out) — so a
-    /// failed cycle looked identical to a fresh success and fabricated a "confirmed
-    /// unchanged at now" sample that never actually happened.
+    /// `currentUsage` survives a transient failure; re-recording it would fabricate an "unchanged" sample.
     @Test func transientUsageFailureAfterSuccessDoesNotRecordAStaleSample() async throws {
         let usageResponse = TestFixtures.usage()
         mockUsage.result = .success(usageResponse)
@@ -197,8 +192,6 @@ import Foundation
         mockUsage.result = .failure(ServiceError.unexpectedStatus(503))
         await coordinator.refresh()
 
-        // currentUsage is retained (stale) for display — the pre-fix bug's whole premise —
-        // but it must not have been fed into history a second time.
         #expect(coordinator.currentUsage != nil, "Sanity check: currentUsage is indeed retained (stale), not nilled, on a transient failure.")
         #expect(monitor.usageHistory.storage[identity]?.samples.count == countAfterSuccess,
                 "A failed (non-auth) cycle must never append a fabricated sample for the stale retained currentUsage.")

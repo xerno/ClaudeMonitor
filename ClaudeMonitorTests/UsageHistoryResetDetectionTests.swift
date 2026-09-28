@@ -22,7 +22,7 @@ import Testing
         let didReset = await history.detectAndHandleReset(
             entry: makeEntry(key: "five_hour", utilization: 0, resetsAt: newResetsAt),
             newResetsAt: newResetsAt,
-            at: resetsAt.addingTimeInterval(10) // now is past the old resetsAt
+            at: resetsAt.addingTimeInterval(10)
         )
         #expect(didReset)
         #expect(history.samples(for: makeEntry(key: "five_hour", utilization: 0, resetsAt: newResetsAt)).isEmpty)
@@ -36,13 +36,11 @@ import Testing
         let entry = makeEntry(key: "five_hour", utilization: 42, resetsAt: resetsAt)
         history.record(entries: [entry], at: now)
 
-        // Forward move, but the old window (resetsAt) has NOT ended yet — this is drift,
-        // not a genuine boundary. Same instance, resetsAt updated, samples preserved.
         let newResetsAt = resetsAt.addingTimeInterval(300)
         let didReset = await history.detectAndHandleReset(
             entry: makeEntry(key: "five_hour", utilization: 42, resetsAt: newResetsAt),
             newResetsAt: newResetsAt,
-            at: now // well before resetsAt
+            at: now
         )
         #expect(!didReset)
         #expect(history.samples(for: entry).count == 1)
@@ -105,8 +103,6 @@ import Testing
         let history = fixture.history
         let now = Date()
         let entry = makeEntry(key: "five_hour", utilization: 42, resetsAt: nil)
-        // First observation establishes the instance with resetsAt=nil and no samples yet
-        // (record() hasn't run for this identity), matching a freshly-created instance.
         history.storage[entry.storageIdentity] = WindowInstance(
             id: UUID(), storageIdentity: entry.storageIdentity, resetsAt: nil,
             firstObservedAt: now, samples: [], events: []
@@ -122,21 +118,15 @@ import Testing
     }
 
     @Test @MainActor func unverifiedNilStoredResetsAtWithSamplesInsideCurrentWindowIsRetainedNotArchived() async {
-        // Legacy data whose sole sample already falls inside the window implied by the
-        // freshly observed resets_at: it must be RETAINED, not discarded as an "unknown
-        // prior window" (see UsageHistoryLegacyReconstructionTests for the full corpus of
-        // Task 1 scenarios — this test only guards the historical regression at this call site).
         let fixture = UsageHistoryTestFixture()
         let history = fixture.history
         history.switchOrganization(UUID().uuidString)
         let now = Date()
         let entry = makeEntry(key: "five_hour", utilization: 95, resetsAt: nil)
-        // Simulates legacy/restored data: samples present, but no persisted resets_at.
         history.record(entries: [entry], at: now)
         #expect(history.samples(for: entry).count == 1)
 
-        // newResetsAt chosen so windowStart (newResetsAt - 18000) is well before `now`,
-        // i.e. the lone sample falls inside the reconstructed current window.
+        // windowStart (newResetsAt - 18000) precedes `now`, so the sample lies inside the reconstructed window.
         let newResetsAt = now.addingTimeInterval(3600)
         let didReset = await history.detectAndHandleReset(
             entry: makeEntry(key: "five_hour", utilization: 3, resetsAt: newResetsAt),
@@ -154,16 +144,7 @@ import Testing
 
     // MARK: - Defect 2: the GENUINE-boundary branch must report `false` when nothing archives
 
-    /// The `>=` inclusivity rule can put every sample of a genuine boundary on the NEW side
-    /// (an empty prior partition) — e.g. when a window's only recorded sample happens to land
-    /// exactly at `stored`. Before the fix, the genuine-boundary branch of
-    /// `detectAndHandleReset` returned `true` unconditionally whenever `resets_at` moved
-    /// forward past tolerance, even though `archiveWindow` silently declined to write anything
-    /// (its `!instance.samples.isEmpty` guard fails on an empty prior partition). That `true`
-    /// flows into `DataCoordinator`'s critical-reset trigger, so this could fire a user-visible
-    /// "critical reset" animation for a boundary that archived no history at all. This is the
-    /// GENUINE-boundary counterpart of `unverifiedNilStoredResetsAtWithSamplesInsideCurrentWindowIsRetainedNotArchived`
-    /// above, which already covered the same empty-prior-partition shape for the legacy branch.
+    /// The return value triggers critical-reset detection, so it must be false when nothing is archived.
     @Test @MainActor func genuineBoundaryWithEmptyPriorPartitionArchivesNothingAndReturnsFalse() async throws {
         let fixture = UsageHistoryTestFixture()
         let history = fixture.history
@@ -171,9 +152,7 @@ import Testing
 
         let identity = "18000"
         let stored = Date(timeIntervalSince1970: 1_786_984_799)
-        // The lone sample lands EXACTLY at `stored` — under the `>=` inclusivity rule it
-        // belongs to the NEW instance, so the prior partition is empty even though this is
-        // otherwise a textbook genuine boundary (forward move past tolerance, old reset passed).
+        // The only sample sits exactly at `stored`, so under `>=` the prior partition is empty.
         history.storage[identity] = WindowInstance(
             id: UUID(), storageIdentity: identity, resetsAt: stored,
             firstObservedAt: stored, samples: [UtilizationSample(utilization: 0, timestamp: stored)], events: []

@@ -54,9 +54,6 @@ import Testing
         #expect(samples.count == 2)
     }
 
-    // record() no longer prunes by age or by a derived window boundary — ownership is by
-    // explicit WindowInstance, and only an archive (via detectAndHandleReset) ever removes
-    // samples from the current instance. See UsageHistoryWindowBoundaryPruningTests.swift.
     @Test @MainActor func recordNeverPrunesOldSamplesByAge() async {
         let fixture = UsageHistoryTestFixture()
         let history = fixture.history
@@ -74,9 +71,6 @@ import Testing
         #expect(samples.map(\.utilization) == [10, 20])
     }
 
-    /// A `.credit` event's `fromTimestamp` must be the previous sample's own timestamp — the
-    /// single fact `record()` knows with certainty at the moment it observes the drop — not
-    /// something reconstructed later by searching the samples array.
     @Test @MainActor func recordedEventCarriesPreviousSampleTimestampAsOrigin() async {
         let fixture = UsageHistoryTestFixture()
         let history = fixture.history

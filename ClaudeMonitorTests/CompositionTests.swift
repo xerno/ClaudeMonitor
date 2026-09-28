@@ -3,11 +3,6 @@ import Foundation
 import AppKit
 @testable import ClaudeMonitor
 
-/// Hand-crafted mock data pipeline tests: verify that DataCoordinator wires its components
-/// (UsageHistory, PollingScheduler, StatusBarRenderer, MonitorState) correctly end-to-end.
-/// All UsageResponse inputs are constructed directly in code — no JSON decoding involved.
-/// Contrast with CoordinatorCompositionTests, which drives the pipeline from raw JSON strings
-/// to catch bugs that only appear when WindowKeyParser and JSONDecoder are in the path.
 @MainActor struct CompositionTests {
 
     private let mockStatus = MockStatusService()
@@ -29,24 +24,12 @@ import AppKit
 
     // MARK: - Test 1: JSON decode → WindowKeyParser → WindowEntry → analyze → scheduler
 
-    /// Full chain: JSON decode → WindowKeyParser → WindowEntry.duration → analyze →
-    /// adjustPollingRate → effectivePollingInterval reachable from decoded data.
-    ///
-    /// Setup: 65% utilization, 9000s remaining on an 18000s five_hour window.
-    ///   elapsed = 9000s, rate = 65/9000 ≈ 0.00722/s
-    ///   projected = 65 + 0.00722 * 9000 = 130% (≥ criticalThreshold=120)
-    ///
-    /// With no prior samples, recentRate is nil → rate-driven formula can't fire.
-    /// The scheduler falls back to cooldownInterval (baseInterval when tslc is nil).
-    /// The integration value here is verifying the decode-to-analyze pipeline, not
-    /// a specific sub-base interval (which requires history).
     @Test func testCriticalProjectionFromDecodedAPIResponse() async throws {
         let resetsAt = Date().addingTimeInterval(9000)
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         let resetsAtString = formatter.string(from: resetsAt)
 
-        // Real-shaped JSON as the API returns it.
         let json = """
         {"five_hour": {"utilization": 65, "resets_at": "\(resetsAtString)"}}
         """
@@ -63,12 +46,10 @@ import AppKit
         let (coordinator, _) = coordinator(fixture: fixture)
         await coordinator.refresh()
 
-        // First refresh produces one sample — recentRate requires ≥2 samples, so the
-        // rate-driven formula is inactive. Scheduler falls back to cooldownInterval,
-        // which equals baseInterval when timeSinceLastChange is nil (first sample).
+        // One sample gives no recentRate (needs two), so the interval stays at baseInterval.
         let monitor = try #require(coordinator.activeMonitor)
         #expect(monitor.scheduler.effectivePollingInterval == Constants.Polling.baseInterval)
-        // Projection is computed correctly even without enough history for rate-driven polling.
+        // 65% at the window midpoint projects to 130%, independent of sample history.
         let analyses = coordinator.monitorState.usage.windowAnalyses
         #expect(!analyses.isEmpty)
         #expect(analyses[0].projectedAtReset >= Constants.Projection.criticalThreshold)
@@ -76,8 +57,6 @@ import AppKit
 
     // MARK: - Test 2: WindowAnalysis accumulates history across refreshes
 
-    /// Tests that record() accumulates samples and analyze() computes timeSinceLastChange
-    /// from real history after two refreshes with different utilization values.
     @Test func testWindowAnalysisAccumulatesHistoryAcrossRefreshes() async throws {
         let resetsAt = Date().addingTimeInterval(9000)
         let firstUsage = UsageResponse(entries: [
@@ -88,45 +67,29 @@ import AppKit
         let fixture = UsageHistoryTestFixture()
         let (coordinator, _) = coordinator(fixture: fixture)
 
-        // First refresh: utilization = 30
         await coordinator.refresh()
 
-        // Change utilization to 45, same resetsAt.
         let secondUsage = UsageResponse(entries: [
             WindowEntry(key: "five_hour", duration: 18000, durationLabel: "5h", modelScope: nil,
                         window: UsageWindow(utilization: 45, resetsAt: resetsAt)),
         ])
         mockUsage.result = .success(secondUsage)
 
-        // Second refresh: utilization = 45
         await coordinator.refresh()
 
-        // The WindowAnalysis should reflect a utilization change between the two refreshes.
         let analyses = coordinator.monitorState.usage.windowAnalyses
         #expect(!analyses.isEmpty)
         let analysis = analyses[0]
 
-        // timeSinceLastChange should be non-nil because utilization changed (30 → 45).
-        // The most recent "change point" is the second sample (45%), and before it was 30%.
-        // computeTimeSinceLastChange walks back to find the last sample with a DIFFERENT value,
-        // then returns time since the sample AFTER that — i.e., time since the 45% sample was added.
         #expect(analysis.timeSinceLastChange != nil)
 
-        // The two refreshes run back-to-back with no sleep between them, so the second sample
-        // (the 45% change point) was recorded less than 1 second ago. timeSinceLastChange
-        // measures time since that sample → it must be very small (< 1.0s).
+        // Measured from the 45% change point, which the back-to-back refresh recorded moments ago.
         let tslc = try #require(analysis.timeSinceLastChange)
         #expect(tslc < 1.0, "timeSinceLastChange should be nearly zero (< 1s) for back-to-back refreshes; got \(tslc)s")
     }
 
     // MARK: - Test 3: monitorState.currentPollInterval reflects scheduler state
 
-    /// Tests that the scheduler's computed interval actually flows into MonitorState.currentPollInterval.
-    ///
-    /// With the rate-driven design, a single refresh produces only one sample so recentRate
-    /// is nil and effectivePollingInterval falls back to baseInterval. The integration value
-    /// here is verifying that MonitorState.currentPollInterval is wired to the scheduler:
-    /// whatever the scheduler decides, MonitorState exposes the same value.
     @Test func testMonitorStateCurrentPollIntervalReflectsSchedulerState() async throws {
         let fixture = UsageHistoryTestFixture()
         let (coordinator, _) = coordinator(fixture: fixture)
@@ -134,22 +97,16 @@ import AppKit
 
         let state = coordinator.monitorState
 
-        // currentPollInterval must be set after a successful refresh.
         #expect(state.polling.currentPollInterval != nil)
 
-        // currentPollInterval is nextPollInterval(usage:), which returns effectivePollingInterval
-        // when no reset is imminent. With a 9000s-out reset and baseInterval=60s, they agree.
+        // nextPollInterval(usage:) returns effectivePollingInterval unless a reset is due within it.
         let monitor = try #require(coordinator.activeMonitor)
         #expect(state.polling.currentPollInterval! == monitor.scheduler.effectivePollingInterval)
     }
 
     // MARK: - Test 4: usageTitle always shows first entry regardless of projection
 
-    /// Confirms the first entry is unconditionally shown even when projection is benign.
     @Test func testUsageTitleAlwaysShowsFirstEntryRegardlessOfProjection() {
-        // 2% utilization, 95% remaining (19% elapsed on 18000s window).
-        // elapsed = 18000 * 0.05 = 900s; rate = 2/900 ≈ 0.0022/s
-        // projected = 2 + 0.0022 * (18000 * 0.95) ≈ 2 + 37.8 ≈ 40 → well below bold threshold
         let resetsAt = Date().addingTimeInterval(18000 * 0.95)
         let usage = UsageResponse(entries: [
             WindowEntry.make(key: "five_hour", utilization: 2, resetsAt: resetsAt)!,
@@ -157,10 +114,8 @@ import AppKit
 
         let title = StatusBarRenderer.usageTitle(usage: usage)
 
-        // The string must contain "2%".
         #expect(title.string.contains("2%"))
 
-        // Check font and color at position 0 (first character of "2%").
         let font = title.attribute(.font, at: 0, effectiveRange: nil) as? NSFont
         let color = title.attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor
 
@@ -170,7 +125,6 @@ import AppKit
 
     // MARK: - Test 5: Scheduler cooldown from real WindowAnalysis with stable history
 
-    /// Tests the full chain: real samples → analyze() → timeSinceLastChange → cooldown → scheduler.
     @Test func testSchedulerCooldownFromRealAnalysis() {
         let now = Date()
         let resetsAt = now.addingTimeInterval(3600)
@@ -179,9 +133,7 @@ import AppKit
             window: UsageWindow(utilization: 20, resetsAt: resetsAt)
         )
 
-        // Stable at 20% for 96 minutes — far enough to reach cooldownEnd=5700s.
-        // 96 samples, one per minute, going back 95 minutes from now.
-        // tslc = 95 * 60 = 5700s, which equals cooldownEnd → t=1 → maxIdleInterval.
+        // 95 one-minute gaps span exactly cooldownEnd (5700s).
         let sampleCount = 96
         let samples = (0..<sampleCount).map { i in
             UtilizationSample(
@@ -192,27 +144,20 @@ import AppKit
 
         let analysis = UsageHistory.analyze(entry: entry, samples: samples, now: now)
 
-        // timeSinceLastChange: all samples at 20% → time since first sample ≈ 95 * 60 = 5700s
         #expect(analysis.timeSinceLastChange != nil)
         #expect(analysis.timeSinceLastChange! > Constants.Polling.cooldownStart)
-        // At 5700s tslc, exactly at cooldownEnd → t=1 → idleInterval = maxIdleInterval(300s)
         #expect(analysis.timeSinceLastChange! >= Constants.Polling.cooldownEnd)
 
         var scheduler = PollingScheduler()
         scheduler.adjustPollingRate(windowAnalyses: [analysis])
 
-        // Cooldown at full idle cap → interval should equal maxIdleInterval.
         #expect(scheduler.effectivePollingInterval > Constants.Polling.baseInterval)
         #expect(scheduler.effectivePollingInterval == Constants.Polling.maxIdleInterval)
     }
 
     // MARK: - Test 5b: Scheduler cooldown mid-ramp is strictly between bounds
 
-    /// Guards against the ramp collapsing into a step function (jumping straight from
-    /// baseInterval to maxIdleInterval at cooldownStart instead of interpolating). Picks a
-    /// timeSinceLastChange strictly between cooldownStart and cooldownEnd and asserts the
-    /// resulting interval is strictly between the pre-cooldown interval and the idle cap —
-    /// without recomputing the production interpolation formula.
+    /// Guards against the ramp collapsing into a step from baseInterval to maxIdleInterval at cooldownStart.
     @Test func testSchedulerCooldownMidRampIsStrictlyBetweenBounds() {
         let now = Date()
         let resetsAt = now.addingTimeInterval(3600)
@@ -221,7 +166,6 @@ import AppKit
             window: UsageWindow(utilization: 20, resetsAt: resetsAt)
         )
 
-        // Two samples, both at 20%, spanning exactly the ramp's midpoint.
         let midRampTslc = (Constants.Polling.cooldownStart + Constants.Polling.cooldownEnd) / 2
         let samples = [
             UtilizationSample(utilization: 20, timestamp: now.addingTimeInterval(-midRampTslc)),
@@ -245,22 +189,14 @@ import AppKit
 
     // MARK: - Test 6: restartPolling resets currentPollInterval in MonitorState
 
-    /// Tests that restartPolling() resets the scheduler back to baseInterval.
-    ///
-    /// With the rate-driven design, driving a sub-base interval through the coordinator
-    /// requires ≥2 samples with a measurable time delta — not achievable in fast unit tests.
-    /// This test instead verifies that a scheduler driven into cooldown via analyze() directly
-    /// is reset by restartPolling(), confirming the scheduler.reset() call is wired correctly.
     @Test func testRestartPollingResetsCurrentPollIntervalInMonitorState() async throws {
         let fixture = UsageHistoryTestFixture()
         let (coordinator, _) = coordinator(fixture: fixture)
         await coordinator.refresh()
 
-        // After a successful refresh, currentPollInterval is set.
         let stateAfterRefresh = coordinator.monitorState
         #expect(stateAfterRefresh.polling.currentPollInterval != nil)
 
-        // restartPolling() calls scheduler.reset() which sets effectivePollingInterval = baseInterval.
         coordinator.restartPolling()
         let monitor = try #require(coordinator.activeMonitor)
         #expect(monitor.scheduler.effectivePollingInterval == Constants.Polling.baseInterval)
@@ -268,7 +204,6 @@ import AppKit
 
     // MARK: - Test 7: windowAnalyses consistency with currentUsage
 
-    /// Tests that windowAnalyses and currentUsage are kept consistent across state transitions.
     @Test func testWindowAnalysesClearedAfterAuthFailure() async {
         let fixture = UsageHistoryTestFixture()
         let (coordinator, _) = coordinator(fixture: fixture)
@@ -278,7 +213,6 @@ import AppKit
         #expect(firstState.usage.currentUsage != nil)
         #expect(!firstState.usage.windowAnalyses.isEmpty)
 
-        // Change mock to return auth failure → currentUsage becomes nil.
         mockUsage.result = .failure(ServiceError.unauthorized)
         await coordinator.refresh()
 

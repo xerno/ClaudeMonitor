@@ -2,19 +2,14 @@ import Testing
 import Foundation
 @testable import ClaudeMonitor
 
-/// Regression tests for `Formatting.absoluteTime` — under region-override locales such as
-/// `en_CA@rg=czzzzz` (English-Canada language, Czechia region override, a common macOS setup),
-/// `Date.FormatStyle`/`.formatted(...)` silently returns an empty string. These tests assert
-/// against emptiness directly and would fail against the old `Date.FormatStyle`-based
-/// implementation.
+/// Under region-override locales such as `en_CA@rg=czzzzz`, `Date.FormatStyle` silently returns an
+/// empty string, hence the non-empty assertions.
 struct AbsoluteTimeFormattingTests {
     private func containsDigit(_ s: String) -> Bool {
         s.contains { $0.isNumber }
     }
 
-    /// Splits a string into its runs of decimal digits, e.g. "9:41:27 AM" -> ["9", "41", "27"].
-    /// Used to check formatted-time STRUCTURE (which numeric components are present, and in
-    /// what relative order) without depending on the machine's locale or 12/24-hour style.
+    /// Digit runs let structure be checked without depending on locale or 12/24-hour style.
     private func digitGroups(_ s: String) -> [String] {
         s.components(separatedBy: CharacterSet.decimalDigits.inverted).filter { !$0.isEmpty }
     }
@@ -35,12 +30,7 @@ struct AbsoluteTimeFormattingTests {
         )
     }
 
-    /// A fixed instant. Built from `Calendar.current` (rather than a literal `Date()` call) so
-    /// the SAME instant is used every time the suite runs — no dependency on the real wall
-    /// clock — while its hour/minute/second/year, extracted below via `Calendar.current`, are
-    /// whatever this machine's local time zone actually renders for that instant. That keeps
-    /// the test's expectations correct under any time zone without hardcoding a value that
-    /// could only be right in one zone.
+    /// Built and read back through `Calendar.current`, so expectations hold in any time zone.
     private static let fixedInstant: Date = {
         var components = DateComponents()
         components.year = 2026
@@ -80,10 +70,6 @@ struct AbsoluteTimeFormattingTests {
         let hmGroups = digitGroups(hm)
         let hmsGroups = digitGroups(hms)
 
-        // hourMinuteSecond must carry every digit group hourMinute has, plus exactly one more:
-        // the seconds. This pins the actual structural relationship between the two styles
-        // (rather than only checking the strings differ or one is longer), and would catch a
-        // regression where .hourMinuteSecond drops or reorders the minute/second components.
         #expect(hmsGroups.count == hmGroups.count + 1)
         #expect(Array(hmsGroups.prefix(hmGroups.count)) == hmGroups)
         if hmsGroups.count > hmGroups.count {
@@ -91,9 +77,7 @@ struct AbsoluteTimeFormattingTests {
         }
     }
 
-    /// The year is deliberately absent: windows last at most a week, so it carried no information,
-    /// and carrying it pushed the stats row past the width available for it in every locale tested.
-    /// What must remain is a weekday and the same clock time.
+    /// The year is absent by design: windows last at most a week, and it pushed the stats row past its width.
     @Test func weekdayHourMinuteOmitsTheYearAndKeepsTheSameMinute() throws {
         let hm = Formatting.absoluteTime(Self.fixedInstant, .hourMinute)
         let whm = Formatting.absoluteTime(Self.fixedInstant, .weekdayHourMinute)
@@ -104,8 +88,7 @@ struct AbsoluteTimeFormattingTests {
         let groups = digitGroups(whm)
         #expect(!groups.contains { Int($0) == year }, "\(whm) should not carry the year")
         #expect(groups.contains { Int($0) == minute })
-        // The clock time survives intact; the weekday is added as letters, not digits, so the digit
-        // groups match the plain hour:minute rendering exactly.
+        // The weekday adds letters, not digits, so the digit groups equal the plain rendering's.
         #expect(groups == digitGroups(hm))
         #expect(whm.contains { $0.isLetter }, "\(whm) should name a weekday")
         #expect(whm.count > hm.count)
@@ -131,7 +114,7 @@ struct AbsoluteTimeFormattingTests {
     }
 
     @Test func statsLabelTextForBlockedWindowTodayContainsHourMinute() {
-        let resetsAt = Date() // today
+        let resetsAt = Date()
         let analysis = makeAnalysis(utilization: 100, resetsAt: resetsAt)
         let text = Formatting.statsLabelText(analysis: analysis, now: resetsAt.addingTimeInterval(-10))
         let expectedTime = Formatting.absoluteTime(resetsAt, .hourMinute)

@@ -2,20 +2,7 @@ import Foundation
 import Testing
 @testable import ClaudeMonitor
 
-/// Covers Task 1 (calendar-based retention + defensive clamping), Task 4 (would-delete count
-/// computed without deleting), and Task 5 (archiving a window that vanished from the API).
-/// Never adds teardown deletion — TestHistoryRoot preserves each run's data for post-mortem
-/// debugging, only sweeping previous runs at startup.
-///
-/// Every test below fixes `now` to an explicit, hardcoded instant rather than `Date()`. This
-/// suite previously computed cutoffs from the real wall clock, which both made results
-/// dependent on the hour the suite happened to run AND hid a fixture logic bug (a "survivor"
-/// archive was placed relative to the wrong cutoff and was, at certain unrelated real dates,
-/// coincidentally on the wrong side of the boundary it was meant to test). A fixed `now`
-/// makes every date arithmetic relationship in this file explicit and reviewable.
 @Suite(.serialized) @MainActor struct UsageHistoryRetentionTests {
-    /// Arbitrary fixed instant used everywhere `now` is needed in this suite, so no test's
-    /// outcome can depend on the real date/time or timezone the suite executes in.
     private static let fixedNow: Date = {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "UTC")!
@@ -25,8 +12,7 @@ import Testing
     // MARK: - Task 1: calendar-based cutoff
 
     @Test func retentionCutoffUsesCalendarYearsNotFixedSeconds() {
-        // A leap-year-spanning span: from 2024-03-01 back 1 year crosses Feb 29, 2024.
-        // A fixed 365-day approximation would land one day off; Calendar arithmetic must not.
+        // 2024-03-01 minus one year spans Feb 29: a 365-day approximation lands a day off.
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "UTC")!
         let now = calendar.date(from: DateComponents(year: 2024, month: 3, day: 1, hour: 12))!
@@ -66,11 +52,6 @@ import Testing
         #expect(!fm.fileExists(atPath: outsideURL.path), "Archive just outside retention must be deleted")
     }
 
-    /// Documents and locks in the exact-boundary behaviour: production compares
-    /// `entry.endDate < cutoff` to decide deletion, so a window whose end date is *exactly*
-    /// the cutoff instant is NOT `< cutoff` and therefore SURVIVES — the cutoff instant itself
-    /// is the oldest moment still kept. Only an end date strictly older than the cutoff
-    /// (by even one second) is deleted.
     @Test func archiveExactlyAtCutoffSurvivesOneSecondOlderIsDeleted() async throws {
         let fixture = UsageHistoryTestFixture()
         let history = fixture.history
@@ -149,15 +130,8 @@ import Testing
         let newRetentionYears = 1
         let oldCutoff = UsageHistory.retentionCutoff(years: oldRetentionYears, now: now)!
         let newCutoff = UsageHistory.retentionCutoff(years: newRetentionYears, now: now)!
-        // Sanity check on the fixture's own premise: the 5-year cutoff is chronologically
-        // BEFORE (older than) the 1-year cutoff, since a longer retention reaches further
-        // into the past. Anything meant to "survive a decrease to 1 year" must be dated
-        // AFTER newCutoff, not merely after oldCutoff — that was the bug this test caught.
         #expect(oldCutoff < newCutoff)
 
-        // Two archives that survive today's (5-year) retention but would be deleted by a
-        // decrease to 1 year (dated between oldCutoff and newCutoff); one archive that
-        // survives both (dated after newCutoff, the more recent/stricter of the two cutoffs).
         func writeArchive(end: Date) throws -> URL {
             let start = end.addingTimeInterval(-18000)
             let url = identityDir.appendingPathComponent("\(formatter.string(from: start))_\(formatter.string(from: end)).\(Constants.History.windowInstanceFileExtension)")
@@ -172,22 +146,16 @@ import Testing
         let doomed2 = try writeArchive(end: doomed2End)
         let survivor = try writeArchive(end: survivorEnd)
 
-        // Both doomed archives must actually be within the old (5-year) retention, and the
-        // survivor must be within the new (1-year) retention too — otherwise this fixture
-        // isn't testing what its names claim. Compare the END DATES used to construct each
-        // archive, not the file URLs (a URL has no ordering relationship to a Date).
         #expect(doomed1End > oldCutoff && doomed2End > oldCutoff)
         #expect(survivorEnd > newCutoff)
 
         let count = await history.archivedWindowCount(retentionYears: newRetentionYears, now: now)
         #expect(count == 2, "Exactly the two archives older than the new cutoff should be counted")
 
-        // Nothing must be deleted merely by counting.
         #expect(fm.fileExists(atPath: doomed1.path))
         #expect(fm.fileExists(atPath: doomed2.path))
         #expect(fm.fileExists(atPath: survivor.path))
 
-        // Only an explicit prune with the new retention actually deletes.
         await history.pruneArchives(retentionYears: newRetentionYears, now: now)
         #expect(!fm.fileExists(atPath: doomed1.path))
         #expect(!fm.fileExists(atPath: doomed2.path))
@@ -205,11 +173,9 @@ import Testing
         let entry = makeEntry(key: "five_hour", utilization: 40, resetsAt: now.addingTimeInterval(duration))
         history.record(entries: [entry], at: now)
 
-        // First poll where the window is missing merely starts the clock.
         await history.archiveMissingWindows(currentIdentities: [], at: now)
         #expect(history.storage[entry.storageIdentity] != nil, "A single missing poll must not archive")
 
-        // Still missing once the window's own duration has fully elapsed: unambiguous.
         let later = now.addingTimeInterval(duration + 1)
         await history.archiveMissingWindows(currentIdentities: [], at: later)
         #expect(history.storage[entry.storageIdentity] == nil, "Should be archived once unambiguously gone")
@@ -228,22 +194,17 @@ import Testing
         let entry = makeEntry(key: "five_hour", utilization: 40, resetsAt: now.addingTimeInterval(duration))
         history.record(entries: [entry], at: now)
 
-        // Missing for one poll, then reappears before the threshold elapses.
         await history.archiveMissingWindows(currentIdentities: [], at: now.addingTimeInterval(60))
         await history.archiveMissingWindows(currentIdentities: [entry.storageIdentity], at: now.addingTimeInterval(120))
 
         #expect(history.storage[entry.storageIdentity] != nil, "Window must not be archived once it reappears")
 
-        // A later transient miss must restart the clock rather than reuse the earlier timestamp.
         await history.archiveMissingWindows(currentIdentities: [], at: now.addingTimeInterval(180))
         await history.archiveMissingWindows(currentIdentities: [], at: now.addingTimeInterval(180 + duration - 1))
         #expect(history.storage[entry.storageIdentity] != nil, "Must not archive before a full duration has elapsed since it went missing again")
     }
 
-    /// Drives `DataCoordinator.refresh` itself (not `UsageHistory` directly) to verify the
-    /// actual gating in `DataCoordinator+Refresh`: `archiveMissingWindows` is invoked only from
-    /// the `.fresh` (successful, complete) usage-fetch branch, never on a failed fetch — see
-    /// `refresh(now:)`'s `if case .fresh(let newUsage) = outcome` guard.
+    /// Goes through `refresh`: the `.fresh`-only gate lives in `AccountMonitor.refresh`, not `UsageHistory`.
     @Test func archiveMissingWindowsOnlyRunsAfterSuccessfulFetchesNotFailedOnes() async throws {
         let fixture = UsageHistoryTestFixture()
         let history = fixture.history
@@ -259,22 +220,16 @@ import Testing
         let (coordinator, _) = makeCoordinator(fixture: fixture, usage: mockUsage, testOrgId: testOrgId)
         let archiveDir = history.archiveDirectory.appendingPathComponent(entry.storageIdentity)
 
-        // A failed fetch must never archive, even once `now` has advanced well past the
-        // window's own duration.
         await coordinator.refresh(now: now.addingTimeInterval(duration + 1))
         #expect(history.storage[entry.storageIdentity] != nil, "A failed fetch must not archive a missing window")
         let filesAfterFailure = (try? FileManager.default.contentsOfDirectory(at: archiveDir, includingPropertiesForKeys: nil)) ?? []
         #expect(filesAfterFailure.isEmpty, "A failed fetch must not archive anything")
 
-        // A successful fetch whose response genuinely omits the window: the first such poll
-        // only starts the missing-window clock...
         mockUsage.result = .success(UsageResponse(entries: []))
         let firstMissingSuccess = now.addingTimeInterval(duration + 2)
         await coordinator.refresh(now: firstMissingSuccess)
         #expect(history.storage[entry.storageIdentity] != nil, "A single successful poll missing the window must not archive immediately")
 
-        // ...and only archives once continuously absent, across successful fetches, for the
-        // window's own full duration.
         await coordinator.refresh(now: firstMissingSuccess.addingTimeInterval(duration + 1))
         #expect(history.storage[entry.storageIdentity] == nil, "A window absent across successful fetches for a full duration must be archived")
         let filesAfterSuccess = (try? FileManager.default.contentsOfDirectory(at: archiveDir, includingPropertiesForKeys: nil)) ?? []

@@ -94,11 +94,11 @@ struct ServiceStateTests {
 
     @Test func successAfterFailuresRestartsBackoff() {
         var state = ServiceState()
-        state.recordFailure(category: .transient)  // 20
-        state.recordFailure(category: .transient)  // 40
+        state.recordFailure(category: .transient)
+        state.recordFailure(category: .transient)
 
         state.recordSuccess()
-        state.recordFailure(category: .transient)  // fresh: 10→20
+        state.recordFailure(category: .transient)
         #expect(state.currentBackoff == Constants.Retry.initialBackoff * 2)
     }
 
@@ -106,7 +106,7 @@ struct ServiceStateTests {
         var state = ServiceState()
         state.recordFailure(category: .transient)   // 10→20
         state.recordFailure(category: .authFailure)  // stays 20 (auth doesn't double)
-        state.recordFailure(category: .transient)    // 20→40
+        state.recordFailure(category: .transient)
         #expect(state.currentBackoff == 40)
         #expect(state.consecutiveFailures == 3)
     }

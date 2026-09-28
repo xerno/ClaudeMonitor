@@ -2,13 +2,10 @@ import Testing
 import Foundation
 @testable import ClaudeMonitor
 
-/// Token accounting from Claude Code's session logs. The whole energy estimate is built on these
-/// numbers, and the failure mode is silent: a wrong total still renders as a plausible reading.
 struct EnergyTokenLogTests {
 
-    // A real assistant line, trimmed to the fields that matter but keeping the shapes that caused
-    // trouble: `iterations` mirroring the top-level counts, and `thinking_tokens` inside
-    // `output_tokens_details`. Both must be ignored.
+    // Real line, trimmed. `iterations` repeats the top-level counts and `thinking_tokens` is already
+    // inside `output_tokens`; neither may be added again.
     private let assistantLine = """
     {"type":"assistant","requestId":"req_ABC","uuid":"uuid-1","timestamp":"2026-09-14T11:49:27.383Z",\
     "isSidechain":false,"message":{"id":"msg_ABC","model":"claude-opus-5","role":"assistant",\
@@ -41,14 +38,12 @@ struct EnergyTokenLogTests {
         #expect(parsed.dedupKey == "msg_ABC")
     }
 
-    /// `thinking_tokens` (76) sits inside `output_tokens` (197). Adding it would report 273.
     @Test func thinkingTokensAreNotCountedOnTopOfOutput() throws {
         let parsed = try entry(from: assistantLine)
         #expect(parsed.usage.output == 197)
         #expect(parsed.usage.total == 2 + 63195 + 27949 + 197)
     }
 
-    /// `iterations` repeats the same counts. Reading it would double every number on the line.
     @Test func iterationsAreNotAddedToTheTopLevelCounts() throws {
         let parsed = try entry(from: assistantLine)
         #expect(parsed.usage.cacheRead == 27949, "27949 doubled to 55898 would mean iterations leaked in")
@@ -72,7 +67,7 @@ struct EnergyTokenLogTests {
         #expect(TokenLogReader.parse(line: line) == .notAnAssistantResponse)
     }
 
-    /// Claude Code appends while the app reads, so a half-written final line is normal traffic.
+    /// Claude Code appends while the app reads, so a half-written final line is routine.
     @Test func truncatedLineIsReportedAsUnparsableRatherThanCrashing() {
         let truncated = String(assistantLine.dropLast(40))
         #expect(TokenLogReader.parse(line: truncated) == .unparsable)
@@ -89,7 +84,7 @@ struct EnergyTokenLogTests {
 
     // MARK: - Deduplication
 
-    /// The headline risk: raw summing overstates output tokens by 2.76× on real logs.
+    /// Raw summing overstates output tokens 2.76× on real logs.
     @Test func sameResponseSeenTwiceIsCountedOnce() {
         var acc = TokenAccumulator()
         acc.add(line: assistantLine)
@@ -109,7 +104,7 @@ struct EnergyTokenLogTests {
         #expect(acc.totals.usage.output == 394)
     }
 
-    /// 23 assistant lines in the real logs carry no requestId, so the key has to fall through.
+    /// 23 assistant lines in the real logs carry no requestId, so the key falls through.
     @Test func dedupFallsBackToRequestIdThenUuidWhenMessageIdIsMissing() throws {
         let noMessageId = """
         {"type":"assistant","requestId":"req_ONLY","uuid":"uuid-9","message":{"model":"claude-opus-5",\
@@ -126,7 +121,7 @@ struct EnergyTokenLogTests {
 
     // MARK: - Per-model split
 
-    /// Energy per token differs by model size, so the totals have to stay separable by model.
+    /// Energy per token differs by model size, so totals must stay separable by model.
     @Test func totalsAreSplitPerModel() {
         var acc = TokenAccumulator()
         acc.add(line: assistantLine)

@@ -2,7 +2,6 @@ import Testing
 import AppKit
 @testable import ClaudeMonitor
 
-/// The About window is where the single reading's provenance lives, so it has to actually say it.
 @MainActor
 struct EnergyAboutTests {
 
@@ -28,7 +27,7 @@ struct EnergyAboutTests {
         #expect(text.contains("training"), "readers will assume training is included unless told otherwise")
     }
 
-    /// The menu shows one number; the spread belongs here, computed on the user's own totals.
+    /// The menu shows one number, so the spread has to be stated here.
     @Test func aboutStatesTheSpreadForTheCurrentTotals() {
         let estimate = EnergyModel.estimate(outputTokens: 16_112_710)
         #expect(aboutText(energy: estimate).contains(estimate.rangeDescription))

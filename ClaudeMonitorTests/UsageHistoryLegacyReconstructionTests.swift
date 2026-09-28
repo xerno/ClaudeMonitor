@@ -2,11 +2,8 @@ import Foundation
 import Testing
 @testable import ClaudeMonitor
 
-/// Task 1: `UsageHistory.detectAndHandleReset`'s `stored == nil` + non-empty-samples path
-/// (legacy/restored data with no persisted boundary). These model the developer's real,
-/// damaged 5-hour history: 68 samples spanning ~3h, all of them actually belonging to the
-/// still-running window. All dates are explicit/injected — nothing here depends on the
-/// wall clock or timezone.
+/// Instances with samples but no persisted `resetsAt` (legacy/restored data). The first test
+/// mirrors a real damaged 5-hour history: 68 samples over ~3h, all in the running window.
 @Suite struct UsageHistoryLegacyReconstructionTests {
 
     private let base = Date(timeIntervalSince1970: 1_700_000_000)
@@ -18,15 +15,13 @@ import Testing
         history.switchOrganization(orgId)
 
         let identity = "18000" // five_hour, no model scope
-        // 68 samples spanning ~3h, ending at `base`.
         let samples = makeSamples(count: 68, startUtilization: 0, endUtilization: 60, span: 3 * 3600, endDate: base)
         history.storage[identity] = WindowInstance(
             id: UUID(), storageIdentity: identity, resetsAt: nil,
             firstObservedAt: samples.first!.timestamp, samples: samples, events: []
         )
 
-        // resetsAt - duration lands just below the first archived sample, i.e. the whole
-        // 3h span is inside the reconstructed current window (5h duration).
+        // windowStart (newResetsAt - 5h) lands 1s before the first sample.
         let newResetsAt = samples.first!.timestamp.addingTimeInterval(18000 - 1)
         let entry = makeEntry(key: "five_hour", utilization: 60, resetsAt: newResetsAt)
 
@@ -52,7 +47,6 @@ import Testing
         let identity = "18000"
         let duration: TimeInterval = 18000
 
-        // 10 samples spaced 1h apart, ending at `base`: t-9h ... t-0h.
         var samples: [UtilizationSample] = []
         for i in 0..<10 {
             samples.append(UtilizationSample(utilization: i * 5, timestamp: base.addingTimeInterval(TimeInterval(-9 + i) * 3600)))
@@ -62,8 +56,7 @@ import Testing
             firstObservedAt: samples.first!.timestamp, samples: samples, events: []
         )
 
-        // windowStart = newResetsAt - duration. Pick newResetsAt so windowStart falls
-        // strictly between sample[4] (t-5h) and sample[5] (t-4h): windowStart = t-4.5h.
+        // windowStart (t-4.5h) falls between sample[4] (t-5h) and sample[5] (t-4h).
         let windowStart = base.addingTimeInterval(-4.5 * 3600)
         let newResetsAt = windowStart.addingTimeInterval(duration)
         let entry = makeEntry(key: "five_hour", utilization: 45, resetsAt: newResetsAt)
@@ -71,8 +64,6 @@ import Testing
         let didReset = await history.detectAndHandleReset(entry: entry, newResetsAt: newResetsAt)
 
         #expect(didReset)
-        // Samples at t-9h..t-5h (indices 0-4, 5 samples) precede windowStart; t-4h..t-0h
-        // (indices 5-9, 5 samples) are at/after windowStart.
         #expect(history.storage[identity]?.samples.count == 5, "Exactly the post-windowStart samples are retained.")
         #expect(history.storage[identity]?.samples.map(\.utilization) == [25, 30, 35, 40, 45])
         #expect(history.storage[identity]?.resetsAt == newResetsAt)
@@ -96,7 +87,6 @@ import Testing
         let identity = "18000"
         let duration: TimeInterval = 18000
 
-        // 5 samples, all well before the reconstructed window (10h-6h before base).
         var samples: [UtilizationSample] = []
         for i in 0..<5 {
             samples.append(UtilizationSample(utilization: 50 + i, timestamp: base.addingTimeInterval(TimeInterval(-10 + i) * 3600)))
@@ -106,7 +96,7 @@ import Testing
             firstObservedAt: samples.first!.timestamp, samples: samples, events: []
         )
 
-        // newResetsAt chosen so windowStart is at `base` — after every sample.
+        // windowStart = base, after every sample.
         let newResetsAt = base.addingTimeInterval(duration)
         let entry = makeEntry(key: "five_hour", utilization: 0, resetsAt: newResetsAt)
 
@@ -123,13 +113,6 @@ import Testing
         #expect(decoded.samples.count == 5, "All 5 samples archived.")
     }
 
-    /// Task: Defect 4 — events must be partitioned by `windowStart` exactly like samples.
-    /// `record()` can append a `.credit` event to an instance whose `resetsAt` is still
-    /// `nil` (a brand-new window before the API has ever reported a boundary for it), so an
-    /// event predating the later-reconstructed `windowStart` genuinely belongs to the prior
-    /// (archived) window, not the retained current one. None of the other legacy-
-    /// reconstruction tests in this file have any events at all, so none of them could catch
-    /// a regression here.
     @Test @MainActor func eventsStraddlingWindowStartArePartitionedLikeSamples() async throws {
         let fixture = UsageHistoryTestFixture()
         let history = fixture.history
@@ -139,14 +122,10 @@ import Testing
         let identity = "18000"
         let duration: TimeInterval = 18000
 
-        // 10 samples spaced 1h apart, ending at `base`: t-9h ... t-0h (same shape as
-        // samplesStraddlingBoundaryArchiveOnlyThosePrecedingWindowStart).
         var samples: [UtilizationSample] = []
         for i in 0..<10 {
             samples.append(UtilizationSample(utilization: i * 5, timestamp: base.addingTimeInterval(TimeInterval(-9 + i) * 3600)))
         }
-        // One credit event before windowStart (t-7h, belongs to the archived prior window)
-        // and one after (t-2h, belongs to the retained current window).
         let priorEvent = UsageEvent(at: base.addingTimeInterval(-7 * 3600), kind: .credit, from: 20, to: 10, fromTimestamp: base.addingTimeInterval(-8 * 3600))
         let currentEvent = UsageEvent(at: base.addingTimeInterval(-2 * 3600), kind: .credit, from: 40, to: 30, fromTimestamp: base.addingTimeInterval(-3 * 3600))
         history.storage[identity] = WindowInstance(
@@ -154,7 +133,6 @@ import Testing
             firstObservedAt: samples.first!.timestamp, samples: samples, events: [priorEvent, currentEvent]
         )
 
-        // windowStart = t-4.5h, same as the sibling test.
         let windowStart = base.addingTimeInterval(-4.5 * 3600)
         let newResetsAt = windowStart.addingTimeInterval(duration)
         let entry = makeEntry(key: "five_hour", utilization: 45, resetsAt: newResetsAt)

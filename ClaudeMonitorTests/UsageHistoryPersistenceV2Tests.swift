@@ -14,7 +14,6 @@ import Testing
         let resetsAt = now.addingTimeInterval(600)
         let entry = makeEntry(key: "five_hour", utilization: 95, resetsAt: resetsAt)
 
-        // Session 1: instance ends high (95%), persisted with its boundary state.
         do {
             let history = fixture.history
             history.switchOrganization(orgId)
@@ -23,16 +22,12 @@ import Testing
             await history.save()
         }
 
-        // Session 2: simulate an app restart via a fresh UsageHistory instance over the
-        // same directory, then load() restores the persisted boundary state.
         let restarted = UsageHistory(baseDirectory: fixture.baseDirectory)
         restarted.switchOrganization(orgId)
         let restoredResetsAt = try #require(restarted.storage[entry.storageIdentity]?.resetsAt)
         #expect(abs(restoredResetsAt.timeIntervalSince(resetsAt)) < 0.01)
         #expect(restarted.storage[entry.storageIdentity]?.samples.count == 1)
 
-        // First poll after restart: resets_at has moved forward, and `now` is past the old
-        // resetsAt (the boundary genuinely passed while the app was closed).
         let newResetsAt = resetsAt.addingTimeInterval(18000)
         let pollNow = resetsAt.addingTimeInterval(30)
         let newEntry = makeEntry(key: "five_hour", utilization: 3, resetsAt: newResetsAt)
@@ -73,7 +68,6 @@ import Testing
         restarted.switchOrganization(orgId)
         #expect(restarted.storage[entry.storageIdentity]?.samples.count == 1)
 
-        // Restart happens mid-window: `now` has NOT reached resetsAt yet.
         let pollNow = now.addingTimeInterval(60)
         let sameEntry = makeEntry(key: "five_hour", utilization: 45, resetsAt: resetsAt)
         let didReset = await restarted.detectAndHandleReset(entry: sameEntry, newResetsAt: resetsAt, at: pollNow)
@@ -135,12 +129,8 @@ import Testing
         #expect(decoded.samples == samples)
     }
 
-    /// A legacy on-disk event has no `fromTimestamp` key at all (the field didn't exist when it
-    /// was written). Encoding an event constructed with `fromTimestamp: nil` produces exactly
-    /// that JSON shape — the synthesized `Encodable` conformance omits an `Optional` property's
-    /// key entirely when its value is `nil` — so this exercises the real "key absent" case, not
-    /// merely "key present as null". The file must decode successfully, with the field read
-    /// back as `nil` rather than any guessed value.
+    /// Synthesized `Encodable` omits the key for `fromTimestamp: nil`, reproducing a file written
+    /// before the field existed (key absent, not null).
     @Test func legacyEventMissingFromTimestampDecodesSuccessfullyAsNil() throws {
         let id = UUID()
         let firstObservedAt = Date(timeIntervalSince1970: 1_700_000_000)
@@ -163,9 +153,6 @@ import Testing
         #expect(decoded.samples.isEmpty)
     }
 
-    /// Reads a little-endian UInt32 out of `data` at `offset`, mirroring the codec's own
-    /// on-disk integer encoding, so tests can locate specific fields to corrupt without
-    /// reaching into the codec's private parsing internals.
     private func readUInt32LE(_ data: Data, at offset: Int) -> UInt32 {
         var value: UInt32 = 0
         for i in 0..<4 {
@@ -177,9 +164,7 @@ import Testing
     @Test func corruptedPayloadByteIsDetectedViaCRC() throws {
         let samples = sampleSet()
         var data = try WindowInstanceCodec.encode(id: UUID(), resetsAt: nil, firstObservedAt: Date(), events: [], samples: samples)
-        // Flip the last byte of the sample payload. In the v3 layout the CRC sits in the
-        // trailing 4 bytes of the file, so this is the byte immediately before it — still
-        // squarely inside the CRC-protected body, not the CRC field itself.
+        // Last payload byte: just before the trailing 4-byte CRC, so still CRC-covered.
         let flipIndex = data.count - 5
         data[data.index(data.startIndex, offsetBy: flipIndex)] ^= 0xFF
 
@@ -195,10 +180,7 @@ import Testing
     @Test func corruptedSampleCountIsDetectedViaCRC() throws {
         let samples = sampleSet()
         var data = try WindowInstanceCodec.encode(id: UUID(), resetsAt: nil, firstObservedAt: Date(), events: [], samples: samples)
-        // The sample-count field is the 4 bytes immediately following metadata, at offset
-        // magic(4) + version(2) + metaLen(4) + metaLen-bytes. Corrupting only this field
-        // (e.g. shrinking it) must be caught by the CRC — in the old v2 layout this field
-        // sat outside the CRC's coverage and could silently truncate real samples.
+        // sampleCount follows magic(4) + version(2) + metaLen(4) + metadata.
         let metaLen = Int(readUInt32LE(data, at: 6))
         let sampleCountOffset = 4 + 2 + 4 + metaLen
         data[data.index(data.startIndex, offsetBy: sampleCountOffset)] ^= 0xFF
@@ -213,16 +195,13 @@ import Testing
     @Test func corruptedVersionFieldIsCaught() throws {
         let samples = sampleSet()
         var data = try WindowInstanceCodec.encode(id: UUID(), resetsAt: nil, firstObservedAt: Date(), events: [], samples: samples)
-        // The version field is the 2 bytes immediately after the magic.
+        // Version starts right after the 4-byte magic.
         data[data.index(data.startIndex, offsetBy: 4)] ^= 0xFF
 
         #expect {
             try WindowInstanceCodec.decode(data)
         } throws: { error in
-            // The corrupted byte changes the version number itself, so the top-level
-            // dispatch (which reads version before touching the CRC) rejects it as an
-            // unrecognized version before the CRC is even checked. Either outcome proves the
-            // corruption was caught, never silently accepted.
+            // Version is dispatched on before the CRC is checked, so this normally surfaces as .versionMismatch.
             switch error as? WindowInstanceCodecError {
             case .crcMismatch, .versionMismatch: return true
             default: return false
@@ -232,9 +211,7 @@ import Testing
 
     @Test func severelyTruncatedFileIsDetectedAsTruncated() throws {
         let data = try WindowInstanceCodec.encode(id: UUID(), resetsAt: Date(), firstObservedAt: Date(), events: [], samples: sampleSet())
-        // Cut off right after magic+version — too short to even read the trailing CRC field,
-        // so this is the one truncation length short enough that the CRC-first check (which
-        // every longer truncation routes through, surfacing as .crcMismatch) can't run at all.
+        // Magic + version only: too short for the CRC check to run, hence .truncated, not .crcMismatch.
         let truncated = data.prefix(6)
 
         #expect {
@@ -246,10 +223,6 @@ import Testing
 
     @Test func truncationMidPayloadIsDetectedViaCRC() throws {
         let data = try WindowInstanceCodec.encode(id: UUID(), resetsAt: nil, firstObservedAt: Date(), events: [], samples: sampleSet())
-        // Cut off several bytes from the end, landing inside the sample payload (well before
-        // the boundary of the trailing CRC field). The CRC is checked before any per-field
-        // parsing, so this is always caught as a checksum mismatch, never decoded as
-        // fewer-than-expected samples.
         let truncated = data.prefix(data.count - 6)
 
         #expect {
@@ -261,7 +234,6 @@ import Testing
 
     @Test func truncationInsideCRCFieldItselfIsDetected() throws {
         let data = try WindowInstanceCodec.encode(id: UUID(), resetsAt: nil, firstObservedAt: Date(), events: [], samples: sampleSet())
-        // Cut off just the last byte — inside the trailing CRC field itself.
         let truncated = data.prefix(data.count - 1)
 
         #expect {
@@ -272,17 +244,10 @@ import Testing
     }
 
     @Test func trailingBytesAfterSampleCountAreDetected() throws {
-        // A `sampleCount` that's too SMALL relative to the actual payload bytes present
-        // must be a typed error, not silently ignored — this is the flip side of Defect 2's
-        // "sampleCount too large truncates real samples": here decoding succeeds for
-        // `sampleCount` samples but leaves genuine payload bytes unconsumed.
         var data = try WindowInstanceCodec.encode(id: UUID(), resetsAt: nil, firstObservedAt: Date(), events: [], samples: sampleSet())
         let metaLen = Int(readUInt32LE(data, at: 6))
         let sampleCountOffset = 4 + 2 + 4 + metaLen
-        // sampleSet() has 4 samples; claim only 1 was written. The CRC was computed over the
-        // original (correct) sampleCount + full payload, so this alone would already fail
-        // via CRC — recompute and overwrite the trailing CRC field to isolate the
-        // trailing-bytes check instead.
+        // Recompute the CRC so the tampered count reaches the trailing-bytes check instead of failing the CRC.
         var newSampleCountBytes = Data()
         newSampleCountBytes.append(contentsOf: withUnsafeBytes(of: UInt32(1).littleEndian) { Array($0) })
         data.replaceSubrange(
@@ -322,17 +287,9 @@ import Testing
 
 // MARK: - Task: Defect 2 — the v2-compatibility read path against genuine v2 bytes
 
-/// These fixtures are base64 of complete, real files recovered from an actual user's disk
-/// (never round-tripped through this codec's own `encode()`, which only ever writes v3) —
-/// this is what protects existing on-disk history the first time a v3 build reads it, so it
-/// must be verified against the real byte layout, not just self-consistently round-tripped.
-/// Their layout was independently confirmed before being embedded here: magic "CMH2",
-/// version = 2 (UInt16 LE), metaLen (UInt32 LE), metadata JSON, sampleCount (UInt32 LE),
-/// crc32 (UInt32 LE), payload — with the CRC computed over metadata + payload ONLY (excluding
-/// `version` and `sampleCount`, exactly the gap v3 closed — see `decodeLayoutV2`'s doc
-/// comment). Expected metadata/sample values below were derived by manually decoding these
-/// exact bytes (base64 -> raw bytes -> the v2 field layout -> uvarint/zigzag sample deltas),
-/// not guessed or copied from any other source.
+/// Real v2 files recovered from a user's disk, never round-tripped through `encode()` (v3 only),
+/// so the v2 read path is checked against genuine bytes. Expected values were decoded by hand
+/// from these bytes.
 @Suite struct RealV2FixtureTests {
     @Test func decodesRealV2LiveInstanceFile() throws {
         let data = try #require(Data(base64Encoded: RealV2Fixtures.liveV2Base64))
@@ -364,16 +321,9 @@ import Testing
         #expect(decoded.samples.last?.timestamp == Date(timeIntervalSince1970: 1786977718))
     }
 
-    /// v2's CRC covers metadata+payload, so a corrupted PAYLOAD byte is still caught here.
-    /// What it can NOT catch — by construction, and precisely the gap v3 closed — is
-    /// corruption of `sampleCount` (or `version`) itself, since both sit outside the v2 CRC's
-    /// coverage (see `decodeLayoutV2`'s doc comment): a real v2 file with a corrupted sample
-    /// count would silently decode a truncated or garbage sample list instead of failing.
-    /// That gap is exactly why this codec never writes v2 anymore, only reads it.
     @Test func realV2FileWithCorruptedPayloadByteIsRejected() throws {
         var data = try #require(Data(base64Encoded: RealV2Fixtures.liveV2Base64))
-        // Flip a byte well inside the sample payload (offset 184 of 194; payload spans
-        // 140...193) — not metadata, not the leading CRC field.
+        // Payload spans bytes 140...193 of 194, after the leading CRC.
         let flipIndex = data.count - 10
         data[data.index(data.startIndex, offsetBy: flipIndex)] ^= 0xFF
 
@@ -408,12 +358,10 @@ import Testing
         let samples = [
             UtilizationSample(utilization: 10, timestamp: base),
             UtilizationSample(utilization: 10, timestamp: base.addingTimeInterval(60)),
-            // Gap of 400s (>= 300s gapThreshold) with the SAME value on both sides.
             UtilizationSample(utilization: 10, timestamp: base.addingTimeInterval(460)),
             UtilizationSample(utilization: 10, timestamp: base.addingTimeInterval(520)),
         ]
         let collapsed = UsageHistory.collapsePlateaus(samples, gapThreshold: 300)
-        // Both sides of the gap must be preserved as distinct points, not interpolated through.
         #expect(collapsed.map(\.timestamp) == [base, base.addingTimeInterval(60), base.addingTimeInterval(460), base.addingTimeInterval(520)])
     }
 
@@ -440,14 +388,12 @@ import Testing
         let resetsAt = now.addingTimeInterval(600)
         let base = now.addingTimeInterval(-3000)
 
-        // A long plateau of identical values (well within gapThreshold), then a final change.
         let entry1 = makeEntry(key: "five_hour", utilization: 10, resetsAt: resetsAt)
         history.record(entries: [entry1], at: base)
         history.record(entries: [makeEntry(key: "five_hour", utilization: 10, resetsAt: resetsAt)], at: base.addingTimeInterval(60))
         history.record(entries: [makeEntry(key: "five_hour", utilization: 10, resetsAt: resetsAt)], at: base.addingTimeInterval(120))
         history.record(entries: [makeEntry(key: "five_hour", utilization: 50, resetsAt: resetsAt)], at: base.addingTimeInterval(180))
 
-        // Live instance must stay dense (never collapsed) before archiving.
         #expect(history.samples(for: entry1).count == 4)
 
         await history.archiveWindow(identity: entry1.storageIdentity, resetsAt: resetsAt, windowDuration: 18000, replacingWith: nil)
@@ -457,7 +403,6 @@ import Testing
         #expect(files.count == 1)
         let data = try Data(contentsOf: files[0])
         let decoded = try WindowInstanceCodec.decode(data)
-        // The 3-sample plateau at 10% collapses to first+last (2 samples), plus the final 50%.
         #expect(decoded.samples.map(\.utilization) == [10, 10, 50])
 
     }

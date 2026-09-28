@@ -2,7 +2,6 @@ import AppKit
 import Testing
 @testable import ClaudeMonitor
 
-/// The General checkbox that takes the blocked countdown out of the menu bar.
 @MainActor
 struct BlockedCountdownPreferenceTests {
 
@@ -27,7 +26,7 @@ struct BlockedCountdownPreferenceTests {
         #expect(!title(showCountdown: true).isEmpty)
     }
 
-    /// "Only the Claude icon" — the whole title goes, stop sign included.
+    /// The whole title goes, stop sign included.
     @Test func turnedOffTheTitleGoesEmpty() {
         #expect(title(showCountdown: false).isEmpty)
     }
@@ -45,7 +44,6 @@ struct BlockedCountdownPreferenceTests {
         #expect(Constants.Preferences.isBlockedCountdownShown(in: defaults))
     }
 
-    /// The state carries it through to the renderer; nothing reads UserDefaults twice.
     @Test func theStateDefaultsToShowing() {
         #expect(MonitorState().showBlockedCountdown)
         #expect(!MonitorState(showBlockedCountdown: false).showBlockedCountdown)

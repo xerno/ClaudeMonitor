@@ -16,100 +16,86 @@ struct UsageStyleTests {
         )
     }
 
-    // windowDuration=1000, timeRemaining=500 (50% remaining), timeElapsed=500
-    // impliedRate = utilization / 500, projected = utilization + rate * 500 = utilization * 2
+    // At 50% remaining, projected = 2 × utilization.
 
     @Test func styleNormal() {
-        // 10% used, 50% remaining → projected = 10 + (10/500)*500 = 20 → normal, not bold
         let s = style(utilization: 10, timeRemainingPercent: 50)
         #expect(s.level == .normal)
         #expect(!s.isBold)
     }
 
     @Test func styleBoldByProjection() {
-        // 40% used, 50% remaining → projected = 40 + (40/500)*500 = 80 → bold (≥80)
         let s = style(utilization: 40, timeRemainingPercent: 50)
         #expect(s.level == .normal)
         #expect(s.isBold)
     }
 
     @Test func styleWarningByProjection() {
-        // 50% used, 50% remaining → projected = 50 + (50/500)*500 = 100 → warning (≥100)
         let s = style(utilization: 50, timeRemainingPercent: 50)
         #expect(s.level == .warning)
         #expect(s.isBold)
     }
 
     @Test func styleCriticalByProjection() {
-        // 60% used, 50% remaining → projected = 60 + (60/500)*500 = 120 → critical (≥120)
         let s = style(utilization: 60, timeRemainingPercent: 50)
         #expect(s.level == .critical)
         #expect(s.isBold)
     }
 
     @Test func styleRedByFixedThreshold() {
-        // utilization ≥ 100 → always critical regardless of projection
         let s = style(utilization: 100, timeRemainingPercent: 80)
         #expect(s.level == .critical)
         #expect(s.isBold)
     }
 
     @Test func styleRedByHighUtilization() {
-        // 78% used, 60% remaining → projected = 78 + (78/400)*600 = 78+117 = 195 → critical
         let s = style(utilization: 78, timeRemainingPercent: 60)
         #expect(s.level == .critical)
         #expect(s.isBold)
     }
 
     @Test func styleAtExactBoldThreshold() {
-        // utilization=79, 1.25% remaining (f=0.9875 elapsed) → projected = 79/0.9875 = 80.0 exactly → bold
+        // 79 / 0.9875 elapsed = 80.0
         let s = style(utilization: 79, timeRemainingPercent: 1.25)
         #expect(s.level == .normal)
         #expect(s.isBold)
     }
 
     @Test func styleJustBelowBoldThreshold() {
-        // utilization=78, same timing (f=0.9875) → projected = 78/0.9875 ≈ 78.99 < 80 → not bold
         let s = style(utilization: 78, timeRemainingPercent: 1.25)
         #expect(s.level == .normal)
         #expect(!s.isBold)
     }
 
     @Test func styleAtExactWarningThreshold() {
-        // utilization=99, 1% remaining (f=0.99 elapsed) → projected = 99/0.99 = 100.0 exactly → warning
+        // 99 / 0.99 elapsed = 100.0
         let s = style(utilization: 99, timeRemainingPercent: 1)
         #expect(s.level == .warning)
         #expect(s.isBold)
     }
 
     @Test func styleJustBelowWarningThreshold() {
-        // utilization=98, same timing (f=0.99) → projected = 98/0.99 ≈ 98.99 < 100 → normal, bold
         let s = style(utilization: 98, timeRemainingPercent: 1)
         #expect(s.level == .normal)
         #expect(s.isBold)
     }
 
-    // The critical pair MUST keep utilization below 100. Utilization >= 100 is unconditionally
-    // critical (blocked) regardless of projection, so a fixture at 107/108 would pass via the
-    // blocked rule without ever exercising the 120 projection threshold — passing for the wrong
-    // reason. Half-elapsed timing (f = 0.5) makes the projection exactly twice the utilization.
+    // The critical pair stays below 100: utilization >= 100 is critical whatever the projection,
+    // so such a fixture would pass without exercising the 120 threshold.
 
     @Test func styleAtExactCriticalThreshold() {
-        // utilization=60, 50% remaining (f=0.5 elapsed) → projected = 60/0.5 = 120.0 exactly → critical
         let s = style(utilization: 60, timeRemainingPercent: 50)
         #expect(s.level == .critical)
         #expect(s.isBold)
     }
 
     @Test func styleJustBelowCriticalThreshold() {
-        // utilization=59, same timing (f=0.5) → projected = 59/0.5 = 118.0 < 120 → warning, not critical
         let s = style(utilization: 59, timeRemainingPercent: 50)
         #expect(s.level == .warning)
         #expect(s.isBold)
     }
 
     @Test func styleNotBoldWhenLowProjection() {
-        // 15% used, 80% remaining → elapsed=200, rate=0.075%/s, projected=15+0.075*800=75 → not bold
         let s = style(utilization: 15, timeRemainingPercent: 80)
         #expect(s.level == .normal)
         #expect(!s.isBold)
@@ -129,49 +115,42 @@ struct UsageStyleTests {
     }
 
     @Test func fallbackBelowBoldThreshold() {
-        // 79 < 80 → normal, not bold
         let s = fallbackStyle(utilization: 79)
         #expect(s.level == .normal)
         #expect(!s.isBold)
     }
 
     @Test func fallbackAtBoldThreshold() {
-        // 80 ≥ 80 → bold but not orange
         let s = fallbackStyle(utilization: 80)
         #expect(s.level == .normal)
         #expect(s.isBold)
     }
 
     @Test func fallbackBelowWarningThreshold() {
-        // 89 ≥ 80, < 90 → bold but not orange
         let s = fallbackStyle(utilization: 89)
         #expect(s.level == .normal)
         #expect(s.isBold)
     }
 
     @Test func fallbackAtWarningThreshold() {
-        // 90 ≥ 90 → warning (orange), not red
         let s = fallbackStyle(utilization: 90)
         #expect(s.level == .warning)
         #expect(s.isBold)
     }
 
     @Test func fallbackBelowCriticalThreshold() {
-        // 94 ≥ 90, < 95 → warning (orange), not red
         let s = fallbackStyle(utilization: 94)
         #expect(s.level == .warning)
         #expect(s.isBold)
     }
 
     @Test func fallbackAtCriticalThreshold() {
-        // 95 ≥ 95 → critical (red)
         let s = fallbackStyle(utilization: 95)
         #expect(s.level == .critical)
         #expect(s.isBold)
     }
 
     @Test func fallbackBlocked() {
-        // 100 ≥ 100 → critical (blocked)
         let s = fallbackStyle(utilization: 100)
         #expect(s.level == .critical)
         #expect(s.isBold)
@@ -190,22 +169,18 @@ struct UsageStyleTests {
     }
 
     @Test func shouldShowLowProjection() {
-        // 10% used, 50% remaining → projected = 20 → no show (< 80)
         #expect(!shouldShow(utilization: 10, timeRemainingPercent: 50))
     }
 
     @Test func shouldShowProjectionAtBoldThreshold() {
-        // 40% used, 50% remaining → projected = 80 → show (≥ 80)
         #expect(shouldShow(utilization: 40, timeRemainingPercent: 50))
     }
 
     @Test func shouldShowHighProjection() {
-        // 65% used, 40% remaining → elapsed=600, rate=65/600, projected=65+(65/600)*400 ≈ 108 → show
         #expect(shouldShow(utilization: 65, timeRemainingPercent: 40))
     }
 
     @Test func shouldShowLowUtilizationLittleTime() {
-        // 20% used, 10% remaining (90% elapsed) → elapsed=900, rate=20/900, projected=20+(20/900)*100≈22 → no show
         #expect(!shouldShow(utilization: 20, timeRemainingPercent: 10))
     }
 
@@ -255,7 +230,6 @@ struct UsageStyleTests {
     }
 
     @Test func usageStyleLevelDominatesOverBold() {
-        // warning (not bold) > normal (bold)
         let normalBold = Formatting.UsageStyle(level: .normal, isBold: true)
         let warningNotBold = Formatting.UsageStyle(level: .warning, isBold: false)
         #expect(!(warningNotBold < normalBold))

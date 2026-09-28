@@ -40,11 +40,7 @@ final class MockUsageService: UsageFetching, @unchecked Sendable {
     var lastOrgId: String?
     var lastCookie: String?
 
-    /// Opt-in suspension hook for tests that need a `fetch()` call to genuinely suspend
-    /// mid-flight (e.g. to construct an org-switch-during-in-flight-fetch race). Awaited
-    /// inside `fetch` only when non-nil, right before the result is returned, so every
-    /// existing test (which never sets this) sees byte-for-byte unchanged behaviour —
-    /// `fetch` returns synchronously-in-effect with no added suspension point.
+    /// Set to suspend `fetch` mid-flight, for in-flight races such as an org switch during a fetch.
     var beforeReturn: (@Sendable () async -> Void)?
 
     func fetch(organizationId: String, cookieString: String) async throws -> UsageResponse {

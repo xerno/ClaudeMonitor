@@ -138,7 +138,6 @@ import Testing
         let sonnet = makeEntry(key: "seven_day_sonnet", utilization: 9, resetsAt: sevenDayResetsAt)
         #expect(sonnet.storageIdentity == "604800_sonnet")
 
-        // Verify second construction yields same identity (determinism check)
         let fiveHour2 = makeEntry(key: "five_hour", utilization: 99, resetsAt: resetsAt)
         #expect(fiveHour2.storageIdentity == fiveHour.storageIdentity)
     }
@@ -240,10 +239,6 @@ import Testing
         }
     }
 
-    // Ownership is by explicit WindowInstance, not a derived window boundary: recording
-    // into one identity with a changed resets_at (without going through
-    // detectAndHandleReset's archive-and-reset) must never affect a different identity,
-    // and never silently drops the identity's own prior samples either.
     @Test @MainActor func recordingAcrossIdentitiesNeverCrossContaminates() async {
         let fixture = UsageHistoryTestFixture()
         let history = fixture.history
