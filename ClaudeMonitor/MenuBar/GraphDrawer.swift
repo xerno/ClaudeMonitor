@@ -48,7 +48,8 @@ struct GraphDrawer {
         static let totalHeight: CGFloat = topPadding + graphHeight + graphStatsGap + statsHeight + bottomPadding
         static let noDataHeight: CGFloat = 0
         static let currentDotRadius: CGFloat = 2.5
-        static let yAxisLabelBgPadding: CGFloat = 2
+        /// Percent of the font size, not points.
+        static let labelHaloStrokeWidth: CGFloat = 30
         static let yAxisLabelInset: CGFloat = 2
         static let nowLabelBottomGap: CGFloat = 1
         static let projectionLabelOffset: CGFloat = 3

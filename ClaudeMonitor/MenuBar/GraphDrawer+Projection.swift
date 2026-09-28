@@ -85,7 +85,7 @@ extension GraphDrawer {
         if labelX + labelSize.width > rect.maxX {
             labelX = point.x - labelSize.width - Layout.projectionLabelOffset
         }
-        labelStr.draw(at: NSPoint(x: labelX, y: labelY))
+        drawWithHalo(labelStr, at: NSPoint(x: labelX, y: labelY))
     }
 
     private func drawBlockedZone(fromX: CGFloat, in rect: NSRect, yLimit: CGFloat, xReset: CGFloat) {

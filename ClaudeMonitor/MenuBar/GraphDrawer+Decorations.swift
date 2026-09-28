@@ -18,7 +18,7 @@ extension GraphDrawer {
         let strSize = str.size()
         var labelX = xNow - strSize.width / 2
         labelX = max(rect.minX, min(labelX, rect.maxX - strSize.width))
-        str.draw(at: NSPoint(x: labelX, y: rect.maxY - strSize.height - Layout.nowLabelBottomGap))
+        drawWithHalo(str, at: NSPoint(x: labelX, y: rect.maxY - strSize.height - Layout.nowLabelBottomGap))
     }
 
     func drawCurrentDot(in rect: NSRect, timeRange: ClosedRange<Date>, now: Date, currentUtil: Double) {
@@ -36,7 +36,6 @@ extension GraphDrawer {
             .font: NSFont.systemFont(ofSize: 10),
             .foregroundColor: NSColor.secondaryLabelColor
         ]
-        let bgColor = NSColor.windowBackgroundColor
         // Locale-aware, replacing hardcoded "0%"/"50%"/"100%" — those literals forced the percent
         // sign to trail the number and used Western-Arabic numerals in every locale, including
         // ones that lead with the sign or use a different numbering system. Built once per axis
@@ -51,18 +50,21 @@ extension GraphDrawer {
             // `.percent` multiplies by 100, so the fraction is what goes in.
             let label = percentFormatter.string(from: NSNumber(value: pct / 100)) ?? "\(Int(pct))%"
             let str = NSAttributedString(string: label, attributes: attrs)
-            let size = str.size()
-            let x = rect.minX + Layout.yAxisLabelInset
-            let y = yPosition(for: pct, in: rect) - size.height / 2
-            let bgRect = NSRect(
-                x: x - Layout.yAxisLabelBgPadding,
-                y: y - Layout.yAxisLabelBgPadding,
-                width: size.width + Layout.yAxisLabelBgPadding * 2,
-                height: size.height + Layout.yAxisLabelBgPadding * 2
+            let point = NSPoint(
+                x: rect.minX + Layout.yAxisLabelInset,
+                y: yPosition(for: pct, in: rect) - str.size().height / 2
             )
-            bgColor.setFill()
-            bgRect.fill()
-            str.draw(at: NSPoint(x: x, y: y))
+            drawWithHalo(str, at: point)
         }
+    }
+
+    func drawWithHalo(_ text: NSAttributedString, at point: NSPoint) {
+        let halo = NSMutableAttributedString(attributedString: text)
+        halo.addAttributes(
+            [.strokeColor: NSColor.windowBackgroundColor, .strokeWidth: Layout.labelHaloStrokeWidth],
+            range: NSRange(location: 0, length: halo.length)
+        )
+        halo.draw(at: point)
+        text.draw(at: point)
     }
 }
