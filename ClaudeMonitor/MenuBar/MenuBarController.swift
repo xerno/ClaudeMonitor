@@ -52,7 +52,7 @@ final class MenuBarController: NSObject, MenuActions {
 
     // MARK: - UI Updates
 
-    private func applyUIUpdates() {
+    private func applyUIUpdates(refreshTitle: Bool = false) {
         animationTask?.cancel()
         let state = coordinator.monitorState
         if let button = statusItem.button {
@@ -60,7 +60,8 @@ final class MenuBarController: NSObject, MenuActions {
                 button: button, status: state.service.currentStatus,
                 hasRefreshWarning: state.polling.isAnyServiceStale
             )
-            if !isMenuOpen {
+            // Title width anchors the open dropdown; changing it slides the menu.
+            if refreshTitle || !isMenuOpen {
                 StatusBarRenderer.updateText(
                     button: button, usage: state.usage.currentUsage,
                     hasCredentials: state.hasCredentials,
@@ -103,7 +104,7 @@ final class MenuBarController: NSObject, MenuActions {
 
     @objc func didSelectProfile(id: String) {
         coordinator.switchToProfile(id: id)
-        applyUIUpdates()
+        applyUIUpdates(refreshTitle: true)
     }
 
     @objc func didSelectUsageWindow(_ sender: NSMenuItem) {
