@@ -41,9 +41,9 @@ let package = Package(
             exclude: [
                 "AppDelegate.swift",
                 "Assets.xcassets",
+                "Generated/Translations/Localizable.xcstrings",
             ],
             resources: [
-                .process("Generated/Translations/Localizable.xcstrings"),
                 .process("Resources/DemoSamples.json"),
             ],
             swiftSettings: commonSwiftSettings + [
