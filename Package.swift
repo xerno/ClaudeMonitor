@@ -3,7 +3,7 @@ import Foundation
 import PackageDescription
 
 // From the active toolchain so the Testing framework matches the compiler (SDK mismatch on CI runners).
-let testingFrameworkPath: String = {
+let testingLibraryPaths: (frameworks: String, interop: String) = {
     let task = Process()
     task.executableURL = URL(fileURLWithPath: "/usr/bin/xcode-select")
     task.arguments = ["-p"]
@@ -16,12 +16,17 @@ let testingFrameworkPath: String = {
        let devDir = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
         .trimmingCharacters(in: .whitespacesAndNewlines),
        !devDir.isEmpty {
-        let xcodeFrameworks = devDir + "/Platforms/MacOSX.platform/Developer/Library/Frameworks"
-        if FileManager.default.fileExists(atPath: xcodeFrameworks) { return xcodeFrameworks }
-        let cltFrameworks = devDir + "/Library/Developer/Frameworks"
-        if FileManager.default.fileExists(atPath: cltFrameworks) { return cltFrameworks }
+        let xcodeDeveloper = devDir + "/Platforms/MacOSX.platform/Developer"
+        if FileManager.default.fileExists(atPath: xcodeDeveloper + "/Library/Frameworks") {
+            return (xcodeDeveloper + "/Library/Frameworks", xcodeDeveloper + "/usr/lib")
+        }
+        let cltDeveloper = devDir + "/Library/Developer"
+        if FileManager.default.fileExists(atPath: cltDeveloper + "/Frameworks") {
+            return (cltDeveloper + "/Frameworks", cltDeveloper + "/usr/lib")
+        }
     }
-    return "/Library/Developer/CommandLineTools/Library/Developer/Frameworks"
+    let fallbackDeveloper = "/Library/Developer/CommandLineTools/Library/Developer"
+    return (fallbackDeveloper + "/Frameworks", fallbackDeveloper + "/usr/lib")
 }()
 
 // Keep in sync with scripts/build-config.sh.
@@ -72,16 +77,18 @@ let package = Package(
             sources: ["ClaudeMonitorTests", "TestRunner"],
             swiftSettings: commonSwiftSettings + [
                 .unsafeFlags([
-                    "-F", testingFrameworkPath,
+                    "-F", testingLibraryPaths.frameworks,
                     "-Xfrontend", "-disable-cross-import-overlays",
                 ]),
             ],
             linkerSettings: [
                 .unsafeFlags([
-                    "-F", testingFrameworkPath,
+                    "-F", testingLibraryPaths.frameworks,
                     "-framework", "Testing",
                     "-Xlinker", "-rpath",
-                    "-Xlinker", testingFrameworkPath,
+                    "-Xlinker", testingLibraryPaths.frameworks,
+                    "-Xlinker", "-rpath",
+                    "-Xlinker", testingLibraryPaths.interop,
                 ]),
             ]
         ),
