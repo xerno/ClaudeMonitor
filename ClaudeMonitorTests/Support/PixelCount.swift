@@ -13,9 +13,11 @@ func pixelCount(in image: NSImage, matching target: NSColor, tolerance: CGFloat 
     return matches
 }
 
+let pixelScale = 3.0
+
 @MainActor
-func renderedBitmap(of image: NSImage, scale: Double = 3.0) -> NSBitmapImageRep? {
-    let width = Int(image.size.width * scale), height = Int(image.size.height * scale)
+func renderedBitmap(of image: NSImage) -> NSBitmapImageRep? {
+    let width = Int(image.size.width * pixelScale), height = Int(image.size.height * pixelScale)
     guard let rep = NSBitmapImageRep(
         bitmapDataPlanes: nil, pixelsWide: width, pixelsHigh: height,
         bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,

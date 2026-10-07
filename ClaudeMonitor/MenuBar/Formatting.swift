@@ -187,11 +187,11 @@ enum Formatting {
             bgPath.fill()
             let filledWidth = rect.width * CGFloat(clamped) / 100
             if filledWidth > 0 {
-                // Never narrower than a circle, cut back to the real width: a thinner capsule squashes into a sliver.
+                let capsuleWidth = max(filledWidth, rect.height)
                 NSGraphicsContext.saveGraphicsState()
                 fillColor.setFill()
                 NSBezierPath(rect: NSRect(x: 0, y: 0, width: filledWidth, height: rect.height)).addClip()
-                let capsule = NSRect(x: 0, y: 0, width: max(filledWidth, rect.height), height: rect.height)
+                let capsule = NSRect(x: 0, y: 0, width: capsuleWidth, height: rect.height)
                 let fgPath = NSBezierPath(roundedRect: capsule, xRadius: rect.height / 2, yRadius: rect.height / 2)
                 fgPath.fill()
                 NSGraphicsContext.restoreGraphicsState()
