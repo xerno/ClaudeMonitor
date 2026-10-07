@@ -187,10 +187,14 @@ enum Formatting {
             bgPath.fill()
             let filledWidth = rect.width * CGFloat(clamped) / 100
             if filledWidth > 0 {
+                let capsuleWidth = max(filledWidth, rect.height)
+                NSGraphicsContext.saveGraphicsState()
                 fillColor.setFill()
-                let fgPath = NSBezierPath(roundedRect: NSRect(x: 0, y: 0, width: filledWidth, height: rect.height),
-                                          xRadius: rect.height / 2, yRadius: rect.height / 2)
+                NSBezierPath(rect: NSRect(x: 0, y: 0, width: filledWidth, height: rect.height)).addClip()
+                let capsule = NSRect(x: 0, y: 0, width: capsuleWidth, height: rect.height)
+                let fgPath = NSBezierPath(roundedRect: capsule, xRadius: rect.height / 2, yRadius: rect.height / 2)
                 fgPath.fill()
+                NSGraphicsContext.restoreGraphicsState()
             }
             return true
         }
