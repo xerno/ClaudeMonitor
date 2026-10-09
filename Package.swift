@@ -3,7 +3,7 @@ import Foundation
 import PackageDescription
 
 // From the active toolchain so the Testing framework matches the compiler (SDK mismatch on CI runners).
-let testingLibraryPaths: (frameworks: String, interop: String) = {
+let developerDirectory: String? = {
     let task = Process()
     task.executableURL = URL(fileURLWithPath: "/usr/bin/xcode-select")
     task.arguments = ["-p"]
@@ -12,21 +12,33 @@ let testingLibraryPaths: (frameworks: String, interop: String) = {
     task.standardError = FileHandle.nullDevice
     try? task.run()
     task.waitUntilExit()
-    if task.terminationStatus == 0,
-       let devDir = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
-        .trimmingCharacters(in: .whitespacesAndNewlines),
-       !devDir.isEmpty {
-        let xcodeDeveloper = devDir + "/Platforms/MacOSX.platform/Developer"
+    guard task.terminationStatus == 0,
+          let devDir = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+          !devDir.isEmpty else { return nil }
+    return devDir
+}()
+
+let testingLibraryPaths: (frameworks: String, interop: String) = {
+    if let developerDirectory {
+        let xcodeDeveloper = developerDirectory + "/Platforms/MacOSX.platform/Developer"
         if FileManager.default.fileExists(atPath: xcodeDeveloper + "/Library/Frameworks") {
             return (xcodeDeveloper + "/Library/Frameworks", xcodeDeveloper + "/usr/lib")
         }
-        let cltDeveloper = devDir + "/Library/Developer"
+        let cltDeveloper = developerDirectory + "/Library/Developer"
         if FileManager.default.fileExists(atPath: cltDeveloper + "/Frameworks") {
             return (cltDeveloper + "/Frameworks", cltDeveloper + "/usr/lib")
         }
     }
     let fallbackDeveloper = "/Library/Developer/CommandLineTools/Library/Developer"
     return (fallbackDeveloper + "/Frameworks", fallbackDeveloper + "/usr/lib")
+}()
+
+let testingMacrosPluginFlags: [String] = {
+    let pluginDirectory = (developerDirectory ?? "/Library/Developer/CommandLineTools")
+        + "/usr/lib/swift/host/plugins/testing"
+    guard FileManager.default.fileExists(atPath: pluginDirectory) else { return [] }
+    return ["-plugin-path", pluginDirectory]
 }()
 
 // Keep in sync with scripts/build-config.sh.
@@ -79,7 +91,7 @@ let package = Package(
                 .unsafeFlags([
                     "-F", testingLibraryPaths.frameworks,
                     "-Xfrontend", "-disable-cross-import-overlays",
-                ]),
+                ] + testingMacrosPluginFlags),
             ],
             linkerSettings: [
                 .unsafeFlags([
