@@ -152,11 +152,12 @@ extension MenuBarController: NSMenuDelegate {
 
     func menuDidClose(_ menu: NSMenu) {
         isMenuOpen = false
-        applyUIUpdates()
         // A row click that closes the menu never reports the highlight going away, and the views
         // outlive the menu session, so the row would stay lit.
         MenuBuilder.syncHighlight(in: menu, highlighted: nil)
         MenuBuilder.resetFooterHover(in: menu)
-        updateCountdownState()
+        Task { [weak self] in
+            self?.applyUIUpdates()
+        }
     }
 }
